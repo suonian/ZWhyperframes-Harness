@@ -60,10 +60,10 @@ ZWhyperframes-Harness/
 │   ├── gate.mjs             轻量门禁（锁稿哈希/TTS 同源/官方 check --strict 包装/段 MP4 校验）
 │   ├── finalize-master.mjs  thin ffmpeg concat + 输入校验
 │   └── state.mjs            轻量状态/授权记录/哈希绑定
-├── templates/    （无品牌；仅 caption skin 备用与分段脚手架模板）
 ├── tools/minimax/ MiniMax 调用器（照搬）
 └── tests/        单步脚本测试
 ```
+（`templates/` 暂不设立：无品牌资产；字幕适配按「先官方后适配」验证后再决定是否需要分组数据模板。）
 
 **明确不包含**：队列/心跳/lease、worker 执行层、物理镜像、transcript 证据、Ed25519、任务图、自建 storyboard parser、自建 caption 渲染、自建转场、自建装配、品牌资产。
 

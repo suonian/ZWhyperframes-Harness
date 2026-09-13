@@ -25,7 +25,7 @@
 | master | — | `finalize-master.mjs`（thin ffmpeg concat，仅用已确认段 MP4）→ master final look（用户）→ 收尾审批 |
 | 交付 | publish / recipe | 交付说明 + recipe freeze 提议 |
 
-## 3. 强制质量能力清单（每支视频必须执行，缺一项即门禁失败）
+## 3. 强制质量能力清单（1–11 每支视频必须执行，12 按需命中才执行；缺一项即门禁失败）
 
 | # | 能力 | 落点 | 门禁方式 |
 | --- | --- | --- | --- |
@@ -53,12 +53,14 @@
 
 ## 5. 用户决策门（唯一停顿白名单）
 
-1. 每段「开始授权」（用户确认进入该段生产）
+1. 每段「开始授权」（用户确认进入该段生产；**同时确认上一段**——上一段必须已有 MP4 与 final look 授权，由 `state.mjs` 机械执行）
 2. 每段「final look 渲染授权」（Studio 链接 + 接触表，用户授权 render）
-3. master「final look」（候选预览授权）
+3. master「final look」（候选预览授权；**同时确认末段**）
 4. 全项目「收尾审批」（绑定 exact 候选哈希）
 
 授权记录：轻量文件（actor=user、时间戳、产物 SHA-256），无密码学签名。用户说「继续」= 完成当前授权。文字分镜不送审。
+
+段状态机（`state.json`，唯一真源）：`planned → authorized（开始授权）→ rendered（set-mp4 绑定）→ accepted（下一段开始授权或 master final look 机械确认）`。
 
 ## 6. 交接与问题账本
 

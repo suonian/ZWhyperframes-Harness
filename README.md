@@ -22,7 +22,6 @@ docs/rules/     生产规则（视觉、字幕、分段、工作流）
 docs/architecture/  能力审计与交接
 scripts/        管理脚本（单步、确定性、零 agent 调用）
 tools/          MiniMax 调用器
-templates/      脚手架与字幕备用模板
 tests/          脚本测试
 ```
 

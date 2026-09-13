@@ -97,7 +97,7 @@ test("new-video segment：官方 init + 段骨架 + 计划连续性校验", () =
   assert.equal(dup.status, 1);
 });
 
-test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接", () => {
+test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开始授权自动确认前段）", () => {
   const root = TMP();
   const project = join(root, "demo");
   const source = join(root, "package.md");
@@ -107,8 +107,8 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接", () 
   const statePath = join(project, "00-项目总控", "state.json");
   const state = JSON.parse(readFileSync(statePath, "utf8"));
   state.segments = [
-    { id: "01", dir: "01-a", lines: [1, 2], status: "accepted", approvals: { start: { actor: "user", at: "t" }, final_look: { actor: "user", at: "t" } }, mp4: null, user_script_sha256: "x" },
-    { id: "02", dir: "02-b", lines: [3, 3], status: "accepted", approvals: { start: { actor: "user", at: "t" }, final_look: { actor: "user", at: "t" } }, mp4: null, user_script_sha256: "y" },
+    { id: "01", dir: "01-a", lines: [1, 2], status: "authorized", approvals: { start: { actor: "user", at: "t" } }, mp4: null, user_script_sha256: "x" },
+    { id: "02", dir: "02-b", lines: [3, 3], status: "planned", approvals: {}, mp4: null, user_script_sha256: "y" },
   ];
   writeFileSync(statePath, JSON.stringify(state, null, 2));
   mkdirSync(join(project, "01-a"), { recursive: true });
@@ -120,10 +120,24 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接", () 
   makeTinyMp4(mp4a, 1.2);
   makeTinyMp4(mp4b, 0.8);
 
+  // 段 01 无 MP4/final-look 时，段 02 开始授权必须被拒（前段未完成）。
+  assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "start", "--evidence", "x"]).status, 1);
+
   assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4a]).status, 0);
+  assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "01", "--kind", "final-look", "--evidence", "x"]).status, 0);
+
+  // 段 02 开始授权 → 机械确认段 01 accepted。
+  assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "start", "--evidence", "x"]).status, 0);
+  let mid = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(mid.segments[0].status, "accepted");
+  assert.equal(mid.segments[1].status, "authorized");
+
   assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "02", "--mp4", mp4b]).status, 0);
-  assert.equal(run("state.mjs", ["accept", "--project", project, "--segment", "01"]).status, 0);
-  assert.equal(run("state.mjs", ["accept", "--project", project, "--segment", "02"]).status, 0);
+  assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "final-look", "--evidence", "x"]).status, 0);
+  // master final look → 机械确认末段 accepted。
+  assert.equal(run("state.mjs", ["master", "--project", project, "--kind", "final-look", "--evidence", "x"]).status, 0);
+  mid = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(mid.segments[1].status, "accepted");
 
   assert.equal(run("gate.mjs", ["master-inputs", "--project", project]).status, 0);
   const bad = JSON.parse(readFileSync(statePath, "utf8"));

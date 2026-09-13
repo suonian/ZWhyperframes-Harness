@@ -32,7 +32,7 @@ export function validateFrameCoverage(frames, lockedSegmentText) {
   return normalizedScript;
 }
 
-/** 字符范围 → 词列表的帧映射。 */
+/** 字符范围 → 词列表的帧映射。词按起始字符归属（跨帧边界的词归前一帧，不丢失）。 */
 export function mapFramesToWords(frames, words, normalizedScriptLength) {
   let charCursor = 0;
   const out = [];
@@ -45,12 +45,16 @@ export function mapFramesToWords(frames, words, normalizedScriptLength) {
       number: frame.number,
       charBegin: begin,
       charEnd: end,
-      words: words.filter((w) => w.charBegin >= begin && w.charEnd <= end),
+      words: words.filter((w) => w.charBegin >= begin && w.charBegin < end),
     });
   }
   if (charCursor !== normalizedScriptLength) {
     throw new Error(`帧覆盖字符数与锁稿不符（${charCursor}/${normalizedScriptLength}）`);
   }
+  const assigned = out.reduce((a, f) => a + f.words.length, 0);
+  const lost = words.filter((w) => !out.some((f) => f.words.includes(w)));
+  if (lost.length) throw new Error(`${lost.length} 个词未归属任何帧（首词「${lost[0].text}」）`);
+  if (assigned !== words.length) throw new Error(`词归属不一致（${assigned}/${words.length}）`);
   return out;
 }
 

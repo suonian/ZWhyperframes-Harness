@@ -11,7 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
-  sha256File, readState, segmentEntry, resolveSegmentDir, readJsonIfPresent, runHf,
+  sha256File, readState, segmentEntry, resolveSegmentDir, readJsonIfPresent, runHf, CONTROL_DIR,
 } from "./lib/harness.mjs";
 
 const args = process.argv.slice(2);
@@ -45,7 +45,13 @@ function runVerify() {
   const textSha = sha256File(scriptPath);
   const manifest = readJsonIfPresent(join(segmentDir, "segment-manifest.json"));
   if (!manifest || manifest.user_script_sha256 !== textSha) fail("段落稿与 segment-manifest 哈希漂移");
-  if (manifest.locked_script_sha256 !== state.locked_script.sha256) fail("锁稿哈希与项目状态漂移");
+  // 段级冻结为准：本段文本必须等于当前锁稿的该段行区间（他段改字不影响本段）。
+  const lockedPath = join(resolve(get("project") ?? "."), CONTROL_DIR, "锁定口播稿.md");
+  const lockedLines = readFileSync(lockedPath, "utf8").split("\n");
+  const [start, end] = entry.lines;
+  const expected = lockedLines.slice(start - 1, end).join("\n").trim();
+  const actual = readFileSync(scriptPath, "utf8").trim();
+  if (actual !== expected) fail("本段文本与当前锁稿该段行区间不一致（本段改字必须重跑 TTS）");
   const binding = readJsonIfPresent(join(segmentDir, "audio", "tts-binding.json"));
   if (binding && binding.text_sha256 !== textSha) fail("TTS 绑定文本哈希漂移（段文本改字必须重跑 TTS）");
   const injection = readJsonIfPresent(join(segmentDir, "audio", "injection-binding.json"));
@@ -54,7 +60,7 @@ function runVerify() {
     const metaPath = join(segmentDir, "audio_meta.json");
     if (!existsSync(metaPath) || injection.audio_meta_sha256 !== sha256File(metaPath)) fail("audio_meta.json 与注入绑定漂移");
   }
-  pass(`段 ${entry.id} 输入同源（锁稿/TTS/注入绑定一致）`);
+  pass(`段 ${entry.id} 输入同源（段级锁稿/TTS/注入绑定一致）`);
 }
 
 function runAuthorized() {

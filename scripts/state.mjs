@@ -42,11 +42,25 @@ function runApprove() {
   const kind = get("kind");
   const evidence = get("evidence");
   if (!segment || !["start", "final-look"].includes(kind)) throw new Error("approve 需要 --segment <NN> --kind start|final-look --evidence <证据>");
-  const entry = segmentEntry(state, segment);
+  const idx = state.segments.findIndex((s) => String(s.id) === String(segment) || s.dir === String(segment));
+  if (idx < 0) throw new Error(`项目状态中缺少段落：${segment}`);
+  const entry = state.segments[idx];
   if (kind === "final-look" && !entry.approvals?.start) throw new Error(`段 ${entry.id} 尚未开始授权，不能 final look`);
   entry.approvals = entry.approvals ?? {};
-  entry.approvals[kind === "start" ? "start" : "final_look"] = approvalRecord(kind, evidence);
-  if (kind === "start") entry.status = "authorized";
+  if (kind === "start") {
+    // 段间交接：本段开始授权同时确认上一段（上一段必须已有 MP4 + final look 授权）。
+    if (idx > 0) {
+      const prior = state.segments[idx - 1];
+      if (!prior.mp4 || !prior.approvals?.final_look) {
+        throw new Error(`前序段 ${prior.id} 无 MP4 或 final look 授权，不能开始段 ${entry.id}`);
+      }
+      prior.status = "accepted";
+    }
+    entry.approvals.start = approvalRecord("start", evidence);
+    entry.status = "authorized";
+  } else {
+    entry.approvals.final_look = approvalRecord("final-look", evidence);
+  }
   writeState(projectRoot, state);
   console.log(`段 ${entry.id} ${kind} 授权已记录`);
 }
@@ -69,18 +83,6 @@ function runSetMp4() {
   console.log(`段 ${entry.id} MP4 已绑定（${duration.toFixed(2)}s / ${entry.mp4.sha256.slice(0, 12)}…）`);
 }
 
-function runAccept() {
-  const projectRoot = resolve(get("project") ?? ".");
-  const state = readState(projectRoot);
-  const segment = get("segment");
-  const entry = segmentEntry(state, segment);
-  if (!entry.mp4) throw new Error(`段 ${entry.id} 尚无 MP4 绑定`);
-  if (!entry.approvals?.final_look) throw new Error(`段 ${entry.id} 尚无 final look 授权`);
-  entry.status = "accepted";
-  writeState(projectRoot, state);
-  console.log(`段 ${entry.id} 已接受（${entry.mp4.sha256.slice(0, 12)}…）`);
-}
-
 function runMaster() {
   const projectRoot = resolve(get("project") ?? ".");
   const state = readState(projectRoot);
@@ -88,6 +90,12 @@ function runMaster() {
   const evidence = get("evidence");
   if (!["final-look", "close"].includes(kind)) throw new Error("master 需要 --kind final-look|close --evidence <证据>");
   const key = kind === "final-look" ? "final_look" : "close";
+  if (kind === "final-look") {
+    // master final look 同时确认最后一段（交接语义与段间一致）。
+    const last = state.segments.at(-1);
+    if (!last?.mp4 || !last.approvals?.final_look) throw new Error(`末段 ${last?.id ?? "?"} 无 MP4 或 final look 授权，不能进入 master`);
+    if (state.segments.some((s) => s.status !== "accepted")) last.status = "accepted";
+  }
   state.master.approvals = state.master.approvals ?? {};
   state.master.approvals[key] = approvalRecord(kind, evidence);
   if (kind === "close" && !state.master.candidate) throw new Error("收尾审批必须绑定 candidate");
@@ -99,10 +107,9 @@ try {
   if (command === "show") runShow();
   else if (command === "approve") runApprove();
   else if (command === "set-mp4") runSetMp4();
-  else if (command === "accept") runAccept();
   else if (command === "master") runMaster();
   else {
-    console.error("用法: state.mjs show|approve|set-mp4|accept|master --project <项目根> …");
+    console.error("用法: state.mjs show|approve|set-mp4|master --project <项目根> …");
     process.exit(2);
   }
 } catch (error) {

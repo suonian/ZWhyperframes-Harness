@@ -100,3 +100,17 @@ test("跨句帧边界：词按字符索引归属正确帧", () => {
   assert.equal(mapped[1].words.length, 5);
   assert.equal(mapped[1].words[0].text, "一年");
 });
+
+test("跨帧边界的词不丢失（起始字符归属法）", () => {
+  // 帧边界落在「过去」中间：词按起始字符归属前帧，绝不两帧都丢。
+  const words = parseTitles(TITLES);
+  const frames = [
+    { number: 1, voiceover: "你现在免费用的AI技能，很快就要收钱了。过" },
+    { number: 2, voiceover: "去一年所有人都在用。" },
+  ];
+  const norm = validateFrameCoverage(frames, "你现在免费用的AI技能，很快就要收钱了。过去一年所有人都在用。");
+  const mapped = mapFramesToWords(frames, words, norm.length);
+  const total = mapped.reduce((a, f) => a + f.words.length, 0);
+  assert.equal(total, words.length);
+  assert.equal(mapped[0].words.at(-1).text, "过去");
+});
