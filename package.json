@@ -1,0 +1,19 @@
+{
+  "name": "zwhyperframes-harness",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "HyperFrames 视频生产流水线的管理层定制层（核心能力 100% 来自 HF 官方）",
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "bootstrap": "bash scripts/bootstrap.sh",
+    "doctor": "bash scripts/doctor.sh"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "hyperframes": "0.8.36"
+  }
+}
