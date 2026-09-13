@@ -1,0 +1,64 @@
+{
+  "api_key_env": "MINIMAX_API_KEY",
+  "base_url": "https://api.minimaxi.com",
+  "backup_base_url": "https://api-bj.minimaxi.com",
+  "voice_profile": {
+    "model": "speech-2.8-hd",
+    "language": "zh",
+    "voice_id": "ttv-voice-2026040916452526-mc0nlrpN",
+    "speed": 1.27,
+    "pitch": 1,
+    "vol": 1.16,
+    "sample_rate": 44100,
+    "bitrate": 256000,
+    "format": "mp3",
+    "channel": 1,
+    "subtitle_enable": true,
+    "subtitle_type": "word",
+    "output_format": "hex",
+    "language_boost": "Chinese",
+    "aigc_watermark": false
+  },
+  "defaults": {
+    "music": {
+      "model": "music-2.6",
+      "output_format": "hex",
+      "audio_setting": {
+        "sample_rate": 44100,
+        "bitrate": 256000,
+        "format": "mp3"
+      }
+    },
+    "image": {
+      "model": "image-01",
+      "response_format": "url",
+      "n": 1,
+      "prompt_optimizer": false
+    },
+    "video": {
+      "model": "MiniMax-Hailuo-2.3",
+      "duration": 6,
+      "resolution": "768P",
+      "prompt_optimizer": true
+    },
+    "video_image_to_video": {
+      "model": "MiniMax-Hailuo-2.3",
+      "duration": 6,
+      "resolution": "768P",
+      "prompt_optimizer": true
+    },
+    "video_first_last_frame": {
+      "model": "MiniMax-Hailuo-02",
+      "duration": 6,
+      "resolution": "768P",
+      "prompt_optimizer": true
+    },
+    "video_subject_reference": {
+      "model": "S2V-01",
+      "prompt_optimizer": true
+    },
+    "voice_management": {
+      "voice_type": "all"
+    }
+  }
+}
