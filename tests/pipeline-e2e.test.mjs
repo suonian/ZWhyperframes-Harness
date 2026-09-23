@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { sha256File } from "../scripts/lib/harness.mjs";
 
 const SCRIPTS = resolve(import.meta.dirname, "..", "scripts");
@@ -54,6 +55,56 @@ test("new-video init：无标记资料包 fail-closed", () => {
   const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", source, "--allow-outside-products-root"]);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /未找到锁定口播/u);
+});
+
+test("new-video init：目录资料包——整体归档 + 显式标记锁稿提取", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const sourceDir = join(root, "package");
+  mkdirSync(join(sourceDir, "证据"), { recursive: true });
+  writeFileSync(join(sourceDir, "原稿.md"), "这是原稿全文，但没有标记。\n");
+  writeFileSync(join(sourceDir, "证据", "说明.md"), "证据说明。\n");
+  writeFileSync(join(sourceDir, "00-锁定口播稿.md"), "locked-script:script:start\n目录包第一行口播。\n目录包第二行口播。\nlocked-script:script:end\n");
+  const r = run("new-video.mjs", ["init", "--project", project, "--source", sourceDir, "--allow-outside-products-root"]);
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  assert.equal(readFileSync(join(project, "00-项目总控", "锁定口播稿.md"), "utf8"), "目录包第一行口播。\n目录包第二行口播。\n");
+  assert.ok(existsSync(join(project, "00-项目总控", "资料包", "原稿.md")));
+  assert.ok(existsSync(join(project, "00-项目总控", "资料包", "证据", "说明.md")));
+  assert.ok(existsSync(join(project, "00-项目总控", "资料包", "00-锁定口播稿.md")));
+});
+
+test("new-video init：目录资料包无显式标记 fail-closed", () => {
+  const root = TMP();
+  const sourceDir = join(root, "package");
+  mkdirSync(sourceDir, { recursive: true });
+  writeFileSync(join(sourceDir, "说明.md"), "## 对应口播稿\n这是路径引用，不是标记。\n");
+  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", sourceDir, "--allow-outside-products-root"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /未找到锁定口播/u);
+});
+
+test("new-video init：目录资料包多个 script:start 标记 fail-closed", () => {
+  const root = TMP();
+  const sourceDir = join(root, "package");
+  mkdirSync(sourceDir, { recursive: true });
+  writeFileSync(join(sourceDir, "a.md"), "locked-script:script:start\nA。\nlocked-script:script:end\n");
+  writeFileSync(join(sourceDir, "b.md"), "locked-script:script:start\nB。\nlocked-script:script:end\n");
+  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", sourceDir, "--allow-outside-products-root"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /多个 script:start/u);
+});
+
+test("new-video segment：段目录越出项目根拒绝", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const source = join(root, "package.md");
+  writeFileSync(source, PACKAGE);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify({ segments: [{ id: "01", dir: "../outside", lines: [1, 3] }] }));
+  const result = run("new-video.mjs", ["segment", "--project", project, "--id", "01"]);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /必须位于项目根内/u);
+  assert.equal(existsSync(join(root, "outside")), false);
 });
 
 test("new-video init：非空目录拒绝", () => {
@@ -134,11 +185,7 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
 
   assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "02", "--mp4", mp4b]).status, 0);
   assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "final-look", "--evidence", "x"]).status, 0);
-  // master final look → 机械确认末段 accepted。
-  assert.equal(run("state.mjs", ["master", "--project", project, "--kind", "final-look", "--evidence", "x"]).status, 0);
-  mid = JSON.parse(readFileSync(statePath, "utf8"));
-  assert.equal(mid.segments[1].status, "accepted");
-
+  // 末段仍为 rendered（尚未给 master 确认）时，即可生成 master 候选（用户先看候选再批）。
   assert.equal(run("gate.mjs", ["master-inputs", "--project", project]).status, 0);
   const bad = JSON.parse(readFileSync(statePath, "utf8"));
   bad.segments[0].mp4.sha256 = "0".repeat(64);
@@ -155,6 +202,24 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   assert.ok(after.master.candidate?.path);
   assert.ok(existsSync(after.master.candidate.path));
   assert.ok(Math.abs(after.master.candidate.duration_s - 2.0) < 0.6);
+  assert.equal(after.segments[1].status, "rendered");
+
+  // 未完成 master final look 时，close 必须被拒绝。
+  assert.equal(run("state.mjs", ["master", "--project", project, "--kind", "close", "--evidence", "x"]).status, 1);
+
+  // master final look → 机械确认末段 accepted。
+  assert.equal(run("state.mjs", ["master", "--project", project, "--kind", "final-look", "--evidence", "x"]).status, 0);
+  mid = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(mid.segments[1].status, "accepted");
+  assert.equal(mid.master.candidate.inputs.length, 2);
+  assert.equal(mid.master.candidate.inputs[0].sha256, sha256File(mp4a));
+  const changedInput = JSON.parse(readFileSync(statePath, "utf8"));
+  changedInput.segments[0].mp4.sha256 = "0".repeat(64);
+  writeFileSync(statePath, JSON.stringify(changedInput, null, 2));
+  assert.equal(run("state.mjs", ["master", "--project", project, "--kind", "close", "--evidence", "x"]).status, 1);
+  changedInput.segments[0].mp4.sha256 = sha256File(mp4a);
+  writeFileSync(statePath, JSON.stringify(changedInput, null, 2));
+  assert.equal(run("state.mjs", ["master", "--project", project, "--kind", "close", "--evidence", "x"]).status, 0);
 
   assert.equal(run("gate.mjs", ["authorized", "--project", project, "--segment", "01"]).status, 0);
   const noApproval = JSON.parse(readFileSync(statePath, "utf8"));
@@ -173,6 +238,38 @@ test("gate verify：锁稿/TTS 绑定漂移 fail-closed", () => {
   writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
   assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
   assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 0);
+  const seg = join(project, "01-开场");
+  mkdirSync(join(seg, "audio"), { recursive: true });
+  writeFileSync(join(seg, "audio", "narration.mp3"), "audio");
+  writeFileSync(join(seg, "audio", "narration.titles"), "titles");
+  writeFileSync(join(seg, "audio", "narration.manifest.json"), "{}");
+  const sha = (value) => createHash("sha256").update(value).digest("hex");
+  writeFileSync(join(seg, "audio", "tts-binding.json"), JSON.stringify({ text_sha256: sha(readFileSync(join(seg, "user_script.txt"))), audio_sha256: sha("audio"), titles_sha256: sha("titles"), manifest_sha256: sha("{}") }));
+  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 0);
+  writeFileSync(join(seg, "audio", "narration.titles"), "tampered");
+  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 1);
   writeFileSync(join(project, "01-开场", "user_script.txt"), "改过的口播稿。\n");
   assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 1);
+});
+
+test("gate layout-guard：可见字号 <28px fail-closed；≥28px 通过", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const source = join(root, "package.md");
+  writeFileSync(source, PACKAGE);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  const plan = { segments: [{ id: "01", dir: "01-a", lines: [1, 3], title: "a" }] };
+  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
+  assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
+  const framesDir = join(project, "01-a", "compositions", "frames");
+  mkdirSync(framesDir, { recursive: true });
+  const okFrame = '<template><div id="root"><span style="font-size: 1.5cqw">a</span></div></template>';
+  writeFileSync(join(framesDir, "01-a.html"), okFrame);
+  const pass = run("gate.mjs", ["layout-guard", "--project", project, "--segment", "01"]);
+  assert.equal(pass.status, 0, pass.stderr || pass.stdout);
+  const badFrame = '<template><div id="root"><span style="font-size: 20px">a</span></div></template>';
+  writeFileSync(join(framesDir, "01-a.html"), badFrame);
+  const failRun = run("gate.mjs", ["layout-guard", "--project", project, "--segment", "01"]);
+  assert.equal(failRun.status, 1);
+  assert.match(failRun.stderr, /可见字号低于 28px/u);
 });

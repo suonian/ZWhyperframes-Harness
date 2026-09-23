@@ -30,6 +30,10 @@ const metaPath = join(segmentDir, "audio_meta.json");
 
 if (!existsSync(titlesPath) || !existsSync(audioPath)) throw new Error("缺少 TTS 产物；先运行 minimax-tts.mjs");
 const binding = JSON.parse(readFileSync(bindingPath, "utf8"));
+for (const [key, file] of [["audio_sha256", "narration.mp3"], ["titles_sha256", "narration.titles"], ["manifest_sha256", "narration.manifest.json"]]) {
+  const path = join(audioDir, file);
+  if (!existsSync(path) || binding[key] !== sha256File(path)) throw new Error(`TTS 产物与绑定漂移：${file}；请重新运行 minimax-tts.mjs`);
+}
 const board = readStoryboard(segmentDir);
 if (!board.frames.length) throw new Error("STORYBOARD.md 无帧");
 
@@ -45,7 +49,10 @@ const frameMaps = mapFramesToWords(board.frames, words, normalizedScript.length)
 const audioDurationMs = words.at(-1).endMs;
 const voiceDir = join(segmentDir, "assets", "voice");
 mkdirSync(voiceDir, { recursive: true });
-const voices = buildVoices(frameMaps, audioDurationMs);
+// 源音频总时长：帧音频可越过末词进入源尾音（避免末句被截断）
+const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", audioPath], { encoding: "utf8" });
+const sourceDurationMs = Number(probe.stdout.trim()) > 0 ? Number(probe.stdout.trim()) * 1000 : null;
+const voices = buildVoices(frameMaps, audioDurationMs, 0.08, sourceDurationMs);
 
 // ── ffmpeg 切帧音频 ───────────────────────────────────────────────────────────
 for (const voice of voices) {
@@ -94,12 +101,21 @@ writeJson(metaPath, {
   sfx: [],
 });
 
+const syncScript = resolveFacelessAudioScript();
+const sync = spawnSync("node", [syncScript, "sync-durations", "--hyperframes", segmentDir, "--audio-meta", metaPath, "--storyboard", join(segmentDir, "STORYBOARD.md")], {
+  encoding: "utf8",
+  stdio: ["ignore", "inherit", "inherit"],
+});
+if (sync.status !== 0) throw new Error("官方 sync-durations 失败");
+
 writeJson(join(audioDir, "injection-binding.json"), {
   text_sha256: binding.text_sha256,
   titles_sha256: binding.titles_sha256,
   audio_sha256: binding.audio_sha256,
   audio_meta_sha256: sha256File(metaPath),
   neutral_sha256: sha256File(neutralPath),
+  storyboard_sha256: sha256File(join(segmentDir, "STORYBOARD.md")),
+  frame_durations: readStoryboard(segmentDir).frames.map((frame) => ({ number: frame.number, duration: String(frame.meta.duration) })),
   frame_count: frameMaps.length,
   voiced_frame_count: voices.length,
   voice_total_duration_s: +voices.reduce((a, v) => a + v.duration_s, 0).toFixed(3),
@@ -107,10 +123,23 @@ writeJson(join(audioDir, "injection-binding.json"), {
   bgm_mode: bgmMode,
   at: new Date().toISOString(),
 });
-console.log(`audio_meta.json 注入完成：${voices.length}/${frameMaps.length} 帧有语音（BGM=${bgmMode}）`);
-console.log("下一步（官方）：node <faceless-explainer>/scripts/audio.mjs sync-durations --audio-meta ./audio_meta.json --storyboard ./STORYBOARD.md");
+console.log(`audio_meta.json 注入并同步完成：${voices.length}/${frameMaps.length} 帧有语音（BGM=${bgmMode}）`);
 
 // media-use 音频引擎的确定性定位：官方技能目录（bootstrap 的 skills update 安装）。
+function resolveFacelessAudioScript() {
+  const candidates = [
+    join(HARNESS_ROOT, "vendor", "skills"),
+    join(process.env.HOME ?? "", ".claude", "skills"),
+    join(process.env.HOME ?? "", ".agents", "skills"),
+    join(process.env.HOME ?? "", ".config", "opencode", "skills"),
+  ];
+  for (const root of candidates) {
+    const script = join(root, "faceless-explainer", "scripts", "audio.mjs");
+    if (existsSync(script)) return script;
+  }
+  throw new Error("未找到官方 faceless-explainer audio.mjs；先运行 ./scripts/bootstrap.sh");
+}
+
 function resolveMediaEngine() {
   const candidates = [
     join(HARNESS_ROOT, "vendor", "skills"),

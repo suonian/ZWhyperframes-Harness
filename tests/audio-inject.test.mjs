@@ -114,3 +114,64 @@ test("跨帧边界的词不丢失（起始字符归属法）", () => {
   assert.equal(total, words.length);
   assert.equal(mapped[0].words.at(-1).text, "过去");
 });
+
+// 真实 MiniMax 形状：索引是原文位置（标点独立成 token、空格计入索引），句级 text 提供原文。
+const TITLES_RAW = [
+  {
+    text: `\u201cAI 好，AI 坏。\u201d`,
+    time_begin: 0,
+    time_end: 1500,
+    text_begin: 0,
+    text_end: 11,
+    timestamped_words: [
+      { word: "\u201c", word_begin: 0, word_end: 1, time_begin: 30, time_end: 60 },
+      { word: "A", word_begin: 1, word_end: 2, time_begin: 60, time_end: 180 },
+      { word: "I", word_begin: 2, word_end: 3, time_begin: 180, time_end: 300 },
+      { word: "好", word_begin: 4, word_end: 5, time_begin: 300, time_end: 520 },
+      { word: "，", word_begin: 5, word_end: 6, time_begin: 520, time_end: 560 },
+      { word: "A", word_begin: 6, word_end: 7, time_begin: 560, time_end: 680 },
+      { word: "I", word_begin: 7, word_end: 8, time_begin: 680, time_end: 800 },
+      { word: "坏", word_begin: 9, word_end: 10, time_begin: 800, time_end: 1050 },
+      { word: "。", word_begin: 10, word_end: 11, time_begin: 1050, time_end: 1100 },
+    ],
+  },
+];
+
+test("真实 MiniMax 形状：原文索引折算为归一化位置，标点 token 不丢失", () => {
+  const words = parseTitles(TITLES_RAW);
+  assert.equal(words.length, 9);
+  assert.equal(words[0].text, "\u201c");
+  assert.equal(words[0].charBegin, 0);
+  assert.equal(words[0].charEnd, 1);
+  assert.equal(words.filter((w) => w.text === "A")[0].charBegin, 1);
+  assert.equal(words.filter((w) => w.text === "I")[0].charBegin, 2);
+  assert.equal(words.find((w) => w.text === "好").charBegin, 3);
+  const comma = words.find((w) => w.text === "，");
+  assert.equal(comma.charBegin, 4);
+  assert.equal(comma.charEnd, 4);
+  assert.equal(words.filter((w) => w.text === "A")[1].charBegin, 4);
+  const frames = [
+    { number: 1, voiceover: `\u201cAI 好，` },
+    { number: 2, voiceover: `AI 坏。\u201d` },
+  ];
+  const norm = validateFrameCoverage(frames, `\u201cAI 好，AI 坏。\u201d`);
+  const mapped = mapFramesToWords(frames, words, norm.length);
+  assert.equal(mapped[0].words.length, 5);
+  assert.equal(mapped[1].words.length, 4);
+  assert.equal(mapped[0].words.at(-1).text, "，");
+  assert.equal(mapped[1].words.at(-1).text, "。");
+});
+
+test("buildVoices：给定源时长时末词尾部进入源自然尾音（避免截断）", () => {
+  const words = parseTitles(TITLES);
+  const frames = [
+    { number: 1, voiceover: "你现在免费用的AI技能，很快就要收钱了。" },
+    { number: 2, voiceover: "过去一年所有人都在用。" },
+  ];
+  const norm = validateFrameCoverage(frames, "你现在免费用的AI技能，很快就要收钱了。过去一年所有人都在用。");
+  const mapped = mapFramesToWords(frames, words, norm.length);
+  const tight = buildVoices(mapped, words.at(-1).endMs);
+  const breathed = buildVoices(mapped, words.at(-1).endMs, 0.08, words.at(-1).endMs + 300);
+  assert.equal(tight[1].duration_s, 1.25); // 3.05 - 1.8，尾部被夹在末词结束
+  assert.equal(breathed[1].duration_s, 1.33); // 末词 + 0.08，进入源尾音
+});

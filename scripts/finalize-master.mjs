@@ -16,14 +16,28 @@ const get = (k) => {
 const projectRoot = resolve(get("project") ?? ".");
 const state = readState(projectRoot);
 
+// 末段例外：master 候选先于 master final look 生成；末段在其 final look 授权后即可入片，
+// 并在 master final look 门禁处被机械确认 accepted（其余段落必须先 accepted）。
+const last = state.segments.at(-1);
 for (const seg of state.segments) {
-  if (seg.status !== "accepted" || !seg.mp4) throw new Error(`段 ${seg.id} 未接受或无 MP4 绑定，拒绝拼接`);
+  const isLast = seg === last;
+  const ok = isLast
+    ? (seg.status === "rendered" || seg.status === "accepted") && seg.mp4 && seg.approvals?.final_look
+    : seg.status === "accepted" && seg.mp4;
+  if (!ok) throw new Error(`段 ${seg.id} 未满足拼接条件（${isLast ? "末段需 rendered + final look 授权" : "需 accepted"}）`);
   if (!existsSync(seg.mp4.path)) throw new Error(`段 ${seg.id} MP4 缺失：${seg.mp4.path}`);
   if (seg.mp4.sha256 !== sha256File(seg.mp4.path)) {
     throw new Error(`段 ${seg.id} MP4 与状态绑定哈希漂移；重新渲染并 state.mjs set-mp4`);
   }
 }
 
+const inputSnapshot = state.segments.map((seg, index) => ({
+  index,
+  id: seg.id,
+  path: seg.mp4.path,
+  sha256: sha256File(seg.mp4.path),
+  duration_s: seg.mp4.duration_s,
+}));
 const stamp = nowIso().replace(/[-:.]/gu, "").slice(0, 14);
 const candidateDir = join(projectRoot, MASTER_DIR, "candidates");
 mkdirSync(candidateDir, { recursive: true });
@@ -43,7 +57,7 @@ const expected = state.segments.reduce((a, s) => a + s.mp4.duration_s, 0);
 if (!Number.isFinite(duration) || Math.abs(duration - expected) > 1.0) {
   throw new Error(`candidate 时长异常：${duration}s（期望约 ${expected.toFixed(2)}s）`);
 }
-state.master.candidate = { path: candidatePath, sha256: sha256File(candidatePath), duration_s: +duration.toFixed(3), segments: state.segments.map((s) => s.id), created_at: nowIso() };
+state.master.candidate = { path: candidatePath, sha256: sha256File(candidatePath), duration_s: +duration.toFixed(3), segments: state.segments.map((s) => s.id), inputs: inputSnapshot, concat_list_sha256: sha256File(listPath), created_at: nowIso() };
 writeState(projectRoot, state);
 console.log(`${candidatePath}`);
 console.log(`${duration.toFixed(3)}s / ${state.master.candidate.sha256.slice(0, 16)}…`);

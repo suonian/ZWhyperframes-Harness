@@ -4,7 +4,7 @@
 //   segment 按分段计划对单段执行官方 hyperframes init + 段骨架
 // 分段计划（语义切分）由主智能体判断后写入 segment-plan.json；本脚本只校验与执行。
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, cpSync, statSync } from "node:fs";
-import { join, resolve, relative, basename } from "node:path";
+import { join, resolve, relative, isAbsolute, basename } from "node:path";
 import {
   PRODUCTS_ROOT_DEFAULT, CONTROL_DIR, MASTER_DIR, STATE_VERSION,
   sha256File, writeJson, readState, writeState, runHf, assertHfVersion, nowIso,
@@ -21,9 +21,9 @@ const has = (k) => args.includes(`--${k}`);
 // ── 锁定稿提取：仅接受显式标记区段或整份独立稿 ──────────────────────────────
 const SCRIPT_MARKERS = ["锁定口播稿", "口播稿", "生产口播稿"];
 const SCRIPT_BLOCK = /(?:[\w-]+:script:(start|end))/iu;
+const TEXT_FILE_RE = /\.(?:md|markdown|txt)$/iu;
 
-function extractLockedScript(source) {
-  const raw = readFileSync(source, "utf8");
+function extractFromText(raw, label = "") {
   const lines = raw.split(/\r?\n/u);
   const blockStart = lines.findIndex((l) => SCRIPT_BLOCK.test(l) && /start/iu.test(l));
   if (blockStart >= 0) {
@@ -48,9 +48,37 @@ function extractLockedScript(source) {
   }
   const text = collected.join("\n").trim();
   if (!text) {
-    throw new Error(`资料包中未找到锁定口播（需 "## 锁定口播稿" 等标题节或 locked-script:script:start/end 标记）：${source}`);
+    throw new Error(`资料包中未找到锁定口播（需 "## 锁定口播稿" 等标题节或 locked-script:script:start/end 标记）${label ? `：${label}` : ""}`);
   }
   return `${text}\n`;
+}
+
+function listPackageTextFiles(dir, out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith(".")) continue;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) listPackageTextFiles(full, out);
+    else if (entry.isFile() && TEXT_FILE_RE.test(entry.name)) out.push(full);
+  }
+  return out.sort();
+}
+
+function hasScriptBlock(raw) {
+  return raw.split(/\r?\n/u).some((l) => SCRIPT_BLOCK.test(l) && /start/iu.test(l));
+}
+
+// 单文件资料包：保留「标题节或显式标记」两种约定。
+// 目录资料包：只认显式 locked-script:script:start/end 标记（标题节匹配过松，易误取配套说明），且必须唯一命中。
+function extractLockedScript(source) {
+  if (!statSync(source).isDirectory()) {
+    return extractFromText(readFileSync(source, "utf8"), source);
+  }
+  const marked = listPackageTextFiles(source).filter((file) => hasScriptBlock(readFileSync(file, "utf8")));
+  if (marked.length === 1) return extractFromText(readFileSync(marked[0], "utf8"), marked[0]);
+  if (marked.length > 1) {
+    throw new Error(`资料包目录存在多个 script:start 标记文件，无法确定锁定口播：\n${marked.map((f) => `  ${f}`).join("\n")}`);
+  }
+  throw new Error(`资料包目录中未找到锁定口播（需在某个 .md/.txt 文件中使用 locked-script:script:start/end 标记）：${source}`);
 }
 
 // ── init ─────────────────────────────────────────────────────────────────────
@@ -122,7 +150,14 @@ function runSegment() {
   const seg = plan.segments.find((s) => String(s.id) === String(segmentId));
   if (!seg) throw new Error(`segment-plan 中缺少段 ${segmentId}`);
   if (state.segments.some((s) => String(s.id) === String(segmentId))) throw new Error(`段 ${segmentId} 已存在，不得重复脚手架`);
-  const segDir = join(projectDir, seg.dir);
+  if (typeof seg.dir !== "string" || !seg.dir || isAbsolute(seg.dir)) {
+    throw new Error(`段 ${seg.id} 目录必须是项目根内的相对路径：${seg.dir}`);
+  }
+  const segDir = resolve(projectDir, seg.dir);
+  const segRel = relative(projectDir, segDir);
+  if (!segRel || segRel.startsWith("..") || isAbsolute(segRel)) {
+    throw new Error(`段 ${seg.id} 目录必须位于项目根内：${seg.dir}`);
+  }
   if (existsSync(segDir) && readdirSync(segDir).length > 0) throw new Error(`段目录非空，拒绝覆盖：${segDir}`);
 
   const init = runHf(["init", segDir, "--non-interactive", "--example=blank", "--skill=faceless-explainer"]);
@@ -159,7 +194,7 @@ try {
   if (command === "init") runInit();
   else if (command === "segment") runSegment();
   else {
-    console.error("用法: node new-video.mjs init --project <dir> --source <资料包> [--products-root <dir>]");
+    console.error("用法: node new-video.mjs init --project <dir> --source <资料包文件或目录> [--products-root <dir>]");
     console.error("      node new-video.mjs segment --project <dir> --plan <segment-plan.json> --id <NN>");
     process.exit(2);
   }

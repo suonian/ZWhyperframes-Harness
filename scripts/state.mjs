@@ -96,9 +96,23 @@ function runMaster() {
     if (!last?.mp4 || !last.approvals?.final_look) throw new Error(`末段 ${last?.id ?? "?"} 无 MP4 或 final look 授权，不能进入 master`);
     if (state.segments.some((s) => s.status !== "accepted")) last.status = "accepted";
   }
+  if (kind === "close") {
+    if (!state.master.approvals?.final_look) throw new Error("收尾审批前必须完成 master final look");
+    if (!state.master.candidate) throw new Error("收尾审批必须绑定 candidate");
+    const candidate = state.master.candidate;
+    if (!existsSync(candidate.path)) throw new Error(`master candidate 不存在：${candidate.path}`);
+    if (candidate.sha256 !== sha256File(candidate.path)) throw new Error("master candidate 与状态绑定哈希漂移");
+    const segmentIds = state.segments.map((segment) => segment.id);
+    if (JSON.stringify(candidate.segments) !== JSON.stringify(segmentIds)) throw new Error("master candidate 段列表与当前项目不一致");
+    if (!Array.isArray(candidate.inputs) || candidate.inputs.length !== state.segments.length) throw new Error("master candidate 缺少输入 MP4 快照");
+    for (const [index, segment] of state.segments.entries()) {
+      const input = candidate.inputs[index];
+      if (input.index !== index || input.id !== segment.id || input.path !== segment.mp4?.path || input.sha256 !== segment.mp4?.sha256 || input.duration_s !== segment.mp4?.duration_s) throw new Error(`master candidate 输入快照与段 ${segment.id} 状态不一致`);
+      if (!existsSync(input.path) || sha256File(input.path) !== input.sha256) throw new Error(`master candidate 输入 MP4 已变化：段 ${segment.id}`);
+    }
+  }
   state.master.approvals = state.master.approvals ?? {};
   state.master.approvals[key] = approvalRecord(kind, evidence);
-  if (kind === "close" && !state.master.candidate) throw new Error("收尾审批必须绑定 candidate");
   writeState(projectRoot, state);
   console.log(`master ${kind} 已记录`);
 }
