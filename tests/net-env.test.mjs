@@ -19,11 +19,12 @@ import { fileURLToPath } from "node:url";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = "./scripts/net-env.sh";
 const BASH = "/bin/bash";
+const ZSH = "/bin/zsh";
 
-/** 在干净环境里 source net-env.sh 并回显指定变量；用绝对路径调 bash，避免 PATH 干扰。 */
-function sourceWith(body, env = {}, { pre = "" } = {}) {
+/** 在干净环境里 source net-env.sh 并回显指定变量；用绝对路径调 shell，避免 PATH 干扰。 */
+function sourceWith(body, env = {}, { pre = "", shell = BASH } = {}) {
   const r = spawnSync(
-    BASH,
+    shell,
     ["-c", `set -euo pipefail\n${pre}\n. ${SCRIPT}\n${body}`],
     {
       cwd: REPO_ROOT,
@@ -141,5 +142,28 @@ test("probe_proxy 对真实监听端口判定为可达、对无人端口判定�
     assert.notEqual(probe("127.0.0.1:1"), 0, "无人监听的端口应判定为不可达");
   } finally {
     await new Promise((res) => server.close(res));
+  }
+});
+
+test("bash 与 zsh 行为一致（zsh 默认不做词分割）", (t) => {
+  const zsh = spawnSync(ZSH, ["-c", "exit 0"], { encoding: "utf8" });
+  if (zsh.error || zsh.status !== 0) {
+    t.skip("环境无 zsh，跳过跨 shell 一致性用例");
+    return;
+  }
+  // 本文件要被 ~/.zshrc source。若按 `for x in $LIST` + IFS 分词，
+  // zsh 会把整串当成一个词，去重失效 → NO_PROXY 出现重复项。
+  const cases = [
+    { name: "空起点", env: {}, expect: 5 },
+    { name: "已有 localhost", env: { NO_PROXY: "localhost" }, expect: 5 },
+    { name: "通配项保留", env: { NO_PROXY: "*.corp.internal" }, expect: 6 },
+  ];
+  for (const { name, env, expect } of cases) {
+    const out = sourceWith('echo "$no_proxy"', env, { shell: ZSH });
+    const items = out.split(",");
+    assert.equal(new Set(items).size, items.length, `zsh ${name}：存在重复项 ${out}`);
+    assert.equal(items.length, expect, `zsh ${name}：${out}`);
+    // 与 bash 的结果必须逐字节相同
+    assert.equal(out, sourceWith('echo "$no_proxy"', env), `zsh ${name} 与 bash 不一致`);
   }
 });

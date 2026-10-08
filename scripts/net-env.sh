@@ -73,20 +73,24 @@ fi
 # NO_PROXY 继承给子 shell），无条件追加会让它每次 +58 字节、无界增长。
 # 只做「整项精确匹配」去重：调用方的通配项（如 *.corp.internal）是另一回事，不能吞。
 #
-# IFS 必须显式设成逗号：默认 IFS 是「空格/制表/换行」，不含逗号，
-# 不改的话 $HARNESS_DIRECT_HOSTS 整个会被当成一个词（曾经踩过）。
+# 按逗号切分刻意不用 `for x in $LIST` + IFS：zsh 默认不做词分割（SH_WORD_SPLIT 关），
+# 那样在 zsh 里整串会被当成一个词，去重直接失效。改用参数展开逐段剥离，
+# bash / zsh 行为一致——本文件要能被 ~/.zshrc source。
 HARNESS_DIRECT_HOSTS="localhost,127.0.0.1,::1,api.minimaxi.com,api.minimax.chat"
 NO_PROXY="${NO_PROXY-}"   # set -u 下未设置即为致命错误；显式落成空串
-_hnp_saved_ifs="$IFS"
-IFS=','
-for _hnp_host in $HARNESS_DIRECT_HOSTS; do
-  [ -n "$_hnp_host" ] || continue
+_hnp_rest="$HARNESS_DIRECT_HOSTS"
+while [ -n "$_hnp_rest" ]; do
+  _hnp_host="${_hnp_rest%%,*}"
+  if [ "$_hnp_rest" = "$_hnp_host" ]; then
+    _hnp_rest=""
+  else
+    _hnp_rest="${_hnp_rest#*,}"
+  fi
   case ",${NO_PROXY}," in
     *,"${_hnp_host}",*) ;;
     *) NO_PROXY="${NO_PROXY:+${NO_PROXY},}${_hnp_host}" ;;
   esac
 done
-IFS="$_hnp_saved_ifs"
-unset _hnp_host _hnp_saved_ifs
+unset _hnp_host _hnp_rest
 export NO_PROXY
 export no_proxy="$NO_PROXY"
