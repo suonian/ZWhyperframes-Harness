@@ -160,9 +160,19 @@ function runSegment() {
   }
   if (existsSync(segDir) && readdirSync(segDir).length > 0) throw new Error(`段目录非空，拒绝覆盖：${segDir}`);
 
-  const init = runHf(["init", segDir, "--non-interactive", "--example=blank", "--skill=faceless-explainer"]);
+  // 离线可跑（能力底线，非网络禁令）：官方 init 默认联网 git clone skills，而 bootstrap
+  // 已在 P0 刷新官方 skills，生产主链无需再联网。官方逃生口 HYPERFRAMES_SKIP_SKILLS=1
+  // （见 hyperframes init --help）；需要联网时可覆盖为 0。
+  const init = runHf(
+    ["init", segDir, "--non-interactive", "--example=blank", "--skill=faceless-explainer"],
+    { env: { HYPERFRAMES_SKIP_SKILLS: process.env.HYPERFRAMES_SKIP_SKILLS ?? "1" } },
+  );
   if (init.status !== 0 || !existsSync(join(segDir, "hyperframes.json"))) {
     throw new Error(`官方 init 失败：${init.stderr || init.stdout}`);
+  }
+  // init 的原始输出即证据（skills 联网检查、警告、失败回退都应可见），不得静默吞掉。
+  for (const stream of [init.stdout, init.stderr]) {
+    if (stream) process.stderr.write(stream);
   }
   const scriptPath = join(projectDir, CONTROL_DIR, "锁定口播稿.md");
   const lines = readFileSync(scriptPath, "utf8").split("\n");

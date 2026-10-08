@@ -1,6 +1,6 @@
 # 视觉生产规则书
 
-> 视觉质量底线。官方 worker 合同优先（`$HYPERFRAMES_REPO/skills/hyperframes-core/references/frame-worker-core.md` 与 faceless-explainer 的 `visual-design.md`/`motion-language.md`）；本文件只补充官方没有的**项目级**要求。冲突时以官方合同为准，除非用户明确否决。
+> 视觉质量底线。官方 worker 合同优先（`$HYPERFRAMES_REPO/skills/hyperframes/references/frame-worker-core.md` 与 faceless-explainer 的 `visual-design.md`/`motion-language.md`）；本文件只补充官方没有的**项目级**要求。冲突时以官方合同为准，除非用户明确否决。
 
 ## 1. 官方合同摘要（必须遵守，细节以官方原文为准）
 

@@ -8,7 +8,7 @@
 **HF 0.8.36 已原生采用「单智能体 + 每帧一个子智能体」模型**——前代自建的 Claude Code CLI Worker 层（claude-runtime、transcript 证据、三槽队列、心跳/lease、fallback 通道）存在的理由已经消失：
 
 - `faceless-explainer` Step 5 官方合同：orchestrator 自己完成除 Step 5 外的一切；Step 5 **每帧派发一个子智能体**（"dispatch one sub-agent per frame"）
-- `hyperframes-core/references/subagent-dispatch.md` 把 DISPATCH / Parallel fan-out / WAIT / Re-dispatch 映射到任意 harness 原语，**明确平台无关**
+- `hyperframes/references/subagent-dispatch.md` 把 DISPATCH / Parallel fan-out / WAIT / Re-dispatch 映射到任意 harness 原语，**明确平台无关**
 - 官方 packet builder 产出**有界 packet**（仅本帧 storyboard 块 + blueprint 正文 + 引用规则配方）+ `_role.md`（frame-worker-core + 工作流 delta），子智能体只读 packet + `frame.md`
 - WAIT 判据 = 产物文件在盘存在（`compositions/frames/NN-*.html`），不是 harness 完成通知；缺产物重派一次
 - Worker 自检清单内置 lint 错误码（`missing_template_wrapper`、`subcomposition_root_styled_by_class`、`clip_missing_data_attrs`、`timeline_not_paused`、`gsap_css_transform_conflict`…），由 orchestrator 在装配后跑 `hyperframes lint/check` 复核并带着 finding 重新派发

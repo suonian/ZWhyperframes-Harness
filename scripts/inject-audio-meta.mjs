@@ -10,7 +10,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { sha256File, writeJson, findProjectRoot, HARNESS_ROOT } from "./lib/harness.mjs";
+import { sha256File, writeJson, findProjectRoot, HARNESS_ROOT, INJECTION_BINDING_SCHEMA_VERSION } from "./lib/harness.mjs";
 import { readStoryboard } from "./lib/storyboard.mjs";
 import { parseTitles, validateFrameCoverage, mapFramesToWords, buildVoices } from "./lib/audio-inject.mjs";
 
@@ -109,6 +109,7 @@ const sync = spawnSync("node", [syncScript, "sync-durations", "--hyperframes", s
 if (sync.status !== 0) throw new Error("官方 sync-durations 失败");
 
 writeJson(join(audioDir, "injection-binding.json"), {
+  schema_version: INJECTION_BINDING_SCHEMA_VERSION,
   text_sha256: binding.text_sha256,
   titles_sha256: binding.titles_sha256,
   audio_sha256: binding.audio_sha256,

@@ -10,6 +10,9 @@ export const CONTROL_DIR = "00-项目总控";
 export const MASTER_DIR = "99-最终合成";
 export const STATE_VERSION = 1;
 export const HF_EXPECTED_VERSION = "0.8.36";
+// 注入绑定 schema：v2 起记录 storyboard_sha256 / frame_durations（sync-durations 后 STORYBOARD 的事实指纹）。
+// v1（2026-09-14 前生产）缺这两项，属历史格式，**不得事后补哈希伪造绑定**，只能重跑 inject 重新派生。
+export const INJECTION_BINDING_SCHEMA_VERSION = 2;
 export const HARNESS_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 /** 运行 harness 本地锁定的 HyperFrames CLI（唯一入口，禁止全局 hyperframes）。 */

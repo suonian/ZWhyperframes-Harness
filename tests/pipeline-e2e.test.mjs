@@ -10,8 +10,20 @@ import { sha256File } from "../scripts/lib/harness.mjs";
 const SCRIPTS = resolve(import.meta.dirname, "..", "scripts");
 const TMP = () => mkdtempSync(join(tmpdir(), "zw-harness-e2e-"));
 
+// 测试必须 hermetic：任何子进程都不允许无限期挂死。
+// 官方 init 默认联网 git clone skills —— 由 new-video.mjs 自己注入 HYPERFRAMES_SKIP_SKILLS 阻断。
+// 这里**不**替它注入（否则测试会掩盖生产代码的行为），只加 120s 超时兜底：
+// 即使官方行为回退，也只会失败而不会永久阻塞 npm test。
+const RUN_TIMEOUT_MS = 120_000;
 function run(script, args, opts = {}) {
-  return spawnSync(process.execPath, [join(SCRIPTS, script), ...args], { encoding: "utf8", ...opts });
+  const { env, ...rest } = opts;
+  return spawnSync(process.execPath, [join(SCRIPTS, script), ...args], {
+    encoding: "utf8",
+    timeout: RUN_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+    ...rest,
+    env: { ...process.env, ...env },
+  });
 }
 
 const PACKAGE = `# AI 概念入门
@@ -146,6 +158,36 @@ test("new-video segment：官方 init + 段骨架 + 计划连续性校验", () =
 
   const dup = run("new-video.mjs", ["segment", "--project", project, "--id", "01"]);
   assert.equal(dup.status, 1);
+});
+
+// 离线底线（production-workflow-rules.md §1）：P0 之后生产中途不联网也必须能跑完。
+// 用黑洞代理（127.0.0.1:1 无人监听 + 清空 NO_PROXY 豁免）模拟断网——
+// 若段脚手架任何环节偷跑网络，这里会失败或超时，而不是静默通过。
+const OFFLINE_ENV = {
+  HTTP_PROXY: "http://127.0.0.1:1", HTTPS_PROXY: "http://127.0.0.1:1", ALL_PROXY: "http://127.0.0.1:1",
+  http_proxy: "http://127.0.0.1:1", https_proxy: "http://127.0.0.1:1", all_proxy: "http://127.0.0.1:1",
+  NO_PROXY: "", no_proxy: "",
+};
+
+test("离线底线：黑洞代理下 init + 段脚手架仍可完成（生产中途不联网可生产）", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const source = join(root, "package.md");
+  writeFileSync(source, PACKAGE);
+  const init = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"], { env: OFFLINE_ENV });
+  assert.equal(init.status, 0, init.stderr || init.stdout);
+  const plan = { segments: [{ id: "01", dir: "01-开场", lines: [1, 3], title: "开场" }] };
+  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
+  const seg = run("new-video.mjs", ["segment", "--project", project, "--id", "01"], { env: OFFLINE_ENV });
+  assert.equal(seg.status, 0, seg.stderr || seg.stdout);
+  assert.ok(existsSync(join(project, "01-开场", "hyperframes.json")));
+  assert.ok(existsSync(join(project, "01-开场", "user_script.txt")));
+  assert.ok(existsSync(join(project, "01-开场", "segment-manifest.json")));
+  // 判别力：必须真的没碰网络，而不只是"网络失败后仍成功"。
+  // 去掉 new-video.mjs 的 HYPERFRAMES_SKIP_SKILLS 兜底时，官方 init 会打印下列标记。
+  const output = `${seg.stdout ?? ""}\n${seg.stderr ?? ""}`;
+  assert.doesNotMatch(output, /Checking AI coding skills against GitHub/iu, "段脚手架不应触发官方 skills 联网检查");
+  assert.doesNotMatch(output, /Failed to clone|github\.com/iu, "段脚手架不应访问 GitHub");
 });
 
 test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开始授权自动确认前段）", () => {

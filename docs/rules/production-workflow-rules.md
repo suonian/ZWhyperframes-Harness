@@ -1,14 +1,16 @@
 # 生产工作流规则
 
 > 本文件是生产流程的唯一所有者：官方 HF Step 0–6 的落点、harness 适配点、用户决策门、强制质量能力清单、交接与问题账本。
-> 官方流程细节一律以 `$HYPERFRAMES_REPO/skills/faceless-explainer/SKILL.md` 及其引用（`hyperframes-core` 的 brief-contract / review-loop / storyboard-format / subagent-dispatch / frame-worker-core）为唯一真源；本文件只写管理层纪律，不复制官方正文。
+> 官方流程细节一律以 `$HYPERFRAMES_REPO/skills/faceless-explainer/SKILL.md` 及其引用（`skills/hyperframes/references/` 下的 brief-contract / review-loop / storyboard-format / subagent-dispatch / frame-worker-core）为唯一真源；本文件只写管理层纪律，不复制官方正文。
 
 ## 1. 运行边界
 
 - 每支视频 = 一个项目根（`~/Documents/ZWhyperframes-products/<project_id>/`），内含多个段落子项目（每段一个 HF 项目）。
 - 生产锁定 HF `v0.8.36` / commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`；段内 `hyperframes.json` 由官方 `init --skill=faceless-explainer` 产生。
 - 锁定口播稿是内容真源；段落 `user_script.txt` 是其冻结片段；MiniMax 语音、词级时间、字幕与 STORYBOARD 通过哈希绑定。已有项目的代码、字幕、视频、分镜与自评都不是输入。
-- P0 允许准备：HF checkout、依赖、Chrome、字体、on-device catalog 索引、MiniMax；之后生产期零外部请求（断网可复读）。
+- P0 允许准备：HF checkout、依赖、Chrome、字体、on-device catalog 索引、MiniMax、官方 skills 刷新。**P0 之后生产中途不联网也必须能跑完全片**——这是能力底线，不是网络禁令：按需能力仍可联网，但不得成为生产主链的前置条件。
+- **离线底线的唯一强制点**：官方 `hyperframes init` 默认联网 `git clone` skills，这是段脚手架里唯一的隐藏联网依赖。段脚手架（`new-video.mjs segment`）以官方逃生口 `HYPERFRAMES_SKIP_SKILLS=1` 跳过（官方 skills 已由 `bootstrap.sh` 在 P0 刷新）。测试同理（`tests/pipeline-e2e.test.mjs`），另加 120s spawnSync 超时兜底，确保 `npm test` 永不挂死。
+- 网络策略（npm 中国大陆镜像 / GitHub 代理 `127.0.0.1:7890` / MiniMax 直连豁免）由 `scripts/net-env.sh` 单点提供；代理不可达时必须 `HARNESS_NO_PROXY=1` 显式关闭，不得让静默挂死拖垮生产。
 
 ## 2. 流程与落点（官方 Step 0–6 + harness 适配）
 

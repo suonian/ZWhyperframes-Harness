@@ -13,6 +13,7 @@ import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   sha256File, readState, segmentEntry, resolveSegmentDir, readJsonIfPresent, runHf, CONTROL_DIR,
+  INJECTION_BINDING_SCHEMA_VERSION,
 } from "./lib/harness.mjs";
 
 const args = process.argv.slice(2);
@@ -63,6 +64,15 @@ function runVerify() {
   }
   const injection = readJsonIfPresent(join(segmentDir, "audio", "injection-binding.json"));
   if (injection) {
+    // 历史 schema（2026-09-14 前生产）缺 sync 绑定字段。这里**不得**用当前文件补算哈希来"修复"：
+    // 那等于伪造一个生产当时从未验证过的绑定。唯一正解是重跑 inject 重新派生。
+    const injectionSchema = Number(injection.schema_version ?? 1);
+    if (injectionSchema < INJECTION_BINDING_SCHEMA_VERSION) {
+      fail(
+        `段 ${entry.id} 注入绑定为历史 schema v${injectionSchema}（缺 storyboard_sha256 / frame_durations 的 sync 绑定）；` +
+        "禁止事后补哈希伪造证据。请重跑 `node scripts/inject-audio-meta.mjs --segment <段目录>` 重新派生绑定",
+      );
+    }
     if (injection.text_sha256 !== textSha) fail("音频注入绑定文本哈希漂移");
     const metaPath = join(segmentDir, "audio_meta.json");
     const neutralPath = join(segmentDir, "audio_engine_meta.json");

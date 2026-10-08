@@ -94,7 +94,7 @@ function runMaster() {
     // master final look 同时确认最后一段（交接语义与段间一致）。
     const last = state.segments.at(-1);
     if (!last?.mp4 || !last.approvals?.final_look) throw new Error(`末段 ${last?.id ?? "?"} 无 MP4 或 final look 授权，不能进入 master`);
-    if (state.segments.some((s) => s.status !== "accepted")) last.status = "accepted";
+    if (last.status !== "accepted") last.status = "accepted";
   }
   if (kind === "close") {
     if (!state.master.approvals?.final_look) throw new Error("收尾审批前必须完成 master final look");
