@@ -27,6 +27,8 @@
 
 冲突裁决顺序：用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同（以 `$HYPERFRAMES_REPO` 真源为准）。
 
+> `SKILL.md` 是本仓在 SkillHub 上的分发封装，**只做路由、不承载规范**。若与本文件或 `docs/rules/` 冲突，一律以后两者为准。
+
 ## 版本与网络
 
 - 生产锁定 HyperFrames `v0.8.36` / commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`。官方 Skill、role、packet builder、Registry 的唯一真源是构建后的 `$HYPERFRAMES_REPO`。

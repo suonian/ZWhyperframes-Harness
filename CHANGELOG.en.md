@@ -11,7 +11,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-Nothing yet.
+### Documentation
+- Added `SKILL.md`: the repo's SkillHub distribution wrapper. It routes only and carries no normative requirements — those remain uniquely owned by `AGENTS.md` and `docs/rules/`. `AGENTS.md` gained a reciprocal note stating that `AGENTS.md` and `docs/rules/` win on any conflict.
 
 ## [0.2.0] — 2026-10-08
 

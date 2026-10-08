@@ -9,7 +9,8 @@
 
 ## [未发布]
 
-暂无。
+### 文档
+- 新增 `SKILL.md`：本仓在 SkillHub 上的分发封装。它只做路由、不承载规范，全部要求仍由 `AGENTS.md` 与 `docs/rules/` 各自唯一持有；`AGENTS.md` 相应加了一条互指，声明冲突时以 `AGENTS.md` 与 `docs/rules/` 为准。
 
 ## [0.2.0] — 2026-10-08
 
