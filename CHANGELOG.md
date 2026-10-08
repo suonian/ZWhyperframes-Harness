@@ -18,6 +18,14 @@
 - §3 拆为三层并如实标注覆盖范围：3.1 本仓机器门禁（3 项）、3.2 官方 CLI 命令（6 项，无机器门禁）、3.3 流程/复审证据（3 项，无机器门禁），并写明「任何声称本仓对全部 12 项 fail-closed 的表述都是错的」。
 
 ### 文档
+- 仓库描述改为「HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。」（117 字符）。
+- 新增 `CITATION.cff`，GitHub 据此生成 Cite this repository。
+- README 新增「获取帮助」段，列出 issue / 功能提议 / 安全漏洞 / 贡献代码四条渠道。
+- topics 增补 `agent-harness`、`guardrails`、`llm` 三个领域检索词（共 15 个）。
+
+### 安全
+- 开启 GitHub secret scanning（含 push protection）与 dependabot security updates。
+- 开启 private vulnerability reporting——`SECURITY.md` 指示的私下报告通道此前处于关闭状态。
 - **README 重构为六段结构**（中英双语）：一句话是什么 / 为什么需要 / 是什么·不是什么 / 如何解决 / 凭什么可信 / 使用与治理。「凭什么可信」段只写可被检验的事实，并公开三层强制力的真实覆盖——官方 12 项能力中只有 3 项有机器门禁。
 - 新增**非目标**段落：把「不重造官方能力」「脚本零 agent 调用」「不追未发布版本」从角落提到正文，它们是「是什么」的一部分。
 - **对齐 standard-readme 规范**：简短描述压到 112 字符并与 GitHub 仓库描述保持一致；补目录（README 已超 100 行门槛）；许可改为末节。

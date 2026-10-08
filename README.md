@@ -8,7 +8,7 @@
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 [![tests](https://img.shields.io/badge/tests-45%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
-驾驭 HyperFrames 的工程：规则钉死官方流程，门禁卡住没跑的能力。官方能力不重写。
+HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
 
 > ⚠️ **非官方项目。** 与 HeyGen 无隶属、赞助或背书关系。「HyperFrames」是 HeyGen, Inc. 的商标，本项目名称仅用于说明技术依赖关系。Apache-2.0 不授予商标使用权。详见 [DISCLAIMER.md](DISCLAIMER.md)。
 
@@ -22,6 +22,7 @@
 - [快速开始](#快速开始)
 - [仓库结构](#仓库结构)
 - [规则文档](#规则文档)
+- [获取帮助](#获取帮助)
 - [参与贡献](#参与贡献)
 - [文档索引](#文档索引)
 - [隐私与遥测](#隐私与遥测)
@@ -174,6 +175,15 @@ tests/                 测试（单元 + e2e，全部离线可跑）
 
 > **语言政策**：`docs/rules/` 下四份文件**仅维护中文版**，规范性要求以中文为准。这是刻意的——它们是单一所有者的规范合同，做英文孪生版本会给规范性要求造出两个 source of truth，而本仓的裁决顺序没有语言维度可以仲裁漂移。`AGENTS.md`、`docs/architecture/`、`docs/plans/` 同理。社区与治理文档则是双语的，入口见下方文档索引的「英文版」列。
 
+## 获取帮助
+
+| 场景 | 渠道 |
+| --- | --- |
+| 使用问题、Bug | [提交 issue](https://github.com/suonian/ZWhyperframes-Harness/issues)（含 3 个模板：Bug / 功能提议 / 提问） |
+| 功能提议 | [功能提议模板](.github/ISSUE_TEMPLATE/feature_request.md)，需先通过架构不变量自查 |
+| 安全漏洞 | **不要**开公开 issue，见 [SECURITY.md](SECURITY.md) 的私下报告流程 |
+| 贡献代码 | 见下方「参与贡献」 |
+
 ## 参与贡献
 
 见 [CONTRIBUTING.md](CONTRIBUTING.md)。修改规则、脚本或 schema 后**必须**运行 `npm test`。
@@ -189,6 +199,7 @@ tests/                 测试（单元 + e2e，全部离线可跑）
 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | 行为准则 | [English](CODE_OF_CONDUCT.en.md) |
 | [DISCLAIMER.md](DISCLAIMER.md) | 商标与内容版权免责声明 | [English](DISCLAIMER.en.md) |
 | [NOTICE](NOTICE) | 第三方归属 | 法律文本，中英通用 |
+| [CITATION.cff](CITATION.cff) | 引用信息（GitHub 由此生成 Cite this repository） | [English](CITATION.cff) |
 
 ## 隐私与遥测
 

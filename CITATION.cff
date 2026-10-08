@@ -1,0 +1,25 @@
+# 引用信息，GitHub 会据此生成 "Cite this repository"。
+# 格式：Citation File Format (CFF) 1.2.0
+# https://citation-file-format.github.io/
+cff-version: 1.2.0
+message: "If you use this project in academic work, please cite it as below."
+title: "ZWhyperframes-Harness"
+abstract: >-
+  A harness engineering project for HyperFrames. It constrains the official
+  production flow with rules and enforces capability execution with gates,
+  without reimplementing any core official capability.
+type: software
+version: 0.1.0
+date-released: "2026-10-08"
+license: Apache-2.0
+repository-code: "https://github.com/suonian/ZWhyperframes-Harness"
+url: "https://github.com/suonian/ZWhyperframes-Harness"
+keywords:
+  - hyperframes
+  - agent-harness
+  - video-production
+  - workflow-enforcement
+  - faceless-video
+authors:
+  - family-names: suonian
+    alias: suonian

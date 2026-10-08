@@ -20,6 +20,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - §3 is split into three tiers with honest coverage: 3.1 machine gates in this repo (3 items), 3.2 official CLI commands (6 items, no machine gate), 3.3 process / review evidence (3 items, no machine gate), plus an explicit note that "any claim that this repo is fail-closed on all 12 is wrong".
 
 ### Documentation
+- Repository description is now "HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。" (117 characters).
+- Added `CITATION.cff`, which GitHub uses to generate "Cite this repository".
+- README gained a "Getting help" section listing four channels: issues, feature proposals, security vulnerabilities, and code contributions.
+- Topics gained `agent-harness`, `guardrails`, and `llm` as domain search terms (15 total).
+
+### Security
+- Enabled GitHub secret scanning (including push protection) and dependabot security updates.
+- Enabled private vulnerability reporting — the channel `SECURITY.md` points reporters to was previously disabled.
 - **README restructured into six sections** (both languages): what it is in one line / why it's needed / what this is and what it is not / how it works / why you can trust it / usage and governance. The "why you can trust it" section states only verifiable facts and publishes the true coverage of the three enforcement tiers — only 3 of the 12 official capabilities have machine gates.
 - Added a **non-goals** section: "does not rebuild official capabilities", "scripts are agent-call-free", and "does not track unreleased versions" are promoted from a corner, because they are part of what this is.
 - **Aligned with the standard-readme spec**: the short description is now 112 characters and matches the GitHub repository description; a table of contents was added (the README exceeds the 100-line threshold); License moved to the last section.

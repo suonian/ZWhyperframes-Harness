@@ -8,7 +8,7 @@
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 [![tests](https://img.shields.io/badge/tests-45%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
-The harness that reins HyperFrames in: rules pin the official flow, gates block what wasn't run. Official capabilities are never rebuilt.
+A harness engineering project for HyperFrames: rules constrain the official production flow, gates enforce that official capabilities are actually executed. Core official capabilities are never rebuilt.
 
 > ⚠️ **Unofficial project.** Not affiliated with, sponsored by, or endorsed by HeyGen. "HyperFrames" is a trademark of HeyGen, Inc.; it appears in this project's name solely to describe the technical dependency. Apache-2.0 grants no trademark rights. See [DISCLAIMER.md](DISCLAIMER.md).
 
@@ -22,6 +22,7 @@ The harness that reins HyperFrames in: rules pin the official flow, gates block 
 - [Quick start](#quick-start)
 - [Repository layout](#repository-layout)
 - [Rules](#rules)
+- [Getting help](#getting-help)
 - [Contributing](#contributing)
 - [Documentation index](#documentation-index)
 - [Privacy and telemetry](#privacy-and-telemetry)
@@ -174,6 +175,15 @@ Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF
 
 > **Language policy.** The four files under `docs/rules/` are maintained in **Chinese only**, and Chinese is authoritative for their normative requirements. This is deliberate: they are normative contracts with a single owner, so an English twin would create two sources of truth, and this repo's precedence order has no language dimension to adjudicate drift. The same applies to `AGENTS.md`, `docs/architecture/`, and `docs/plans/`. Community and governance documents are bilingual — see the "English" column in the documentation index below.
 
+## Getting help
+
+| Situation | Channel |
+| --- | --- |
+| Usage question or bug | [Open an issue](https://github.com/suonian/ZWhyperframes-Harness/issues) (three templates: bug / feature request / question) |
+| Feature proposal | [Feature request template](.github/ISSUE_TEMPLATE/feature_request.md), which requires passing the architectural-invariant self-check |
+| Security vulnerability | **Do not** open a public issue — see the private reporting process in [SECURITY.en.md](SECURITY.en.md) |
+| Contributing code | See "Contributing" below |
+
 ## Contributing
 
 See [CONTRIBUTING.en.md](CONTRIBUTING.en.md). Running `npm test` is **mandatory** after changing any rule, script, or schema.
@@ -189,6 +199,7 @@ See [CONTRIBUTING.en.md](CONTRIBUTING.en.md). Running `npm test` is **mandatory*
 | [DISCLAIMER.en.md](DISCLAIMER.en.md) | Trademark and content-copyright disclaimer | [中文](DISCLAIMER.md) |
 | [AGENTS.md](AGENTS.md) | Agent entry point — **Chinese only** | — |
 | [NOTICE](NOTICE) | Third-party attribution (language-neutral legal text) | — |
+| [CITATION.cff](CITATION.cff) | Citation metadata (GitHub generates "Cite this repository" from it) | — |
 
 ## Privacy and telemetry
 
