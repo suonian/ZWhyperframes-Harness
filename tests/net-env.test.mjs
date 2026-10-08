@@ -11,9 +11,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
-import { mkdtempSync, symlinkSync } from "node:fs";
+import { symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { tmpdir } from "node:os";
+import { tmp } from "./lib/tmp.mjs";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -111,7 +111,7 @@ test("HARNESS_PROXY 为空串等同关闭", () => {
 });
 
 test("无 python3 时显式说明原因，不静默直连", (t) => {
-  const sandbox = mkdtempSync(join(tmpdir(), "zw-nopy-"));
+  const sandbox = tmp("zw-nopy-");
   // PATH 指向只含 bash 软链的沙箱即可屏蔽 python3（bash 走绝对路径启动，不需要沙箱里的 bash）。
   //
   // 但 macOS CI runner 上这招实测失效（本地三种隔离方式均有效，无法复现 runner 行为），

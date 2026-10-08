@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import {
   normalizeText, sha256Text, STATE_VERSION, CONTROL_DIR,
   readState, writeState, segmentEntry, findProjectRoot,
 } from "../scripts/lib/harness.mjs";
+import { tmp } from "./lib/tmp.mjs";
 
 test("normalizeText 去空白与标点", () => {
   assert.equal(normalizeText("你被AI骗过吗？"), "你被AI骗过吗");
@@ -14,7 +14,7 @@ test("normalizeText 去空白与标点", () => {
 });
 
 test("state 读写与回读", () => {
-  const root = mkdtempSync(join(tmpdir(), "zw-harness-test-"));
+  const root = tmp("zw-harness-test-");
   mkdirSync(join(root, CONTROL_DIR), { recursive: true });
   const state = {
     version: STATE_VERSION,
@@ -33,7 +33,7 @@ test("state 读写与回读", () => {
 });
 
 test("state 版本不匹配 fail-closed", () => {
-  const root = mkdtempSync(join(tmpdir(), "zw-harness-test-"));
+  const root = tmp("zw-harness-test-");
   mkdirSync(join(root, CONTROL_DIR), { recursive: true });
   writeFileSync(join(root, CONTROL_DIR, "state.json"), JSON.stringify({ version: 99 }));
   assert.throws(() => readState(root), /版本不匹配/u);

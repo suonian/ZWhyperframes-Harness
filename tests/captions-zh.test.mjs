@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { splitClauses, planLines, alignCharsToTokens, buildGroups } from "../scripts/captions-zh.mjs";
+import { tmp } from "./lib/tmp.mjs";
 
-const TMP = () => mkdtempSync(join(tmpdir(), "zw-captions-zh-"));
+const TMP = () => tmp("zw-captions-zh-");
 
 // 该用例会把官方 faceless-explainer 的 captions.mjs 作为模块导入——那是
 // 「渲染永远走官方」的真实路径，值得被真正执行。但它依赖 bootstrap 安装的官方

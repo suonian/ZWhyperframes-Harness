@@ -1,14 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { sha256File } from "../scripts/lib/harness.mjs";
+import { tmp } from "./lib/tmp.mjs";
 
 const SCRIPTS = resolve(import.meta.dirname, "..", "scripts");
-const TMP = () => mkdtempSync(join(tmpdir(), "zw-harness-e2e-"));
+const TMP = () => tmp("zw-harness-e2e-");
 
 // 测试必须 hermetic：任何子进程都不允许无限期挂死。
 // 官方 init 默认联网 git clone skills —— 由 new-video.mjs 自己注入 HYPERFRAMES_SKIP_SKILLS 阻断。
