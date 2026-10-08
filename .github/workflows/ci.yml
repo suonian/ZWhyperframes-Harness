@@ -38,7 +38,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 离线可跑：测试全程不依赖网络（段脚手架以官方 HYPERFRAMES_SKIP_SKILLS 跳过 skills 联网检查）。
+      # 安装官方 skills。字幕用例会真正导入官方 faceless-explainer 的 captions.mjs，
+      # 跳过这一步它就会被标记为 skip——那样 CI 就没验证到「渲染走官方」这条路径。
+      - name: Bootstrap (install official skills)
+        run: npm run bootstrap
+
+      # 测试本身离线可跑（段脚手架以官方 HYPERFRAMES_SKIP_SKILLS 跳过 skills 联网检查）。
       - name: Test
         run: npm test
 

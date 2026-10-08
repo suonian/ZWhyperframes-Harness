@@ -1,12 +1,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { splitClauses, planLines, alignCharsToTokens, buildGroups } from "../scripts/captions-zh.mjs";
 
 const TMP = () => mkdtempSync(join(tmpdir(), "zw-captions-zh-"));
+
+// 该用例会把官方 faceless-explainer 的 captions.mjs 作为模块导入——那是
+// 「渲染永远走官方」的真实路径，值得被真正执行。但它依赖 bootstrap 安装的官方
+// skill，新克隆尚未 bootstrap 时**明确跳过**（而非含混失败）；CI 会先跑 bootstrap
+// 从而完整覆盖这条路径。
+const HAS_OFFICIAL_SKILL = [
+  join(import.meta.dirname, "..", "vendor", "skills", "faceless-explainer"),
+  join(process.env.HOME ?? "", ".claude", "skills", "faceless-explainer"),
+  join(process.env.HOME ?? "", ".agents", "skills", "faceless-explainer"),
+  join(process.env.HOME ?? "", ".config", "opencode", "skills", "faceless-explainer"),
+].some((dir) => existsSync(join(dir, "scripts", "captions.mjs")));
+
+const SKIP_REASON = "需要官方 faceless-explainer skill（先运行 npm run bootstrap；CI 中会先 bootstrap）";
 
 test("语块切分：标点收尾、收尾引号归前段、不吞下一段", () => {
   const text = "“降本裁员”为目的的 AI 落地项目，不是好项目。用 AI 帮企业。";
@@ -64,7 +77,7 @@ test("字符对齐：TTS 折叠（缺 token、大小写、标点独立 token）�
   assert.equal(groups[1].words.at(-1).end, 1.35);
 });
 
-test("captions-zh build/verify：确定性产物 + 官方 skin 填充", () => {
+test("captions-zh build/verify：确定性产物 + 官方 skin 填充", { skip: HAS_OFFICIAL_SKILL ? false : SKIP_REASON }, () => {
   const root = TMP();
   const seg = join(root, "01-demo");
   mkdirSync(join(seg, ".hyperframes"), { recursive: true });
