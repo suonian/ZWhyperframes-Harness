@@ -27,22 +27,40 @@
 | master | — | `finalize-master.mjs`（thin ffmpeg concat，仅用已确认段 MP4）→ master final look（用户）→ 收尾审批 |
 | 交付 | publish / recipe | 交付说明 + recipe freeze 提议 |
 
-## 3. 强制质量能力清单（1–11 每支视频必须执行，12 按需命中才执行；缺一项即门禁失败）
+## 3. 强制质量能力清单
 
-| # | 能力 | 落点 | 门禁方式 |
+**强制分三层，不可混为一谈。** 本仓的机器门禁只能覆盖第一层——除非某项官方能力留下可校验的产物，否则门禁无法证明智能体「真的执行过」它。把「写在规则里」当成「已经强制」，正是本项目要消灭的病。
+
+### 3.1 本仓机器门禁（缺一项即 fail-closed）
+
+| # | 能力 | 门禁命令 | 校验的产物 |
 | --- | --- | --- | --- |
-| 1 | pitch-round 创意采样门 | 开案（autonomous 版内部执行） | `gate.mjs` 校验 BRIEF.md 含 `## Intent` 胜出概念 |
-| 2 | 官方 frame preset | Step 2 | `frame.md` 存在且来自命名 preset（官方 build-frame 退出 0） |
-| 3 | catalog --on-device 语义检索 | Step 4 每帧 | Step 4 复审证据记录查询与 tier |
-| 4 | voiceover carve | Step 6（BGM 存在时） | assemble 后、check 前必跑 `carve.mjs` |
-| 5 | animation-map | Step 5 每页 | 主审前每页存在 `animation-map.json` |
-| 6 | check --strict | Step 6 | 渲染授权前必须带 `--strict` 通过 |
-| 7 | keyframes 诊断 | Step 6（有 camera/mask/zoom/转场风险时） | 复审证据 |
-| 8 | compare 双机制对比 | Step 4 高风险页 | 双案至少两项真实不同（官方 review-loop 纪律） |
-| 9 | preview --context + frame-comments | final look | 用户反馈通道，处置后删除评论文件（官方纪律） |
-| 10 | publish 链接 | final look 交付 | 给用户可点击链接（官方预览优先） |
-| 11 | recipe freeze | 交付后 | 一次性提议（官方 review-loop §4） |
-| 12 | media-treatment | 素材预处理（按需） | 素材冻结仍走 media-use |
+| 1 | pitch-round 创意采样门 | `gate.mjs pitch-round` | 项目根 `BRIEF.md` 的 `## Intent` 非空 |
+| 5 | animation-map | `gate.mjs animation-map` | 段内 `.hyperframes/anim-map/animation-map.json` 存在 |
+| 6 | check --strict | 内建于 `gate.mjs final-look` | 官方 `check --strict` 退出码；**渲染授权不可绕过** |
+
+### 3.2 官方 CLI 命令（须真实执行；退出码即证据）
+
+官方 CLI 有对应命令，本仓不重复实现，只保证其退出码被真实读取。**执行与否依赖流程与复审证据，本仓无机器门禁。**
+
+| # | 能力 | 官方命令 / 产物 |
+| --- | --- | --- |
+| 2 | 官方 frame preset | `hyperframes init` 落地的 `frame.md`（命中命名 preset） |
+| 3 | catalog --on-device 语义检索 | `hyperframes catalog` |
+| 4 | voiceover carve（BGM 存在时） | 官方 `skills/hyperframes-audio/scripts/carve.mjs` |
+| 7 | keyframes 诊断（有 camera/mask/zoom/转场风险时） | `hyperframes keyframes` |
+| 8 | compare 双机制对比（高风险页） | `hyperframes compare` |
+| 10 | publish 链接 | `hyperframes publish` |
+
+### 3.3 流程 / 复审证据（本仓不设机器门禁）
+
+| # | 能力 | 证据形式 |
+| --- | --- | --- |
+| 9 | preview --context + frame-comments | 复审处置记录；处置后删除评论文件（官方纪律） |
+| 11 | recipe freeze | 交付后一次性提议（官方 review-loop §4） |
+| 12 | media-treatment | 按需命中才执行；素材冻结仍走 media-use |
+
+> **诚实声明**：3.2 与 3.3 合计 9 项，本仓**没有**机器门禁，它们靠流程与复审约束，不满足「不跑就卡住」。任何声称本仓对全部 12 项 fail-closed 的表述都是错的。新增能力时，必须先确定它属于哪一层——落不进 3.1 的，就别在别处宣称它被强制了。
 
 ## 4. Step 5 子智能体派发纪律（官方 subagent-dispatch + harness 纪律）
 

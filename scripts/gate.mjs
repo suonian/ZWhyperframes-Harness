@@ -2,7 +2,9 @@
 // gate.mjs — 轻量门禁（管理层，官方 check/lint 的包装与前置事实校验）
 //   verify              锁稿/TTS/注入绑定哈希同源（fail-closed）
 //   authorized          段开始授权存在
-//   final-look          段 final look 授权存在（渲染授权）
+//   final-look          段 final look 授权存在（渲染授权）；**内含官方 check --strict，不可绕过**
+//   pitch-round         BRIEF.md 的 `## Intent` 胜出概念非空（官方采样门产物）
+//   animation-map       本段 composition 的 animation-map.json 产物存在
 //   check               官方 hyperframes check --strict 包装（含 lint）
 //   mp4                 段 MP4 存在/非空/时长合理/哈希绑定一致
 //   next-segment        前序段已接受（段间交接）
@@ -98,9 +100,56 @@ function runAuthorized() {
 }
 
 function runFinalLook() {
-  const { entry } = requireSegment();
+  const { entry, segmentDir } = requireSegment();
   if (!entry.approvals?.final_look) fail(`段 ${entry.id} 缺少用户「final look 渲染授权」`);
-  pass(`段 ${entry.id} 已获 final look 授权`);
+  // 渲染授权**不得**绕过官方 check --strict。
+  // 此前 `check` 是与 `final-look` 互不调用的独立命令，规则文档写「渲染授权前必须
+  // 带 --strict 通过」，但实际可以先拿授权再补跑、甚至不跑。强制点必须落在授权这一环。
+  const r = runHf(["check", "--strict"], { cwd: segmentDir });
+  if (r.status !== 0) {
+    fail(`段 ${entry.id}：官方 check --strict 未通过，final look 授权无效：\n${r.stdout}\n${r.stderr}`);
+  }
+  pass(`段 ${entry.id} 已获 final look 授权（且官方 check --strict 通过）`);
+}
+
+// §3 第 1 项：pitch-round 采样门。官方合同（skills/hyperframes/references/pitch-round.md）
+// 写明胜出概念落在 BRIEF.md 的 `## Intent` 下，且 brief-format.md 确认该小节存在。
+// 故本门禁只校验该产物**非空**——不判断概念好坏，那属于人工/复审。
+function runPitchRound() {
+  const projectRoot = resolve(get("project") ?? ".");
+  const briefPath = join(projectRoot, "BRIEF.md");
+  if (!existsSync(briefPath)) {
+    fail("缺少 BRIEF.md（官方 Step 0：intent 层锁定的简报）");
+  }
+  const lines = readFileSync(briefPath, "utf8").split("\n");
+  const start = lines.findIndex((line) => /^##\s+Intent\s*$/u.test(line));
+  if (start < 0) fail("BRIEF.md 缺少 `## Intent`（pitch-round 胜出概念的落点）");
+  const body = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s/u.test(lines[i])) break;
+    body.push(lines[i]);
+  }
+  if (!body.join("\n").trim()) {
+    fail("BRIEF.md 的 `## Intent` 为空——pitch-round 必须留下胜出概念");
+  }
+  pass(`pitch-round 有据可查（BRIEF.md \`## Intent\` 非空，${body.join(" ").trim().length} 字符）`);
+}
+
+// §3 第 5 项：animation-map。官方脚本 skills/hyperframes-animation/scripts/animation-map.mjs
+// 默认把产物写到 <composition>/.hyperframes/anim-map/animation-map.json。
+// 注意：官方每个 composition 产出**一个** animation-map.json（覆盖全时间线），
+// 不是"每页一个"——原规则表述不准确，此处按官方实际契约校验。
+function runAnimationMap() {
+  const { segmentDir } = requireSegment();
+  const custom = get("out");
+  const candidates = custom
+    ? [join(resolve(custom), "animation-map.json")]
+    : [join(segmentDir, ".hyperframes", "anim-map", "animation-map.json")];
+  const found = candidates.find((p) => existsSync(p));
+  if (!found) {
+    fail(`缺少 animation-map.json（预期 ${candidates.join(" 或 ")}；官方脚本 animation-map.mjs 的产物）`);
+  }
+  pass(`animation-map 产物存在（${found}）`);
 }
 
 function runCheck() {
@@ -177,12 +226,17 @@ try {
   else if (command === "layout-guard") runLayoutGuard();
   else if (command === "authorized") runAuthorized();
   else if (command === "final-look") runFinalLook();
+  else if (command === "pitch-round") runPitchRound();
+  else if (command === "animation-map") runAnimationMap();
   else if (command === "check") runCheck();
   else if (command === "mp4") runMp4();
   else if (command === "next-segment") runNextSegment();
   else if (command === "master-inputs") runMasterInputs();
   else {
-    console.error("用法: gate.mjs verify|authorized|final-look|check|mp4|next-segment|master-inputs|layout-guard --project <项目根> [--segment <NN>]");
+    console.error(
+      "用法: gate.mjs verify|authorized|final-look|pitch-round|animation-map|check|mp4|next-segment|master-inputs|layout-guard\n" +
+      "      --project <项目根> [--segment <NN>] [--out <animation-map 输出目录>]",
+    );
     process.exit(2);
   }
 } catch (error) {

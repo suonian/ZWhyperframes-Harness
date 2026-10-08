@@ -327,3 +327,59 @@ test("gate layout-guard：可见字号 <28px fail-closed；≥28px 通过", () =
   assert.equal(failRun.status, 1);
   assert.match(failRun.stderr, /可见字号低于 28px/u);
 });
+
+// §3 第 1 项此前在规则文档里声称「`gate.mjs` 校验 BRIEF.md 含 `## Intent` 胜出概念」，
+// 但该门禁**从未实现**——审计时全仓零 BRIEF 校验代码。这是把「写在规则里」当成
+// 「已经强制」的典型。下列用例锁定它现在真的存在。
+test("gate pitch-round：BRIEF.md 的 `## Intent` 胜出概念缺失/为空 fail-closed", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const source = join(root, "package.md");
+  writeFileSync(source, PACKAGE);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+
+  const brief = join(project, "BRIEF.md");
+  // 缺 BRIEF.md
+  assert.equal(run("gate.mjs", ["pitch-round", "--project", project]).status, 1);
+  // 有 BRIEF.md 但无 ## Intent
+  writeFileSync(brief, "---\nflow: explain\n---\n\n## Audience\n新手\n");
+  assert.equal(run("gate.mjs", ["pitch-round", "--project", project]).status, 1);
+  // ## Intent 存在但为空
+  writeFileSync(brief, "---\nflow: explain\n---\n\n## Intent\n\n## Assets\n无\n");
+  const empty = run("gate.mjs", ["pitch-round", "--project", project]);
+  assert.equal(empty.status, 1);
+  assert.match(empty.stderr, /`## Intent` 为空/u);
+  // 胜出概念存在
+  writeFileSync(brief, "---\nflow: explain\n---\n\n## Intent\n用「你以为的常识其实是错觉」切入。\n\n## Assets\n无\n");
+  const ok = run("gate.mjs", ["pitch-round", "--project", project]);
+  assert.equal(ok.status, 0, ok.stderr || ok.stdout);
+});
+
+test("gate animation-map：官方 animation-map.json 产物缺失 fail-closed", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const source = join(root, "package.md");
+  writeFileSync(source, PACKAGE);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  const plan = { segments: [{ id: "01", dir: "01-a", lines: [1, 3], title: "a" }] };
+  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
+  assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
+
+  const missing = run("gate.mjs", ["animation-map", "--project", project, "--segment", "01"]);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /缺少 animation-map\.json/u);
+
+  // 官方脚本默认写到 <composition>/.hyperframes/anim-map/animation-map.json
+  const outDir = join(project, "01-a", ".hyperframes", "anim-map");
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(join(outDir, "animation-map.json"), "{}");
+  const ok = run("gate.mjs", ["animation-map", "--project", project, "--segment", "01"]);
+  assert.equal(ok.status, 0, ok.stderr || ok.stdout);
+
+  // --out 覆盖（官方脚本支持指定输出目录）
+  const custom = join(root, "custom-map");
+  mkdirSync(custom, { recursive: true });
+  assert.equal(run("gate.mjs", ["animation-map", "--project", project, "--segment", "01", "--out", custom]).status, 1);
+  writeFileSync(join(custom, "animation-map.json"), "{}");
+  assert.equal(run("gate.mjs", ["animation-map", "--project", project, "--segment", "01", "--out", custom]).status, 0);
+});

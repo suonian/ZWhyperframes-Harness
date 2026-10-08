@@ -11,7 +11,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Gates
+- **Corrected a false claim**: §3 previously stated "12 mandatory quality capabilities; missing one fails the gate", and claimed item 1 was validated by `gate.mjs` against `BRIEF.md`'s `## Intent` — but that gate **was never implemented**, and the repo contained zero BRIEF-validation code. Conflating "written in the rules" with "already enforced" is exactly the disease this project exists to cure, and it caught it first.
+- Added `gate.mjs pitch-round`: validates that the project root's `BRIEF.md` has a non-empty `## Intent` (where official `pitch-round.md` requires the winning concept to land).
+- Added `gate.mjs animation-map`: validates that the segment contains `.hyperframes/anim-map/animation-map.json` (the official `animation-map.mjs` default output path).
+- **`gate.mjs final-look` now embeds official `check --strict`**: previously `check` and `final-look` never called each other, so render authorization could be granted first and the check run later — or skipped entirely. Render authorization can no longer bypass it.
+- Both new gates come with e2e tests, mutation-verified (rewriting each gate to always pass turns the tests red).
+- §3 is split into three tiers with honest coverage: 3.1 machine gates in this repo (3 items), 3.2 official CLI commands (6 items, no machine gate), 3.3 process / review evidence (3 items, no machine gate), plus an explicit note that "any claim that this repo is fail-closed on all 12 is wrong".
+
 ### Documentation
+- **README restructured into six sections** (both languages): what it is in one line / why it's needed / what this is and what it is not / how it works / why you can trust it / usage and governance. The "why you can trust it" section states only verifiable facts and publishes the true coverage of the three enforcement tiers — only 3 of the 12 official capabilities have machine gates.
+- Added a **non-goals** section: "does not rebuild official capabilities", "scripts are agent-call-free", and "does not track unreleased versions" are promoted from a corner, because they are part of what this is.
+- **Aligned with the standard-readme spec**: the short description is now 112 characters and matches the GitHub repository description; a table of contents was added (the README exceeds the 100-line threshold); License moved to the last section.
+- **Corrected the GitHub repository description**: it was still the 292-character old positioning ("management layer… mandatory use of quality capabilities"), contradicting the rewritten docs.
 - **Corrected the project's positioning**: it was previously described as a "management layer" that "only fills management gaps official does not have", which inverts cause and effect. The real driver is that **HyperFrames can run but cannot police itself** — rules and official capabilities are "nominally in use" but never actually executed. The positioning is restated as **the harness that reins HyperFrames in**, with the three duties re-characterized as "protect the process (enforcement) / enforce capabilities (enforcement) / fill the gaps (fill-in)", and "anti-duplication is a boundary, not the purpose".
 - The Chinese README gained the problem-statement section it was missing (the English version already had one); the two structures now align.
 - **Bilingual community and governance documents**: added English versions of `CONTRIBUTING` / `CHANGELOG` / `CODE_OF_CONDUCT` / `SECURITY` / `DISCLAIMER`, with a language switcher in both directions on every pair.

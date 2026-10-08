@@ -1,18 +1,31 @@
+[中文](README.md) | **English**
+
 # ZWhyperframes-Harness
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
-[![CI](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml/badge.svg)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-43%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-45%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
-A **harness for reining in HyperFrames** while producing Chinese faceless (no-presenter) knowledge videos: so that HyperFrames' capabilities are genuinely used on every single run, and videos come out stable, continuously, and to the same standard.
+The harness that reins HyperFrames in: rules pin the official flow, gates block what wasn't run. Official capabilities are never rebuilt.
 
 > ⚠️ **Unofficial project.** Not affiliated with, sponsored by, or endorsed by HeyGen. "HyperFrames" is a trademark of HeyGen, Inc.; it appears in this project's name solely to describe the technical dependency. Apache-2.0 grants no trademark rights. See [DISCLAIMER.md](DISCLAIMER.md).
 
-[中文](README.md) | **English**
+## Contents
 
----
+- [Why this layer exists](#why-this-layer-exists)
+- [What this is, and what it is not](#what-this-is-and-what-it-is-not)
+- [How it works](#how-it-works)
+- [Why you can trust it](#why-you-can-trust-it)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Repository layout](#repository-layout)
+- [Rules](#rules)
+- [Contributing](#contributing)
+- [Documentation index](#documentation-index)
+- [Privacy and telemetry](#privacy-and-telemetry)
+- [License](#license)
 
 ## Why this layer exists
 
@@ -24,11 +37,23 @@ Producing videos with HyperFrames directly produces three classes of problem **c
 
 The root cause is not missing functionality. It is that **production is driven by an agent in the moment**: the capabilities are present, the discipline is not. Rules are written to be read by a model, not executed by a machine.
 
-## Positioning: reining in HyperFrames
+## What this is, and what it is not
 
-HyperFrames' capabilities are complete — composition, storyboarding, sub-agent contracts, audio engine, captions, transitions, assembly, check, rendering. **None of it is rewritten.**
+HyperFrames' capabilities are complete — composition, storyboarding, sub-agent contracts, audio engine, captions, transitions, assembly, check, rendering. This repository rebuilds **none** of it; it only adds a layer of constraint around it.
 
-This repository is the harness that reins it in: **rules** pin the official process down; **gates** turn "claimed to be done" into "blocked until it passes".
+| Is | Is not |
+| --- | --- |
+| Rules: official flow written as decidable conditions | Prompts: left to the model's discretion |
+| Gates: fail-closed when conditions aren't met, artifacts left as evidence | Post-hoc checks: notice a problem, then fix it |
+| Enforcement over **verifiable artifacts** | Enforcement of agent behavior — that cannot be done, and we don't pretend otherwise |
+
+**Non-goals (explicitly out of scope):**
+
+- Not reimplementing composition, assembly, transitions, caption rendering, check, or rendering — official already has these, nothing is rebuilt
+- Not writing scripts as an agent execution layer — scripts are agent-call-free; sub-agent dispatch happens only inside the main agent conversation
+- Not tracking HF versions that official hasn't released — upgrading is a **contract audit** task, not a version-number change
+
+## How it works
 
 | | Nature | What it does |
 | --- | --- | --- |
@@ -36,24 +61,40 @@ This repository is the harness that reins it in: **rules** pin the official proc
 | **Enforce capabilities** | Enforcement | Turns "the rules say to use pitch-round" into "the gate is red if pitch-round never ran" |
 | **Fill the gaps** | Fill-in | The few management pieces official genuinely lacks: locked-script segmentation, MiniMax word-level timing injection, master concatenation, state & approval records |
 
-**Anti-duplication is a boundary, not the purpose**: do not hand-roll composition, assembly, transitions, caption rendering, check, or rendering. Scripts stay single-step, idempotent, deterministic, and free of agent calls.
+**Filling the gaps is a by-product, not the mission.** Core capabilities come 100% from official, none of it is rebuilt — anti-duplication is a boundary, not the purpose.
 
-## Design commitments
+## Why you can trust it
 
-- **Fail-closed, not best-effort.** Locked script → TTS artifacts → injection binding → MP4 are chained with SHA-256. A frame's voiceover must match the locked script by **exact equality after normalization** — not similarity.
-- **Evidence cannot be fabricated.** A missing historical binding must be **re-derived**, never back-filled with a hash computed today. A back-filled hash is a forgery, and it poisons the entire chain.
-- **Offline is a floor, not a ban.** After one-time preparation, a run must be completable with no network at all. On-demand capabilities (asset search, catalog search, model download) may still use the network — they just must never become a prerequisite of the main chain.
-- **Four decision gates, no more.** Per-segment start authorization, per-segment final-look render authorization, master final look, and project sign-off. Everything else runs without stopping.
+This section states **verifiable facts**, not adjectives.
+
+- **Fail-closed, not best-effort.** Locked script → TTS → injection binding → MP4 are chained with SHA-256; a frame's voiceover is released only when fully equal to the locked script after normalization — not similarity.
+- **Evidence cannot be fabricated.** A missing binding can only be re-derived; **back-filling a hash after the fact to "green" a gate is forbidden**. A back-filled hash is a binding that was never verified.
+- **Offline is a capability floor.** After one-time P0 preparation, a video must be completable with no network mid-production (this is a minimum requirement, not a network ban: on-demand capabilities may still go online; they just must not be a precondition of the main chain).
+- **Decision gates converge to four.** Per-segment start authorization, per-segment final-look render authorization, master final look, and project close-out approval. Nothing else interrupts.
+
+### Enforcement comes in three tiers, and we don't call tier 2 and 3 "enforced"
+
+"Written in the rules" is not "enforced". This project discloses that distinction honestly:
+
+| Tier | Meaning | Coverage |
+| --- | --- | --- |
+| **3.1 Machine gates in this repo** | Missing one is fail-closed | `verify` / `final-look` / `pitch-round` / `animation-map` / `check` / `mp4` / `next-segment` / `master-inputs` / `layout-guard` / `authorized` |
+| **3.2 Official CLI commands** | Must genuinely be executed; the exit code is the evidence. **No machine gate in this repo** | Official `catalog` / `keyframes` / `compare` / `publish` / carve |
+| **3.3 Process / review evidence** | **No machine gate in this repo** | frame-comments disposition, recipe freeze, media-treatment |
+
+Of the 12 official quality capabilities, **only 3 have machine gates in tier 3.1**. The other 9 are held by process and review, and do not satisfy "blocked unless run" — that is stated in [Rules §3](docs/rules/production-workflow-rules.md) rather than hidden.
+
+> A gate cannot prove an agent "actually executed" a capability unless that capability leaves a verifiable artifact. This is the harness's capability boundary, and admitting it is more useful than exaggerating it.
 
 ## Requirements
 
-| | |
+| Item | Value |
 | --- | --- |
 | Node.js | ≥ 22 |
-| HyperFrames | `0.8.36` (pinned; the CLI refuses to run on drift) |
-| ffmpeg / ffprobe | Required (frame audio cutting, duration probing) |
-| Python 3 | Required (MiniMax client, proxy probing) |
-| Platform | macOS / Linux (`net-env.sh` needs bash + python3) |
+| HyperFrames | `0.8.36` (pinned; refuses to run if the CLI is missing or drifted) |
+| ffmpeg / ffprobe | Required (per-frame audio splitting and duration probing) |
+| Python 3 | Required (MiniMax caller and proxy probing) |
+| Platform | macOS / Linux (`net-env.sh` probing depends on bash + python3) |
 
 ## Quick start
 
@@ -61,97 +102,93 @@ This repository is the harness that reins it in: **rules** pin the official proc
 git clone https://github.com/suonian/ZWhyperframes-Harness.git
 cd ZWhyperframes-Harness
 
-npm run bootstrap    # install pinned deps + verify HF version + refresh official skills
-npm run doctor       # environment check: CLI / skills / browser / ffmpeg / MiniMax credentials
-source ./hf-env.sh   # production entry point (hf function, network policy, offline init)
-npm test             # 43 tests
+npm run bootstrap    # install locked dependencies + verify HF version + refresh official skills
+npm run doctor       # environment check: CLI version / skills / browser / ffmpeg / MiniMax credentials
+source ./hf-env.sh   # production entry point (provides the hf function, network policy, skips init's network check)
+npm test             # 45 tests
 ```
 
-> The captions test genuinely imports the official `faceless-explainer` `captions.mjs` (verifying that "rendering stays official"). It depends on official skills installed by `npm run bootstrap`; without bootstrap that single test is **explicitly skipped** rather than failing. CI runs bootstrap first, so this path is **actually exercised** there.
+> The caption test genuinely imports official `faceless-explainer`'s `captions.mjs` (verifying the "rendering goes through official" path). It depends on the official skill installed by `npm run bootstrap`; without bootstrapping, that test is **explicitly marked skip** rather than failed. CI runs bootstrap first, so this path is **really executed** in CI.
 
 ### Networking
 
 `scripts/net-env.sh` is the single owner of network policy:
 
-- npm defaults to the China mirror `registry.npmmirror.com`
-- The GitHub/npm proxy is **probed at `http://127.0.0.1:7890` and only enabled if reachable**
-- MiniMax connects directly (`no_proxy` exemption, plus the scripts clear proxy variables themselves)
+- npm defaults to the mainland China mirror `registry.npmmirror.com`
+- The GitHub/npm proxy **probes `http://127.0.0.1:7890` by default and enables it only when reachable**
+- MiniMax connects directly to `api.minimaxi.com` (`no_proxy` exemption plus proactive proxy-variable clearing inside `tools/minimax`, belt and braces)
 
-Probing matters: pointing a proxy at a local port that doesn't exist makes `git`/`npm` **hang silently** (no timeout), which is fatal for contributors without a proxy. The probe uses a Python socket with a 1s timeout — never `nc` or bash `/dev/tcp`, both of which hang themselves when packets are silently dropped.
+Why probe: pointing a proxy at a local port that isn't listening makes `git`/`npm` **hang silently** (no timeout), which is fatal for developers who don't run a proxy. Probing uses a Python socket connection with a 1s timeout, and never `nc` or bash `/dev/tcp` — both of those hang themselves when packets are silently dropped, which is exactly the failure being avoided.
+
+Overrides:
 
 ```bash
-HARNESS_NO_PROXY=1 bash scripts/bootstrap.sh                        # force proxy off
-HARNESS_PROXY=http://127.0.0.1:1080 bash scripts/bootstrap.sh       # explicit (no probe)
+HARNESS_NO_PROXY=1 bash scripts/bootstrap.sh          # force proxy off
+HARNESS_PROXY=http://127.0.0.1:1080 bash scripts/bootstrap.sh   # explicit (no probing)
 ```
 
 ### MiniMax credentials
 
 ```bash
-export MINIMAX_API_KEY="your-api-key"        # preferred
+export MINIMAX_API_KEY="your API key"        # preferred
 ```
 
-or macOS Keychain (service name defaults to `MINIMAX_API_KEY`, override with `MINIMAX_KEYCHAIN_SERVICE`):
+Or store it in the macOS Keychain (service name defaults to `MINIMAX_API_KEY`, overridable via `MINIMAX_KEYCHAIN_SERVICE`):
 
 ```bash
-security add-generic-password -a minimax -s MINIMAX_API_KEY -w 'your-api-key'
+security add-generic-password -a minimax -s MINIMAX_API_KEY -w 'your API key'
 ```
 
 ## Repository layout
 
 ```text
-AGENTS.md              agent entry point: positioning, rule navigation, hard boundaries
-docs/rules/            production rules (visual / captions / segmentation / workflow)
-docs/architecture/     official capability audit + cross-session handoff
-docs/plans/            launch design
-scripts/               management scripts (single-step, deterministic, zero agent calls)
-  net-env.sh           single owner of network policy
-  new-video.mjs        project scaffolding (lock script, segmentation, per-segment init)
+AGENTS.md              Agent entry point: positioning, rule navigation, hard boundaries
+docs/rules/            Production rules (visual / captions / segmentation / workflow, each a single owner)
+docs/architecture/     Official capability audit and cross-session handoff
+docs/plans/            Launch design
+scripts/               Management scripts (single-step, deterministic, agent-call-free)
+  net-env.sh           Single owner of network policy
+  new-video.mjs        Project scaffolding (locked-script freezing + segmentation + per-segment init)
   minimax-tts.mjs      MiniMax speech + word-level timing
-  inject-audio-meta.mjs  word timing → official audio_meta.json
+  inject-audio-meta.mjs  Word-level timing → official audio_meta.json
   captions-zh.mjs      Chinese caption grouping data (rendering still official)
-  gate.mjs             lightweight gates (hashes, approvals, min font size)
-  state.mjs            the only writer of state and approval records
-  finalize-master.mjs  master concatenation (thin ffmpeg concat)
-tools/minimax/         MiniMax API client (TTS / image / video)
-tests/                 unit + e2e tests, fully offline
+  gate.mjs             Gates (10 commands, see "Why you can trust it")
+  state.mjs            The only write entry point for state and approvals
+  finalize-master.mjs  Master concatenation (thin ffmpeg concat)
+tools/minimax/         MiniMax API callers (TTS / image / video)
+tests/                 Tests (unit + e2e, fully offline)
 ```
 
-Produced videos are **not committed** — they live outside this repo (by default `~/Documents/ZWhyperframes-products/`).
+Video products **do not enter this repository**; by default they are written to `~/Documents/ZWhyperframes-products/`.
 
 ## Rules
 
 | File | Owns |
 | --- | --- |
-| `docs/rules/production-workflow-rules.md` | Official Step 0–6 landing points, decision gates, mandatory quality capability list |
+| `docs/rules/production-workflow-rules.md` | Official Step 0–6 landing points, decision gates, three-tier mandatory capability list, handoff and issue ledger |
 | `docs/rules/visual-production-rulebook.md` | Visual quality floor |
 | `docs/rules/captions-contract.md` | Caption contract (requirements immutable) |
 | `docs/rules/segment-production-rules.md` | Locked-script freezing and segmentation |
 
-Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF contracts.**
+Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF contracts** (with the built `$HYPERFRAMES_REPO` as ground truth).
 
-> **Language policy.** The four files under `docs/rules/` are maintained in **Chinese only**, and Chinese is authoritative for their normative requirements. This is deliberate: they are normative contracts with a single owner, so an English twin would create two sources of truth with no machine rule to adjudicate drift. The same applies to `AGENTS.md`, `docs/architecture/`, and `docs/plans/`. Community and governance documents are bilingual.
+> **Language policy.** The four files under `docs/rules/` are maintained in **Chinese only**, and Chinese is authoritative for their normative requirements. This is deliberate: they are normative contracts with a single owner, so an English twin would create two sources of truth, and this repo's precedence order has no language dimension to adjudicate drift. The same applies to `AGENTS.md`, `docs/architecture/`, and `docs/plans/`. Community and governance documents are bilingual — see the "English" column in the documentation index below.
 
 ## Contributing
 
 See [CONTRIBUTING.en.md](CONTRIBUTING.en.md). Running `npm test` is **mandatory** after changing any rule, script, or schema.
 
-## License
-
-Built on HyperFrames by [HeyGen, Inc.](https://github.com/heygen-com), Apache-2.0. This project contains no HyperFrames source and consumes it purely as an external dependency — see [NOTICE](NOTICE).
-
-This project is licensed under the [Apache License 2.0](LICENSE).
-
 ## Documentation index
 
-| Document | Contents |
-| --- | --- |
-| [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | Contribution guide and design discipline |
-| [CHANGELOG.en.md](CHANGELOG.en.md) | Changelog |
-| [SECURITY.en.md](SECURITY.en.md) | Security policy, credential handling, third-party telemetry |
-| [CODE_OF_CONDUCT.en.md](CODE_OF_CONDUCT.en.md) | Code of conduct |
-| [DISCLAIMER.en.md](DISCLAIMER.en.md) | Trademark and content-copyright disclaimer |
-| [AGENTS.md](AGENTS.md) | Agent entry point — **Chinese only** |
-| [NOTICE](NOTICE) | Third-party attribution (language-neutral legal text) |
+| Document | Contents | 中文 |
+| --- | --- | --- |
+| [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | Contribution guide and design discipline | [中文](CONTRIBUTING.md) |
+| [CHANGELOG.en.md](CHANGELOG.en.md) | Changelog | [中文](CHANGELOG.md) |
+| [SECURITY.en.md](SECURITY.en.md) | Security policy, credential handling, third-party telemetry | [中文](SECURITY.md) |
+| [CODE_OF_CONDUCT.en.md](CODE_OF_CONDUCT.en.md) | Code of conduct | [中文](CODE_OF_CONDUCT.md) |
+| [DISCLAIMER.en.md](DISCLAIMER.en.md) | Trademark and content-copyright disclaimer | [中文](DISCLAIMER.md) |
+| [AGENTS.md](AGENTS.md) | Agent entry point — **Chinese only** | — |
+| [NOTICE](NOTICE) | Third-party attribution (language-neutral legal text) | — |
 
 ## Privacy and telemetry
 
@@ -159,3 +196,6 @@ This project sends **no telemetry of its own**. However, the HyperFrames CLI it 
 
 To disable entirely: `export HYPERFRAMES_NO_TELEMETRY=1`. See [SECURITY.en.md](SECURITY.en.md).
 
+## License
+
+Built on HyperFrames by [HeyGen, Inc.](https://github.com/heygen-com), licensed under the [Apache License 2.0](LICENSE). This project **contains no** HyperFrames source and consumes it purely as an external dependency — see [NOTICE](NOTICE).
