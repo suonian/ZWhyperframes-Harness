@@ -9,6 +9,12 @@
 
 ## [未发布]
 
+暂无。
+
+## [0.2.0] — 2026-10-08
+
+项目定位统一为 harness 工程，并把强制力的真实覆盖范围如实分层披露；同时新增两项机器门禁。
+
 ### 门禁
 - **修正一处不实断言**：§3 原写「12 项强制质量能力，缺一项即门禁失败」，并声称第 1 项由 `gate.mjs` 校验 `BRIEF.md` 的 `## Intent`——但该门禁**从未实现**，全仓零 BRIEF 校验代码。把「写在规则里」当成「已经强制」，正是本项目要消灭的病，且它自己先犯了。
 - 新增 `gate.mjs pitch-round`：校验项目根 `BRIEF.md` 的 `## Intent` 非空（官方 `pitch-round.md` 规定的胜出概念落点）。
@@ -69,5 +75,6 @@
 ### 许可
 - Apache-2.0（与上游 HyperFrames 一致）。本项目不含 HF 源码，仅作外部依赖调用。
 
-[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.1.0...HEAD
+[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/suonian/ZWhyperframes-Harness/releases/tag/v0.1.0

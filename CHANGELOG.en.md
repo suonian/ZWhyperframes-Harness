@@ -11,6 +11,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.0] — 2026-10-08
+
+Project positioning unified as a harness engineering project, with the true coverage of enforcement disclosed by tier; plus two new machine gates.
+
 ### Gates
 - **Corrected a false claim**: §3 previously stated "12 mandatory quality capabilities; missing one fails the gate", and claimed item 1 was validated by `gate.mjs` against `BRIEF.md`'s `## Intent` — but that gate **was never implemented**, and the repo contained zero BRIEF-validation code. Conflating "written in the rules" with "already enforced" is exactly the disease this project exists to cure, and it caught it first.
 - Added `gate.mjs pitch-round`: validates that the project root's `BRIEF.md` has a non-empty `## Intent` (where official `pitch-round.md` requires the winning concept to land).
@@ -71,5 +77,6 @@ First public release.
 ### License
 - Apache-2.0 (consistent with upstream HyperFrames). This project contains no HF source code and only calls it as an external dependency.
 
-[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/suonian/ZWhyperframes-Harness/releases/tag/v0.1.0
