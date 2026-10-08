@@ -18,7 +18,7 @@
 - §3 拆为三层并如实标注覆盖范围：3.1 本仓机器门禁（3 项）、3.2 官方 CLI 命令（6 项，无机器门禁）、3.3 流程/复审证据（3 项，无机器门禁），并写明「任何声称本仓对全部 12 项 fail-closed 的表述都是错的」。
 
 ### 文档
-- 仓库描述改为「HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。」（117 字符）。
+- 仓库描述改为「HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。」（53 字符 / 117 字节）。
 - 新增 `CITATION.cff`，GitHub 据此生成 Cite this repository。
 - README 新增「获取帮助」段，列出 issue / 功能提议 / 安全漏洞 / 贡献代码四条渠道。
 - topics 增补 `agent-harness`、`guardrails`、`llm` 三个领域检索词（共 15 个）。
