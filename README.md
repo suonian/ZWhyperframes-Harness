@@ -26,6 +26,7 @@ HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制�
 - [参与贡献](#参与贡献)
 - [文档索引](#文档索引)
 - [隐私与遥测](#隐私与遥测)
+- [联系作者](#联系作者)
 - [许可](#许可)
 
 ## 为什么需要这一层
@@ -206,6 +207,12 @@ tests/                 测试（单元 + e2e，全部离线可跑）
 本项目**自身不上报任何遥测**。但它调用的 HyperFrames CLI **会上报匿名使用遥测**，且 `--skill=faceless-explainer` 会被写入每个项目的 `hyperframes.json` 用于渲染归因。
 
 如需完全关闭：`export HYPERFRAMES_NO_TELEMETRY=1`。详见 [SECURITY.md](SECURITY.md)。
+
+## 联系作者
+
+项目咨询与讨论，请扫描下方二维码添加作者微信：
+
+<img src="assets/wechat-qr.jpg" width="140" alt="微信二维码">
 
 ## 许可
 

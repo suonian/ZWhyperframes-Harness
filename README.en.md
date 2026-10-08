@@ -26,6 +26,7 @@ A harness engineering project for HyperFrames: rules constrain the official prod
 - [Contributing](#contributing)
 - [Documentation index](#documentation-index)
 - [Privacy and telemetry](#privacy-and-telemetry)
+- [Contact](#contact)
 - [License](#license)
 
 ## Why this layer exists
@@ -206,6 +207,12 @@ See [CONTRIBUTING.en.md](CONTRIBUTING.en.md). Running `npm test` is **mandatory*
 This project sends **no telemetry of its own**. However, the HyperFrames CLI it invokes **does report anonymous usage telemetry**, and `--skill=faceless-explainer` is stamped into each project's `hyperframes.json` so renders can be attributed to that authoring workflow.
 
 To disable entirely: `export HYPERFRAMES_NO_TELEMETRY=1`. See [SECURITY.en.md](SECURITY.en.md).
+
+## Contact
+
+For project inquiries and discussions, scan the QR code below to add the author on WeChat:
+
+<img src="assets/wechat-qr.jpg" width="140" alt="WeChat QR Code">
 
 ## License
 

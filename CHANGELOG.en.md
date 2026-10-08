@@ -20,6 +20,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - §3 is split into three tiers with honest coverage: 3.1 machine gates in this repo (3 items), 3.2 official CLI commands (6 items, no machine gate), 3.3 process / review evidence (3 items, no machine gate), plus an explicit note that "any claim that this repo is fail-closed on all 12 is wrong".
 
 ### Documentation
+- Added `assets/wechat-qr.jpg` and a "Contact" section in both READMEs, placed immediately before the License section.
 - Repository description is now "HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。" (53 characters / 117 bytes).
 - Added `CITATION.cff`, which GitHub uses to generate "Cite this repository".
 - README gained a "Getting help" section listing four channels: issues, feature proposals, security vulnerabilities, and code contributions.
