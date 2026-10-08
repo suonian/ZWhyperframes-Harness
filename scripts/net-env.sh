@@ -44,7 +44,11 @@ if [ "$HARNESS_NO_PROXY" = "1" ]; then
   disable_proxy "HARNESS_NO_PROXY=1"
 elif [ -z "${HARNESS_PROXY+set}" ]; then
   # 未设置 → 自动探测默认代理：可达才启用。
-  if probe_proxy "${HARNESS_PROXY_DEFAULT#*://}"; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    # 探测依赖 python3（本项目已是硬依赖，但全局加载时未必满足）。
+    # 静默失败会被误判成「代理不可达」，所以必须显式提示而不是悄悄直连。
+    disable_proxy "无 python3，无法探测 ${HARNESS_PROXY_DEFAULT#*://}（需代理请设 HARNESS_PROXY=<地址>）"
+  elif probe_proxy "${HARNESS_PROXY_DEFAULT#*://}"; then
     export HTTP_PROXY="$HARNESS_PROXY_DEFAULT" HTTPS_PROXY="$HARNESS_PROXY_DEFAULT" ALL_PROXY="$HARNESS_PROXY_DEFAULT"
     export http_proxy="$HARNESS_PROXY_DEFAULT" https_proxy="$HARNESS_PROXY_DEFAULT" all_proxy="$HARNESS_PROXY_DEFAULT"
     HARNESS_PROXY_STATUS="$HARNESS_PROXY_DEFAULT"
@@ -62,7 +66,27 @@ else
   HARNESS_PROXY_REASON="显式指定"
 fi
 
-# 直连豁免：本机 + MiniMax 国内 API。追加而非覆盖调用方已有设置（重复项无害，代理库自身会去重）。
+# 直连豁免：本机 + MiniMax 国内 API。
+#
+# 追加而非覆盖调用方已有设置（调用方可能自己配了别的内网域名），但必须去重：
+# 本文件会被反复 source（bootstrap.sh 与 hf-env.sh 都 source，父 shell 还会把
+# NO_PROXY 继承给子 shell），无条件追加会让它每次 +58 字节、无界增长。
+# 只做「整项精确匹配」去重：调用方的通配项（如 *.corp.internal）是另一回事，不能吞。
+#
+# IFS 必须显式设成逗号：默认 IFS 是「空格/制表/换行」，不含逗号，
+# 不改的话 $HARNESS_DIRECT_HOSTS 整个会被当成一个词（曾经踩过）。
 HARNESS_DIRECT_HOSTS="localhost,127.0.0.1,::1,api.minimaxi.com,api.minimax.chat"
-export NO_PROXY="${NO_PROXY:+$NO_PROXY,}$HARNESS_DIRECT_HOSTS"
+NO_PROXY="${NO_PROXY-}"   # set -u 下未设置即为致命错误；显式落成空串
+_hnp_saved_ifs="$IFS"
+IFS=','
+for _hnp_host in $HARNESS_DIRECT_HOSTS; do
+  [ -n "$_hnp_host" ] || continue
+  case ",${NO_PROXY}," in
+    *,"${_hnp_host}",*) ;;
+    *) NO_PROXY="${NO_PROXY:+${NO_PROXY},}${_hnp_host}" ;;
+  esac
+done
+IFS="$_hnp_saved_ifs"
+unset _hnp_host _hnp_saved_ifs
+export NO_PROXY
 export no_proxy="$NO_PROXY"
