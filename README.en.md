@@ -10,11 +10,41 @@
 
 A harness engineering project for HyperFrames: rules constrain the official production flow, gates enforce that official capabilities are actually executed. Core official capabilities are never rebuilt.
 
+## What it solves · What it gives you · Characteristics
+
+**What problem it solves.** Producing videos with HyperFrames directly produces three classes of problem — consistently, not intermittently:
+
+| Problem | How it shows up |
+| --- | --- |
+| Output drift | The same process run ten times yields ten different results |
+| Rules that spin without effect | Official capabilities are all present, but nothing guarantees the agent actually runs them — written in the documentation does not mean it happened |
+| Process out of control | Steps skipped, quality degraded, each segment improvises; afterwards you cannot tell which step actually ran |
+
+The root cause is not missing functionality. It is that **production is driven by an agent in the moment**: the capabilities are present, the discipline is not. Rules are written to be read by a model, not executed by a machine.
+
+**What it gives you.** Official flow and capabilities turned into constraints that can be enforced and audited:
+
+| Dimension | Using HyperFrames directly | With this harness |
+| --- | --- | --- |
+| Process compliance | Relies on the agent's discretion | Rules written as decidable conditions; unmet means fail-closed |
+| Capability use | Written in the docs, not proof of execution | A verifiable artifact is required; no evidence means blocked |
+| Consistency | Re-invented every run | Locked script + SHA-256 chained binding; drift is rejected |
+| Auditability | Cannot tell which step ran | Every artifact is bound to the input that produced it |
+| Stable output | Depends on that run's improvisation | Fixed gates + decision gates, same standard every time |
+
+**Characteristics.**
+
+- **Fail-closed** — rejects when conditions are unmet, rather than doing its best
+- **Evidence cannot be fabricated** — back-filling a hash to green a gate is forbidden; a missing binding can only be re-derived
+- **Runs offline** — after one-time P0 preparation, a video is completable with no network mid-production
+- **Decision gates converge to four** — interrupts only where a human must decide
+- **No reinvention** — not a line of official core capability is rebuilt; this repo only adds constraints
+
 > ⚠️ **Unofficial project.** Not affiliated with, sponsored by, or endorsed by HeyGen. "HyperFrames" is a trademark of HeyGen, Inc.; it appears in this project's name solely to describe the technical dependency. Apache-2.0 grants no trademark rights. See [DISCLAIMER.md](DISCLAIMER.md).
 
 ## Contents
 
-- [Why this layer exists](#why-this-layer-exists)
+- [What it solves · What it gives you · Characteristics](#what-it-solves--what-it-gives-you--characteristics)
 - [What this is, and what it is not](#what-this-is-and-what-it-is-not)
 - [How it works](#how-it-works)
 - [Why you can trust it](#why-you-can-trust-it)
@@ -28,16 +58,6 @@ A harness engineering project for HyperFrames: rules constrain the official prod
 - [Privacy and telemetry](#privacy-and-telemetry)
 - [Contact](#contact)
 - [License](#license)
-
-## Why this layer exists
-
-Producing videos with HyperFrames directly produces three classes of problem **consistently** — not intermittently, every single time:
-
-1. **Production is unstable and drifts** — the same process run ten times yields ten different results.
-2. **Rules and capabilities are "nominally in use" but never actually executed** — the official capabilities are all there, but nothing guarantees the agent really runs them; written in the documentation does not mean it happened.
-3. **The process is chaotic** — steps get skipped, quality degrades, each segment improvises, and afterwards you cannot tell which step actually ran.
-
-The root cause is not missing functionality. It is that **production is driven by an agent in the moment**: the capabilities are present, the discipline is not. Rules are written to be read by a model, not executed by a machine.
 
 ## What this is, and what it is not
 
@@ -67,12 +87,7 @@ HyperFrames' capabilities are complete — composition, storyboarding, sub-agent
 
 ## Why you can trust it
 
-This section states **verifiable facts**, not adjectives.
-
-- **Fail-closed, not best-effort.** Locked script → TTS → injection binding → MP4 are chained with SHA-256; a frame's voiceover is released only when fully equal to the locked script after normalization — not similarity.
-- **Evidence cannot be fabricated.** A missing binding can only be re-derived; **back-filling a hash after the fact to "green" a gate is forbidden**. A back-filled hash is a binding that was never verified.
-- **Offline is a capability floor.** After one-time P0 preparation, a video must be completable with no network mid-production (this is a minimum requirement, not a network ban: on-demand capabilities may still go online; they just must not be a precondition of the main chain).
-- **Decision gates converge to four.** Per-segment start authorization, per-segment final-look render authorization, master final look, and project close-out approval. Nothing else interrupts.
+The "enforcement" above is not an adjective but a verifiable fact. The mechanism: locked script → TTS → injection binding → MP4 are chained with SHA-256; a frame's voiceover is released only when fully equal to the locked script after normalization — not similarity; a missing binding can only be re-derived.
 
 ### Enforcement comes in three tiers, and we don't call tier 2 and 3 "enforced"
 
