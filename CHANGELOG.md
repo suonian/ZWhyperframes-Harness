@@ -9,8 +9,12 @@
 
 ## [未发布]
 
+### 新增
+- `scripts/build-skill-package.mjs`：把本仓打成 SkillHub 可上传的技能包。平台协议（`iflytek/skillhub` docs/07 §8.3）限定文件类型白名单、数量 ≤100、总包 ≤10MB、单文件 ≤1MB，而本仓的 `LICENSE` / `NOTICE` / `.gitignore` / `CITATION.cff` 均不在白名单内。脚本按白名单过滤、逐项 fail-closed 校验后产出到独立目录，并写出含每个文件 SHA-256 的 `package-manifest.json`。单步、幂等、确定性、零 agent 调用。
+
 ### 文档
 - 新增 `SKILL.md`：本仓在 SkillHub 上的分发封装。它只做路由、不承载规范，全部要求仍由 `AGENTS.md` 与 `docs/rules/` 各自唯一持有；`AGENTS.md` 相应加了一条互指，声明冲突时以 `AGENTS.md` 与 `docs/rules/` 为准。
+- `SKILL.md` 的 frontmatter 补 `name` 字段（协议 §8.2 必需，且首次发布后映射为 `skill.slug` 不可变更）；`LICENSE` 链接改为指向 GitHub 绝对地址并注明该文件不随包分发。
 
 ## [0.2.0] — 2026-10-08
 

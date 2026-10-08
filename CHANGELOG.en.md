@@ -11,8 +11,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- `scripts/build-skill-package.mjs`: builds this repo into a SkillHub-uploadable skill package. The platform protocol (`iflytek/skillhub` docs/07 §8.3) constrains uploads to a file-type whitelist, ≤100 files, ≤10MB total, and ≤1MB per file — while this repo's `LICENSE` / `NOTICE` / `.gitignore` / `CITATION.cff` are all outside that whitelist. The script filters by the whitelist, validates every constraint fail-closed, emits to a separate directory, and writes a `package-manifest.json` carrying each file's SHA-256. Single-step, idempotent, deterministic, agent-call-free.
+
 ### Documentation
 - Added `SKILL.md`: the repo's SkillHub distribution wrapper. It routes only and carries no normative requirements — those remain uniquely owned by `AGENTS.md` and `docs/rules/`. `AGENTS.md` gained a reciprocal note stating that `AGENTS.md` and `docs/rules/` win on any conflict.
+- `SKILL.md` frontmatter gained the `name` field (required by protocol §8.2, and mapped to `skill.slug` on first publish, after which it cannot change); the `LICENSE` link now points at an absolute GitHub URL, with a note that the file is not distributed in the package.
 
 ## [0.2.0] — 2026-10-08
 

@@ -1,4 +1,5 @@
 ---
+name: zwhyperframes-harness
 slug: zwhyperframes-harness
 version: 0.2.0
 displayName: ZWhyperframes Harness
@@ -74,6 +75,6 @@ npm test             # 45 项测试，全部离线可跑
 
 ## 许可与非官方声明
 
-[Apache-2.0](LICENSE)，与上游一致，含显式专利授权。
+[Apache-2.0](https://github.com/suonian/ZWhyperframes-Harness/blob/main/LICENSE)，与上游一致，含显式专利授权。本仓库的 `LICENSE` 与 `NOTICE` 不随技能包分发——平台的技能包上传不接受无扩展名文件；完整许可证文本以上述链接为准。
 
 **非官方项目**：与 HeyGen 无隶属、赞助或背书关系；「HyperFrames」是 HeyGen, Inc. 的商标，本项目名称仅用于说明技术依赖关系，Apache-2.0 不授予商标使用权。详见 [DISCLAIMER.md](DISCLAIMER.md)。
