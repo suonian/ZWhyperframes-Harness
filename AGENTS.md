@@ -24,8 +24,8 @@
 ## 版本与网络
 
 - 生产锁定 HyperFrames `v0.8.36` / commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`。官方 Skill、role、packet builder、Registry 的唯一真源是构建后的 `$HYPERFRAMES_REPO`。
-- **网络策略唯一所有者是 `scripts/net-env.sh`**（被 `bootstrap.sh` 与 `hf-env.sh` source）：下载优先中国大陆源（npm → `registry.npmmirror.com`）；GitHub/npm 走本地代理 `127.0.0.1:7890`；MiniMax 直连 `api.minimaxi.com`（`no_proxy` 豁免 + `tools/minimax` 内主动清代理，双保险）。
-  - 代理不可用时**必须显式关闭**（`HARNESS_NO_PROXY=1` 或 `HARNESS_PROXY=""`）——默认开启时代理不可达会静默挂死而无超时。
+- **网络策略唯一所有者是 `scripts/net-env.sh`**（被 `bootstrap.sh` 与 `hf-env.sh` source）：下载优先中国大陆源（npm → `registry.npmmirror.com`）；GitHub/npm 代理**默认探测 `127.0.0.1:7890`，可达才启用**（不可达则直连，避免把流量指向不存在的本地端口导致静默挂死）；MiniMax 直连 `api.minimaxi.com`（`no_proxy` 豁免 + `tools/minimax` 内主动清代理，双保险）。
+  - 覆盖：`HARNESS_NO_PROXY=1` 强制关闭；`HARNESS_PROXY=<地址>` 显式指定（跳过探测）。探测必须带硬超时，不得用 `nc` 或 bash `/dev/tcp`（静默丢包时二者自身会挂死）。
 - **生产离线可跑（最低要求，非网络禁令）**：P0 一次性准备完成后，**生产中途不联网也必须能把片子做完**。这约束的是"依赖"，不是"禁止联网"——按需能力（素材检索、catalog 检索、模型下载等）仍可联网，只是不许成为生产主链的前置条件。
   - 唯一强制点：官方 `hyperframes init` 默认联网 `git clone` skills。段脚手架（`new-video.mjs segment`）以官方逃生口 `HYPERFRAMES_SKIP_SKILLS=1` 跳过——官方 skills 已由 `bootstrap.sh` 在 P0 刷新。`hf-env.sh` 亦导出该变量，可覆盖。
   - 该底线由 `tests/pipeline-e2e.test.mjs` 的离线用例机器验证（黑洞代理下跑通 init+segment）。

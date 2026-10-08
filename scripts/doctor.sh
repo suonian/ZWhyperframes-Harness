@@ -19,8 +19,9 @@ command -v ffprobe >/dev/null 2>&1; check $? "ffprobe 可用"
 python3 -c "import ssl, urllib.request" 2>/dev/null; check $? "MiniMax Python 环境可用"
 
 KEY=""
+KEYCHAIN_SERVICE="${MINIMAX_KEYCHAIN_SERVICE:-MINIMAX_API_KEY}"
 if [ -n "${MINIMAX_API_KEY:-}" ]; then KEY="env"; else
-  security find-generic-password -a minimax -s MINIMAX_API_KEY -w >/dev/null 2>&1 && KEY="keychain"
+  security find-generic-password -a minimax -s "$KEYCHAIN_SERVICE" -w >/dev/null 2>&1 && KEY="keychain($KEYCHAIN_SERVICE)"
 fi
 [ -n "$KEY" ]; check $? "MiniMax API Key（来源：${KEY:-缺失}）"
 

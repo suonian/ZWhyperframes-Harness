@@ -106,6 +106,18 @@ test("new-video init：目录资料包多个 script:start 标记 fail-closed", (
   assert.match(r.stderr, /多个 script:start/u);
 });
 
+// 标记命名空间泛化后必须保持向后兼容：任意 `<命名空间>:script:start` 都能识别，
+// 已用旧命名空间生产的历史资料包仍可直接复用，无需迁移。
+test("new-video init：锁定稿标记命名空间可自定义（向后兼容任意命名空间）", () => {
+  const root = TMP();
+  const sourceDir = join(root, "package");
+  mkdirSync(sourceDir, { recursive: true });
+  writeFileSync(join(sourceDir, "old-namespace.md"), "legacy-vendor:script:start\n旧命名空间口播。\nlegacy-vendor:script:end\n");
+  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", sourceDir, "--allow-outside-products-root"]);
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  assert.equal(readFileSync(join(root, "demo", "00-项目总控", "锁定口播稿.md"), "utf8"), "旧命名空间口播。\n");
+});
+
 test("new-video segment：段目录越出项目根拒绝", () => {
   const root = TMP();
   const project = join(root, "demo");

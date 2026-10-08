@@ -20,6 +20,8 @@ const has = (k) => args.includes(`--${k}`);
 
 // ── 锁定稿提取：仅接受显式标记区段或整份独立稿 ──────────────────────────────
 const SCRIPT_MARKERS = ["锁定口播稿", "口播稿", "生产口播稿"];
+// 标记形如 `<任意命名空间>:script:start|end`（如 `locked-script:script:start`）。
+// 命名空间可自定义以便多项目共存；仅要求 start/end 唯一成对。
 const SCRIPT_BLOCK = /(?:[\w-]+:script:(start|end))/iu;
 const TEXT_FILE_RE = /\.(?:md|markdown|txt)$/iu;
 
@@ -48,7 +50,7 @@ function extractFromText(raw, label = "") {
   }
   const text = collected.join("\n").trim();
   if (!text) {
-    throw new Error(`资料包中未找到锁定口播（需 "## 锁定口播稿" 等标题节或 locked-script:script:start/end 标记）${label ? `：${label}` : ""}`);
+    throw new Error(`资料包中未找到锁定口播（需 "## 锁定口播稿" 等标题节或 <命名空间>:script:start/end 标记）${label ? `：${label}` : ""}`);
   }
   return `${text}\n`;
 }
@@ -68,7 +70,7 @@ function hasScriptBlock(raw) {
 }
 
 // 单文件资料包：保留「标题节或显式标记」两种约定。
-// 目录资料包：只认显式 locked-script:script:start/end 标记（标题节匹配过松，易误取配套说明），且必须唯一命中。
+// 目录资料包：只认显式 <命名空间>:script:start/end 标记（标题节匹配过松，易误取配套说明），且必须唯一命中。
 function extractLockedScript(source) {
   if (!statSync(source).isDirectory()) {
     return extractFromText(readFileSync(source, "utf8"), source);
@@ -78,7 +80,7 @@ function extractLockedScript(source) {
   if (marked.length > 1) {
     throw new Error(`资料包目录存在多个 script:start 标记文件，无法确定锁定口播：\n${marked.map((f) => `  ${f}`).join("\n")}`);
   }
-  throw new Error(`资料包目录中未找到锁定口播（需在某个 .md/.txt 文件中使用 locked-script:script:start/end 标记）：${source}`);
+  throw new Error(`资料包目录中未找到锁定口播（需在某个 .md/.txt 文件中使用 <命名空间>:script:start/end 标记）：${source}`);
 }
 
 // ── init ─────────────────────────────────────────────────────────────────────

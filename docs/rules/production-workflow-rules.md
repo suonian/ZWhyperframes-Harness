@@ -10,7 +10,7 @@
 - 锁定口播稿是内容真源；段落 `user_script.txt` 是其冻结片段；MiniMax 语音、词级时间、字幕与 STORYBOARD 通过哈希绑定。已有项目的代码、字幕、视频、分镜与自评都不是输入。
 - P0 允许准备：HF checkout、依赖、Chrome、字体、on-device catalog 索引、MiniMax、官方 skills 刷新。**P0 之后生产中途不联网也必须能跑完全片**——这是能力底线，不是网络禁令：按需能力仍可联网，但不得成为生产主链的前置条件。
 - **离线底线的唯一强制点**：官方 `hyperframes init` 默认联网 `git clone` skills，这是段脚手架里唯一的隐藏联网依赖。段脚手架（`new-video.mjs segment`）以官方逃生口 `HYPERFRAMES_SKIP_SKILLS=1` 跳过（官方 skills 已由 `bootstrap.sh` 在 P0 刷新）。测试同理（`tests/pipeline-e2e.test.mjs`），另加 120s spawnSync 超时兜底，确保 `npm test` 永不挂死。
-- 网络策略（npm 中国大陆镜像 / GitHub 代理 `127.0.0.1:7890` / MiniMax 直连豁免）由 `scripts/net-env.sh` 单点提供；代理不可达时必须 `HARNESS_NO_PROXY=1` 显式关闭，不得让静默挂死拖垮生产。
+- 网络策略（npm 中国大陆镜像 / GitHub 代理 `127.0.0.1:7890` 可达才启用 / MiniMax 直连豁免）由 `scripts/net-env.sh` 单点提供；代理不可达时自动直连，不得让静默挂死拖垮生产。
 
 ## 2. 流程与落点（官方 Step 0–6 + harness 适配）
 

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # ffmpeg 是帧音频切分与时长探测的硬依赖；ubuntu 镜像默认不含。
+      - name: Install ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Verify ffmpeg
+        run: |
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+
+      # 锁文件安装，保证与本地一致（bun 会另生成 bun.lock 造成双锁漂移）。
+      - name: Install dependencies
+        run: npm ci
+
+      # 离线可跑：测试全程不依赖网络（段脚手架以官方 HYPERFRAMES_SKIP_SKILLS 跳过 skills 联网检查）。
+      - name: Test
+        run: npm test
+
+      - name: Verify locked HyperFrames version
+        run: |
+          ACTUAL="$(node node_modules/.bin/hyperframes --version)"
+          echo "hyperframes: $ACTUAL"
+          test "$ACTUAL" = "0.8.36" || { echo "版本漂移：期望 0.8.36"; exit 1; }
+
+      - name: Shell syntax check
+        run: |
+          bash -n hf-env.sh
+          bash -n scripts/net-env.sh
+          bash -n scripts/bootstrap.sh
+          bash -n scripts/doctor.sh

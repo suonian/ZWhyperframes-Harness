@@ -1,0 +1,26 @@
+ZWhyperframes-Harness
+Copyright 2026 suonian
+
+This product is an independent management layer built ON TOP OF HyperFrames.
+It contains no HyperFrames source code; HyperFrames is consumed as an
+external dependency (npm package `hyperframes`, Apache-2.0, HeyGen, Inc.).
+
+--------------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------------
+
+HyperFrames (heygen-com/hyperframes)
+  License: Apache License 2.0
+  Copyright 2026 HeyGen, Inc.
+  Usage:    Runtime dependency. This project invokes the `hyperframes` CLI
+            and consumes its published skills; it neither vendors nor
+            modifies HyperFrames source.
+  Source:   https://github.com/heygen-com/hyperframes
+
+MiniMax API
+  Usage:    Optional TTS / image / video generation via the public MiniMax API.
+            The scripts under tools/minimax/ are original works that call the
+            public HTTP API; no MiniMax SDK source is included.
+
+Other npm runtime and dev dependencies retain their own licenses, as declared
+in package-lock.json.

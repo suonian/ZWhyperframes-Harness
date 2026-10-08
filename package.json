@@ -2,7 +2,7 @@
   "name": "zwhyperframes-harness",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "description": "HyperFrames 视频生产流水线的管理层定制层（核心能力 100% 来自 HF 官方）",
   "type": "module",
   "scripts": {

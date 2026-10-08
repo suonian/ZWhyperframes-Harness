@@ -17,7 +17,8 @@ import urllib.request
 
 DEFAULT_BASE_URL = "https://api.minimaxi.com"
 KEYCHAIN_ACCOUNT = "minimax"
-KEYCHAIN_SERVICE = "MINIMAX_API_KEY"
+# Keychain 服务名可用 MINIMAX_KEYCHAIN_SERVICE 覆盖；默认与同名环境变量对齐。
+KEYCHAIN_SERVICE = os.environ.get("MINIMAX_KEYCHAIN_SERVICE", "MINIMAX_API_KEY")
 
 
 def disable_proxy_for_minimax() -> None:
