@@ -34,11 +34,14 @@ The root cause is not missing functionality. It is that **production is driven b
 
 **Characteristics.**
 
-- **Fail-closed** — rejects when conditions are unmet, rather than doing its best
-- **Evidence cannot be fabricated** — back-filling a hash to green a gate is forbidden; a missing binding can only be re-derived
-- **Runs offline** — after one-time P0 preparation, a video is completable with no network mid-production
-- **Decision gates converge to four** — interrupts only where a human must decide
-- **No reinvention** — not a line of official core capability is rebuilt; this repo only adds constraints
+- **Customizable visuals, consistent across the film** — palette, type ramp, radii, and composition rules are all locked in a single project-root `frame.md`, which is the visual source of truth for the whole video. The current configuration defines 12 custom colors (cream / ink / green / pink / orange / yellow / blue plus dark variants), shared by all 7 segments. Change it once and the whole film changes; frame workers take tokens only from it and may not invent colors.
+- **Single source of truth across the chain** — content (locked script), visuals (`frame.md`), state (`state.json`), networking (`net-env.sh`), governance (each file under `docs/rules/` is a single owner); every artifact is bound by SHA-256 to the input that produced it, and drift is rejected.
+- **Modular, with no duplicated implementation** — shared capability lives in `scripts/lib/`, with nothing copied between scripts; scripts are single-responsibility, single-step, idempotent, deterministic, and agent-call-free; vendor capability is isolated in `tools/minimax/`; captions only produce grouping data, rendering still goes through official.
+- **Self-evolving** — self-built layers are retired as upstream catches up: after the capability audit confirmed that official natively adopts a "single agent + one sub-agent per frame" model, the previous generation's worker execution layer, three-slot queue, and heartbeat/lease were all retired. Production blockers enter an issue ledger and are merged by root cause, marked resolved once fixed; cross-session handoff re-verifies artifact hashes on disk before resuming.
+- **Enforcement, not suggestion** — rules are written as decidable conditions and fail closed when unmet; evidence cannot be fabricated, and back-filling a hash to green a gate is forbidden.
+- **Runs offline** — after one-time P0 preparation, a video is completable with no network mid-production.
+- **Decision gates converge to four** — interrupts only where a human must decide.
+- **No reinvention** — not a line of official core capability is rebuilt; this repo only adds constraints.
 
 > ⚠️ **Unofficial project.** Not affiliated with, sponsored by, or endorsed by HeyGen. "HyperFrames" is a trademark of HeyGen, Inc.; it appears in this project's name solely to describe the technical dependency. Apache-2.0 grants no trademark rights. See [DISCLAIMER.md](DISCLAIMER.md).
 
