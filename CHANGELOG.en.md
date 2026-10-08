@@ -12,6 +12,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Documentation
+- **Corrected the project's positioning**: it was previously described as a "management layer" that "only fills management gaps official does not have", which inverts cause and effect. The real driver is that **HyperFrames can run but cannot police itself** — rules and official capabilities are "nominally in use" but never actually executed. The positioning is restated as **the harness that reins HyperFrames in**, with the three duties re-characterized as "protect the process (enforcement) / enforce capabilities (enforcement) / fill the gaps (fill-in)", and "anti-duplication is a boundary, not the purpose".
+- The Chinese README gained the problem-statement section it was missing (the English version already had one); the two structures now align.
 - **Bilingual community and governance documents**: added English versions of `CONTRIBUTING` / `CHANGELOG` / `CODE_OF_CONDUCT` / `SECURITY` / `DISCLAIMER`, with a language switcher in both directions on every pair.
 - **Fixed the README language switcher**: `README.md` previously read `**English** | [中文](#...)`, where "English" was bold but not a link, making the repository landing page look like it had no English version. Now `[English](README.en.md) | **中文**`.
 - **Established a language policy**: community and governance documents are bilingual; `docs/rules/`, `AGENTS.md`, `docs/architecture/`, and `docs/plans/` stay Chinese-only single-source. They are normative contracts with a single owner, so an English twin would create two sources of truth for normative requirements, and this project's precedence order has no language dimension to adjudicate drift.

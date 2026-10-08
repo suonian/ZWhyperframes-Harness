@@ -6,7 +6,7 @@
 [![CI](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml/badge.svg)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 [![tests](https://img.shields.io/badge/tests-43%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
-A **management layer** for producing Chinese faceless (no-presenter) knowledge videos, built on top of [HyperFrames](https://github.com/heygen-com/hyperframes).
+A **harness for reining in HyperFrames** while producing Chinese faceless (no-presenter) knowledge videos: so that HyperFrames' capabilities are genuinely used on every single run, and videos come out stable, continuously, and to the same standard.
 
 > ⚠️ **Unofficial project.** Not affiliated with, sponsored by, or endorsed by HeyGen. "HyperFrames" is a trademark of HeyGen, Inc.; it appears in this project's name solely to describe the technical dependency. Apache-2.0 grants no trademark rights. See [DISCLAIMER.md](DISCLAIMER.md).
 
@@ -14,19 +14,29 @@ A **management layer** for producing Chinese faceless (no-presenter) knowledge v
 
 ---
 
-## Why
+## Why this layer exists
 
-A production pipeline needs far more than a renderer. It needs **process discipline**: a locked script that can't drift, segment boundaries that follow meaning rather than word count, word-level TTS timing that must match the script exactly, four decision gates that stop only where a human must decide, and an audit trail binding every artifact to the thing that produced it.
+Producing videos with HyperFrames directly produces three classes of problem **consistently** — not intermittently, every single time:
 
-HyperFrames already owns composition, storyboarding, sub-agent dispatch, audio, captions, transitions, assembly, check, and rendering. **This project does not rebuild any of that.** It owns the management layer HyperFrames doesn't have.
+1. **Production is unstable and drifts** — the same process run ten times yields ten different results.
+2. **Rules and capabilities are "nominally in use" but never actually executed** — the official capabilities are all there, but nothing guarantees the agent really runs them; written in the documentation does not mean it happened.
+3. **The process is chaotic** — steps get skipped, quality degrades, each segment improvises, and afterwards you cannot tell which step actually ran.
 
-| | Responsibility |
-| --- | --- |
-| **Protect the process** | Rules and gates that force a run through the official `faceless-explainer` Step 0–6 + review-loop |
-| **Fill the gaps** | Locked-script segmentation, MiniMax word-level timing injection, master concatenation, state & approval records |
-| **Enforce quality** | Mandatory use of official quality capabilities (pitch-round / frame presets / on-device catalog / carve / animation-map / `check --strict`) |
+The root cause is not missing functionality. It is that **production is driven by an agent in the moment**: the capabilities are present, the discipline is not. Rules are written to be read by a model, not executed by a machine.
 
-**Anti-duplication is a hard boundary.** Do not hand-roll composition, assembly, transitions, caption rendering, check, or rendering. Scripts stay single-step, idempotent, deterministic, and free of agent calls.
+## Positioning: reining in HyperFrames
+
+HyperFrames' capabilities are complete — composition, storyboarding, sub-agent contracts, audio engine, captions, transitions, assembly, check, rendering. **None of it is rewritten.**
+
+This repository is the harness that reins it in: **rules** pin the official process down; **gates** turn "claimed to be done" into "blocked until it passes".
+
+| | Nature | What it does |
+| --- | --- | --- |
+| **Protect the process** | Enforcement | Turns "should follow official `faceless-explainer` Step 0–6 + review-loop" into "cannot pass without doing so" |
+| **Enforce capabilities** | Enforcement | Turns "the rules say to use pitch-round" into "the gate is red if pitch-round never ran" |
+| **Fill the gaps** | Fill-in | The few management pieces official genuinely lacks: locked-script segmentation, MiniMax word-level timing injection, master concatenation, state & approval records |
+
+**Anti-duplication is a boundary, not the purpose**: do not hand-roll composition, assembly, transitions, caption rendering, check, or rendering. Scripts stay single-step, idempotent, deterministic, and free of agent calls.
 
 ## Design commitments
 
@@ -121,11 +131,15 @@ Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF
 
 > **Language policy.** The four files under `docs/rules/` are maintained in **Chinese only**, and Chinese is authoritative for their normative requirements. This is deliberate: they are normative contracts with a single owner, so an English twin would create two sources of truth with no machine rule to adjudicate drift. The same applies to `AGENTS.md`, `docs/architecture/`, and `docs/plans/`. Community and governance documents are bilingual.
 
-## Privacy and telemetry
+## Contributing
 
-This project sends **no telemetry of its own**. However, the HyperFrames CLI it invokes **does report anonymous usage telemetry**, and `--skill=faceless-explainer` is stamped into each project's `hyperframes.json` so renders can be attributed to that authoring workflow.
+See [CONTRIBUTING.en.md](CONTRIBUTING.en.md). Running `npm test` is **mandatory** after changing any rule, script, or schema.
 
-To disable entirely: `export HYPERFRAMES_NO_TELEMETRY=1`. See [SECURITY.en.md](SECURITY.en.md).
+## License
+
+Built on HyperFrames by [HeyGen, Inc.](https://github.com/heygen-com), Apache-2.0. This project contains no HyperFrames source and consumes it purely as an external dependency — see [NOTICE](NOTICE).
+
+This project is licensed under the [Apache License 2.0](LICENSE).
 
 ## Documentation index
 
@@ -139,12 +153,9 @@ To disable entirely: `export HYPERFRAMES_NO_TELEMETRY=1`. See [SECURITY.en.md](S
 | [AGENTS.md](AGENTS.md) | Agent entry point — **Chinese only** |
 | [NOTICE](NOTICE) | Third-party attribution (language-neutral legal text) |
 
-## Contributing
+## Privacy and telemetry
 
-See [CONTRIBUTING.en.md](CONTRIBUTING.en.md). Running `npm test` is **mandatory** after changing any rule, script, or schema.
+This project sends **no telemetry of its own**. However, the HyperFrames CLI it invokes **does report anonymous usage telemetry**, and `--skill=faceless-explainer` is stamped into each project's `hyperframes.json` so renders can be attributed to that authoring workflow.
 
-## License
+To disable entirely: `export HYPERFRAMES_NO_TELEMETRY=1`. See [SECURITY.en.md](SECURITY.en.md).
 
-Built on HyperFrames by [HeyGen, Inc.](https://github.com/heygen-com), Apache-2.0. This project contains no HyperFrames source and consumes it purely as an external dependency — see [NOTICE](NOTICE).
-
-This project is licensed under the [Apache License 2.0](LICENSE).

@@ -28,7 +28,7 @@ Examples of unacceptable behavior:
 
 This project draws **explicit boundaries** on contributions. The following are out of scope for discussion:
 
-- **Do not submit implementations of capabilities official already provides.** This project is a management layer; core capabilities come from official HyperFrames. A PR that duplicates existing official capability (building your own composition, assembly, transitions, caption rendering, check, or rendering) will be rejected regardless of implementation quality.
+- **Do not submit implementations of capabilities official already provides.** This project is the harness that reins HyperFrames in; core capabilities come from official and none of it is rewritten. A PR that duplicates existing official capability (building your own composition, assembly, transitions, caption rendering, check, or rendering) will be rejected regardless of implementation quality.
 - **Do not propose weakening fail-closed semantics.** Back-filled hashes, loosened hash comparisons, and "ship it first, sort it out later" changes directly conflict with this project's evidence discipline.
 - **Modifying rules, scripts, or schemas must update the corresponding tests and rule documentation in the same change.**
 

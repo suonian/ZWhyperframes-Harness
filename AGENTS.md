@@ -2,13 +2,19 @@
 
 ## 定位（唯一哲学）
 
-本仓是 HyperFrames 视频生产流水线的**管理层定制层**。核心能力 100% 来自 HF 官方；本仓只做：
+**HyperFrames 会跑，但不会自守。**
 
-1. **保流程**——规则与门禁确保生产完整走 HF 官方 `faceless-explainer` Step 0–6 + review-loop。
-2. **补缺口**——HF 没有的管理能力：锁定稿分段、MiniMax 词级时间注入（官方 `audio_meta.json` 形状）、master 拼接、状态与授权记录。
-3. **优能力**——官方质量能力（pitch-round / presets / on-device catalog / carve / animation-map / check --strict 等）的强制接入。
+它的能力是齐的——composition、分镜、子智能体、音频、字幕、check、渲染一应俱全。问题不在缺功能，而在**生产由智能体临场驱动**：同一套流程跑十次就有十种结果；规则写进了文档，却没有任何东西保证它真的被执行。
 
-禁止重复造轮子：不得自建 composition、装配、转场、字幕渲染、check、渲染能力；不得把脚本写成 agent 执行层（脚本零 agent 调用）。
+本仓是**驾驭 HF 的那一层工程**。用规则把官方流程钉死，用门禁把「声称做过」变成「不通过就卡住」，让官方能力每次都被真正用上，稳定、持续、标准化地产出符合要求的视频。
+
+| | 性质 | 做什么 |
+| --- | --- | --- |
+| **保流程** | 强制 | 把「应该按官方 `faceless-explainer` Step 0–6 + review-loop」变成「不按就过不去」 |
+| **强制能力** | 强制 | 把「规则里写了要用 pitch-round」变成「没跑就门禁红」。官方质量能力（pitch-round / presets / on-device catalog / carve / animation-map / check --strict 等）在此**强制执行**，不是「建议使用」 |
+| **补缺口** | 补件 | 少数官方确实没有的管理件：锁定稿分段、MiniMax 词级时间注入（官方 `audio_meta.json` 形状）、master 拼接、状态与授权记录。**这是副产品，不是主命题** |
+
+**不重造轮子是边界，不是目的**：核心能力 100% 来自官方，一律不重写。不得自建 composition、装配、转场、字幕渲染、check、渲染能力；不得把脚本写成 agent 执行层（脚本零 agent 调用）。
 
 ## 规则导航
 

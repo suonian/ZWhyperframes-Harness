@@ -2,7 +2,13 @@
 
 # Contributing
 
-Thanks for taking part. This project's core proposition is that it is a **management layer**: core capabilities come from official HyperFrames, and this repository only fills management gaps that official does not cover. Any contribution that strays outside that boundary will be rejected.
+Thanks for taking part.
+
+This project starts from a concrete observation: **HyperFrames can run, but it cannot police itself.** Producing videos with it directly yields three classes of problem, consistently — output drift, rules and official capabilities that are "nominally in use" but never actually executed, and a chaotic process. The root cause is not missing functionality; it is that production is driven by an agent in the moment: the capabilities are present, the discipline is not.
+
+This repository is **the harness that reins HyperFrames in**: rules pin the official process down, and gates turn "claimed to be done" into "blocked until it passes", so official capabilities are genuinely used on every run.
+
+**Anti-duplication is a boundary, not the purpose**: core capabilities come 100% from official, and none of it is rewritten. Any contribution that strays outside that boundary will be rejected.
 
 ## Development environment
 

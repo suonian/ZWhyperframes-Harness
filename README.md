@@ -6,7 +6,7 @@
 [![CI](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml/badge.svg)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 [![tests](https://img.shields.io/badge/tests-43%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
-基于 [HyperFrames](https://github.com/heygen-com/hyperframes) 的中文无真人出镜（faceless）知识类视频生产流水线的**管理层定制层**。
+基于 [HyperFrames](https://github.com/heygen-com/hyperframes) 的中文无真人出镜（faceless）知识类视频生产流水线**驾驭工程**：让 HyperFrames 的能力每次都被真正用上，稳定、持续、标准化地产出符合要求的视频。
 
 > ⚠️ **非官方项目。** 与 HeyGen 无隶属、赞助或背书关系。「HyperFrames」是 HeyGen, Inc. 的商标，本项目名称仅用于说明技术依赖关系。Apache-2.0 不授予商标使用权。详见 [DISCLAIMER.md](DISCLAIMER.md)。
 
@@ -14,19 +14,29 @@
 
 ---
 
-## 定位：只做管理层，不重造轮子
+## 为什么需要这一层
 
-核心能力 **100% 来自 HyperFrames 官方**——composition、分镜、子智能体合同、音频引擎、字幕、转场、装配、check、渲染，**一律不重写**。
+直接用 HyperFrames 生产视频，会**稳定地**出三类问题——不是偶发，是每次都这样：
 
-本仓只做官方没有的三件事：
+1. **生产不稳定，产出漂移**——同一套流程跑十次就有十种结果。
+2. **规则和能力「名义上在用」，实际没被真正执行**——官方能力是齐的，但没有东西保证智能体真的去跑；文档里写了，不等于发生过。
+3. **流程混乱**——跳步、降级、各段各自发挥，事后无从判断哪一步真的走过。
 
-| | 职责 |
-| --- | --- |
-| **保流程** | 规则与门禁，确保生产完整走通官方 `faceless-explainer` Step 0–6 + review-loop |
-| **补缺口** | 官方没有的管理能力：锁定稿分段、MiniMax 词级时间注入、master 拼接、状态与授权记录 |
-| **优能力** | 强制接入官方质量能力（pitch-round / frame presets / on-device catalog / carve / animation-map / `check --strict`） |
+根因不是缺功能，而是**生产由智能体临场驱动**：能力在，纪律不在。规则是给模型读的，不是给机器执行的。
 
-**禁止重复造轮子**：不得自建 composition、装配、转场、字幕渲染、check、渲染能力；脚本保持单步、幂等、确定性、零 agent 调用。
+## 定位：驾驭 HF
+
+HyperFrames 的能力是齐的——composition、分镜、子智能体合同、音频引擎、字幕、转场、装配、check、渲染，**一律不重写**。
+
+本仓是驾驭它的那一层工程：用**规则**把官方流程钉死，用**门禁**把「声称做过」变成「不通过就卡住」。
+
+| | 性质 | 做什么 |
+| --- | --- | --- |
+| **保流程** | 强制 | 把「应该按官方 `faceless-explainer` Step 0–6 + review-loop」变成「不按就过不去」 |
+| **强制能力** | 强制 | 把「规则里写了要用 pitch-round」变成「没跑就门禁红」 |
+| **补缺口** | 补件 | 官方确实没有的少数管理件：锁定稿分段、MiniMax 词级时间注入、master 拼接、状态与授权记录 |
+
+**不重造轮子是边界，不是目的**：不得自建 composition、装配、转场、字幕渲染、check、渲染能力；脚本保持单步、幂等、确定性、零 agent 调用。
 
 ## 设计上的几个硬取舍
 
