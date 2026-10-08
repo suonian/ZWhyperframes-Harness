@@ -4,7 +4,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml/badge.svg)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-31%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-43%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 A **management layer** for producing Chinese faceless (no-presenter) knowledge videos, built on top of [HyperFrames](https://github.com/heygen-com/hyperframes).
 
@@ -54,7 +54,7 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # install pinned deps + verify HF version + refresh official skills
 npm run doctor       # environment check: CLI / skills / browser / ffmpeg / MiniMax credentials
 source ./hf-env.sh   # production entry point (hf function, network policy, offline init)
-npm test             # 31 tests
+npm test             # 43 tests
 ```
 
 > The captions test genuinely imports the official `faceless-explainer` `captions.mjs` (verifying that "rendering stays official"). It depends on official skills installed by `npm run bootstrap`; without bootstrap that single test is **explicitly skipped** rather than failing. CI runs bootstrap first, so this path is **actually exercised** there.

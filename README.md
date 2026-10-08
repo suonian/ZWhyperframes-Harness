@@ -4,13 +4,13 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml/badge.svg)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-31%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-43%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 基于 [HyperFrames](https://github.com/heygen-com/hyperframes) 的中文无真人出镜（faceless）知识类视频生产流水线的**管理层定制层**。
 
 > ⚠️ **非官方项目。** 与 HeyGen 无隶属、赞助或背书关系。「HyperFrames」是 HeyGen, Inc. 的商标，本项目名称仅用于说明技术依赖关系。Apache-2.0 不授予商标使用权。详见 [DISCLAIMER.md](DISCLAIMER.md)。
 
-**English** | [中文](#zwhyperframes-harness)
+[English](README.en.md) | **中文**
 
 ---
 
