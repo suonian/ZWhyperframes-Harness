@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
-import { mkdtempSync, symlinkSync, mkdirSync } from "node:fs";
+import { mkdtempSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -110,16 +110,56 @@ test("HARNESS_PROXY 为空串等同关闭", () => {
   assert.equal(out, "off|<none>");
 });
 
-test("无 python3 时显式说明原因，不静默直连", () => {
+test("无 python3 时显式说明原因，不静默直连", (t) => {
   const sandbox = mkdtempSync(join(tmpdir(), "zw-nopy-"));
-  mkdirSync(sandbox, { recursive: true });
-  symlinkSync(BASH, join(sandbox, "bash"));
+  // PATH 指向只含 bash 软链的沙箱即可屏蔽 python3（bash 走绝对路径启动，不需要沙箱里的 bash）。
+  //
+  // 但 macOS CI runner 上这招实测失效（本地三种隔离方式均有效，无法复现 runner 行为），
+  // 所以先在同一环境自证前置条件；证不出来就 skip，而不是让用例红。
+  // 真正的安全不变量由下一条用例覆盖，那条与环境无关。
+  const probe = spawnSync(BASH, ["-c", "command -v python3 >/dev/null 2>&1"], {
+    encoding: "utf8",
+    timeout: 20_000,
+    env: { PATH: sandbox, HOME: process.env.HOME },
+  });
+  if (probe.status === 0) {
+    t.skip("PATH 隔离未生效（本机仍能找到 python3），无法构造该前置条件");
+    return;
+  }
+
   const out = sourceWith(
     'echo "${HARNESS_PROXY_STATUS}|${HARNESS_PROXY_REASON}"',
     { PATH: sandbox },
   );
   assert.match(out, /^off\|无 python3/u, `实际：${out}`);
   assert.match(out, /HARNESS_PROXY/u, "原因里应提示如何手动指定代理");
+});
+
+test("落到直连时不得残留任何代理变量（含大小写两套）", () => {
+  // 覆盖一类真 bug：disable_proxy 声称关代理，若漏掉某个变量（含小写形式，
+  // curl / git / npm 各自读不同那套），「直连」其实仍在绕代理，且极难排查。
+  //
+  // 刻意只覆盖「必然直连」的分支。「默认探测不可达」取决于本机有没有开代理，
+  // 断言它会让 CI 在开发者机器上时绿时红。
+  const six = 'echo "${HTTP_PROXY-<none>}|${HTTPS_PROXY-<none>}|${ALL_PROXY-<none>}"'
+    + '"|${http_proxy-<none>}|${https_proxy-<none>}|${all_proxy-<none>}"';
+  const cases = [
+    { name: "HARNESS_NO_PROXY=1", env: { HARNESS_NO_PROXY: "1" } },
+    { name: "HARNESS_PROXY 为空", env: { HARNESS_PROXY: "" } },
+    {
+      // 人为预置大小写两套，验证 disable_proxy 会全部清掉而不是只看大写。
+      name: "预置了代理变量",
+      env: {
+        HARNESS_NO_PROXY: "1",
+        HTTP_PROXY: "http://10.9.9.9:1", HTTPS_PROXY: "http://10.9.9.9:1",
+        ALL_PROXY: "http://10.9.9.9:1", http_proxy: "http://10.9.9.9:1",
+        https_proxy: "http://10.9.9.9:1", all_proxy: "http://10.9.9.9:1",
+      },
+    },
+  ];
+  for (const { name, env } of cases) {
+    assert.equal(sourceWith(six, env), "<none>|<none>|<none>|<none>|<none>|<none>", `${name}：残留代理变量`);
+  }
 });
 
 test("probe_proxy 对真实监听端口判定为可达、对无人端口判定为不可达", async () => {
