@@ -28,6 +28,8 @@
 - topics 增补 `agent-harness`、`guardrails`、`llm` 三个领域检索词（共 15 个）。
 
 ### 安全
+- 合并两条 Dependabot 补丁 PR：`sharp` 0.35.4→0.35.5、`source-map-js` 1.2.1→1.2.2，对应两条 high 告警转为 fixed。两者均为 `hyperframes@0.8.36` 的传递依赖，补丁落在既有 semver 范围内，未改动 `package.json`，HyperFrames 版本锁保持不变。
+- **残留告警（无法由本仓消除）**：`sprintf-js`（medium，GHSA-hp3w-g68c-fv3c）经 `roarr` 传递引入。已安装版本 1.1.3 即 npm 上的最新发布版本，上游无修复版本，因此该告警在 `sprintf-js` 发布补丁前将持续为 open。此处如实记录，不做降级或屏蔽处理。
 - 开启 GitHub secret scanning（含 push protection）与 dependabot security updates。
 - 开启 private vulnerability reporting——`SECURITY.md` 指示的私下报告通道此前处于关闭状态。
 - **README 重构为六段结构**（中英双语）：一句话是什么 / 为什么需要 / 是什么·不是什么 / 如何解决 / 凭什么可信 / 使用与治理。「凭什么可信」段只写可被检验的事实，并公开三层强制力的真实覆盖——官方 12 项能力中只有 3 项有机器门禁。

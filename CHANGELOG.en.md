@@ -30,6 +30,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Topics gained `agent-harness`, `guardrails`, and `llm` as domain search terms (15 total).
 
 ### Security
+- Merged two Dependabot patch PRs: `sharp` 0.35.4→0.35.5 and `source-map-js` 1.2.1→1.2.2, turning both high-severity alerts to fixed. Both are transitive dependencies of `hyperframes@0.8.36`; the patches land inside the existing semver ranges, `package.json` is untouched, and the HyperFrames version pin is unchanged.
+- **Residual alert (not resolvable from this repo)**: `sprintf-js` (medium, GHSA-hp3w-g68c-fv3c) arrives transitively via `roarr`. The installed 1.1.3 is the latest release on npm and upstream has no patched version, so this alert stays open until `sprintf-js` ships a fix. Recorded as-is, with no downgrade or suppression.
 - Enabled GitHub secret scanning (including push protection) and dependabot security updates.
 - Enabled private vulnerability reporting — the channel `SECURITY.md` points reporters to was previously disabled.
 - **README restructured into six sections** (both languages): what it is in one line / why it's needed / what this is and what it is not / how it works / why you can trust it / usage and governance. The "why you can trust it" section states only verifiable facts and publishes the true coverage of the three enforcement tiers — only 3 of the 12 official capabilities have machine gates.
