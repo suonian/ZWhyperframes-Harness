@@ -1,3 +1,5 @@
+[English](SECURITY.en.md) | **中文**
+
 # 安全策略
 
 ## 支持范围

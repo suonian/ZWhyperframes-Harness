@@ -1,3 +1,5 @@
+[English](CHANGELOG.en.md) | **中文**
+
 # 更新日志
 
 本项目的版本记录 notable changes。
@@ -6,6 +8,11 @@
 > ⚠️ **HyperFrames 版本锁定**：`0.8.36`。升级不是版本号的改动，而是**合同审计**任务——官方 skill 内容随 `skills update` 一并变动，而本仓规则直接引用其原文。
 
 ## [未发布]
+
+### 文档
+- **社区治理文档双语化**：新增 `CONTRIBUTING` / `CHANGELOG` / `CODE_OF_CONDUCT` / `SECURITY` / `DISCLAIMER` 五份英文版，中英版本互指语言切换行。
+- **修复 README 语言切换**：`README.md` 原写作 `**English** | [中文](#...)`，"English" 被加粗却没有链接，导致仓库首页看起来「只有中文版」。已改为 `[English](README.en.md) | **中文**`。
+- **确立语言政策**：社区与治理文档双语；`docs/rules/`、`AGENTS.md`、`docs/architecture/`、`docs/plans/` 维持中文单源——它们是单一所有者的规范合同，英文孪生版本会给规范性要求造出两个 source of truth，而本仓裁决顺序没有语言维度可仲裁漂移。
 
 ### 变更
 - 官方合同引用路径纠错：5 份合同实际位于 `skills/hyperframes/references/`，原文档指向的 `skills/hyperframes-core/references/` 是死链（已逐个实证）。

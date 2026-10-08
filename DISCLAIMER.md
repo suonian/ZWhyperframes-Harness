@@ -1,3 +1,5 @@
+[English](DISCLAIMER.en.md) | **中文**
+
 # 免责声明
 
 ## 非官方声明

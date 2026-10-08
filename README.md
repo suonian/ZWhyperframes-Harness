@@ -121,6 +121,8 @@ tests/                 测试（单元 + e2e，全部离线可跑）
 
 冲突裁决顺序：**用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同**（以构建后的 `$HYPERFRAMES_REPO` 为真源）。
 
+> **语言政策**：`docs/rules/` 下四份文件**仅维护中文版**，规范性要求以中文为准。这是刻意的——它们是单一所有者的规范合同，做英文孪生版本会给规范性要求造出两个 source of truth，而本仓的裁决顺序没有语言维度可以仲裁漂移。`AGENTS.md`、`docs/architecture/`、`docs/plans/` 同理。社区与治理文档则是双语的，入口见下方文档索引的「英文版」列。
+
 ## 参与贡献
 
 见 [CONTRIBUTING.md](CONTRIBUTING.md)。修改规则、脚本或 schema 后**必须**运行 `npm test`。
@@ -133,15 +135,15 @@ tests/                 测试（单元 + e2e，全部离线可跑）
 
 ## 文档索引
 
-| 文档 | 内容 |
-| --- | --- |
-| [AGENTS.md](AGENTS.md) | 智能体入口：定位、规则导航、硬边界 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南与设计纪律 |
-| [CHANGELOG.md](CHANGELOG.md) | 更新日志 |
-| [SECURITY.md](SECURITY.md) | 安全策略、凭证处理、**第三方遥测说明** |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | 行为准则 |
-| [DISCLAIMER.md](DISCLAIMER.md) | 商标与内容版权免责声明 |
-| [NOTICE](NOTICE) | 第三方归属 |
+| 文档 | 内容 | 英文版 |
+| --- | --- | --- |
+| [AGENTS.md](AGENTS.md) | 智能体入口：定位、规则导航、硬边界 | 仅中文 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南与设计纪律 | [English](CONTRIBUTING.en.md) |
+| [CHANGELOG.md](CHANGELOG.md) | 更新日志 | [English](CHANGELOG.en.md) |
+| [SECURITY.md](SECURITY.md) | 安全策略、凭证处理、**第三方遥测说明** | [English](SECURITY.en.md) |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | 行为准则 | [English](CODE_OF_CONDUCT.en.md) |
+| [DISCLAIMER.md](DISCLAIMER.md) | 商标与内容版权免责声明 | [English](DISCLAIMER.en.md) |
+| [NOTICE](NOTICE) | 第三方归属 | 法律文本，中英通用 |
 
 ## 隐私与遥测
 

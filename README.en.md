@@ -119,27 +119,29 @@ Produced videos are **not committed** — they live outside this repo (by defaul
 
 Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF contracts.**
 
+> **Language policy.** The four files under `docs/rules/` are maintained in **Chinese only**, and Chinese is authoritative for their normative requirements. This is deliberate: they are normative contracts with a single owner, so an English twin would create two sources of truth with no machine rule to adjudicate drift. The same applies to `AGENTS.md`, `docs/architecture/`, and `docs/plans/`. Community and governance documents are bilingual.
+
 ## Privacy and telemetry
 
 This project sends **no telemetry of its own**. However, the HyperFrames CLI it invokes **does report anonymous usage telemetry**, and `--skill=faceless-explainer` is stamped into each project's `hyperframes.json` so renders can be attributed to that authoring workflow.
 
-To disable entirely: `export HYPERFRAMES_NO_TELEMETRY=1`. See [SECURITY.md](SECURITY.md).
+To disable entirely: `export HYPERFRAMES_NO_TELEMETRY=1`. See [SECURITY.en.md](SECURITY.en.md).
 
 ## Documentation index
 
 | Document | Contents |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Agent entry point |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guide and design discipline |
-| [CHANGELOG.md](CHANGELOG.md) | Changelog |
-| [SECURITY.md](SECURITY.md) | Security policy, credential handling, third-party telemetry |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Code of conduct |
-| [DISCLAIMER.md](DISCLAIMER.md) | Trademark and content-copyright disclaimer |
-| [NOTICE](NOTICE) | Third-party attribution |
+| [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | Contribution guide and design discipline |
+| [CHANGELOG.en.md](CHANGELOG.en.md) | Changelog |
+| [SECURITY.en.md](SECURITY.en.md) | Security policy, credential handling, third-party telemetry |
+| [CODE_OF_CONDUCT.en.md](CODE_OF_CONDUCT.en.md) | Code of conduct |
+| [DISCLAIMER.en.md](DISCLAIMER.en.md) | Trademark and content-copyright disclaimer |
+| [AGENTS.md](AGENTS.md) | Agent entry point — **Chinese only** |
+| [NOTICE](NOTICE) | Third-party attribution (language-neutral legal text) |
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Running `npm test` is **mandatory** after changing any rule, script, or schema.
+See [CONTRIBUTING.en.md](CONTRIBUTING.en.md). Running `npm test` is **mandatory** after changing any rule, script, or schema.
 
 ## License
 
