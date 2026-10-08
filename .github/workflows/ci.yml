@@ -22,12 +22,17 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      # ffmpeg 是帧音频切分与时长探测的硬依赖；ubuntu 镜像默认不含。
+      # ffmpeg 是帧音频切分、时长探测与测试造片的硬依赖。
+      # Linux 需 apt 安装；macOS runner 不自带，需 brew 安装。
       - name: Install ffmpeg (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
+
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
 
       - name: Verify ffmpeg
         run: |
