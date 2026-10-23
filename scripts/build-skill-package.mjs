@@ -19,11 +19,12 @@ const get = (k) => {
   return i >= 0 ? args[i + 1] : null;
 };
 
-// 平台协议 §8.3 文件类型白名单
+// 平台协议 §8.3 列举了白名单 `.md .txt .json .yaml .yml .js .cjs .mjs .ts .py .sh .png .jpg .svg`，
+// 但线上服务端实测拒收 `.jpg`（错误「不允许的文件类型: assets/wechat-qr.jpg」），
+// 实际准入为纯文本类。二进制与图片类一律排除。
 const ALLOWED_EXT = new Set([
   ".md", ".txt", ".json", ".yaml", ".yml",
-  ".js", ".cjs", ".mjs", ".ts", ".py", ".sh",
-  ".png", ".jpg", ".svg",
+  ".js", ".cjs", ".mjs", ".ts", ".py", ".sh", ".toml", ".html", ".css", ".csv",
 ]);
 // CLI 与协议共同排除的目录
 const EXCLUDE_DIRS = new Set([".git", ".idea", ".vscode", "node_modules", "__pycache__", ".astro", ".astron"]);
