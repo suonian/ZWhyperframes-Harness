@@ -13,6 +13,17 @@ V="$($HF --version 2>/dev/null || true)"
 
 $HF doctor --json >/dev/null 2>&1; check $? "hyperframes doctor 通过"
 
+# 官方 skills：bootstrap 按锁定 commit 取回至 vendor/skills/，是本仓运行时的硬依赖。
+# 这里只查生产主链真正 import 的四个文件——doctor 是体检，不是完整门禁；
+# 完整的 10 项产物清单与 fail-closed 校验在 scripts/bootstrap.sh。
+VENDOR_SKILLS="$HARNESS_ROOT/vendor/skills"
+SKILL_MISSING=""
+for f in scripts/captions.mjs scripts/audio.mjs scripts/lib/tokens.mjs scripts/lib/dimensions.mjs; do
+  [ -f "$VENDOR_SKILLS/faceless-explainer/$f" ] || SKILL_MISSING="${SKILL_MISSING} ${f}"
+done
+[ -z "$SKILL_MISSING" ]
+check $? "官方 skills 已按锁定 commit 取回（vendor/skills）${SKILL_MISSING:+；缺:${SKILL_MISSING}}"
+
 command -v ffmpeg >/dev/null 2>&1; check $? "ffmpeg 可用"
 command -v ffprobe >/dev/null 2>&1; check $? "ffprobe 可用"
 

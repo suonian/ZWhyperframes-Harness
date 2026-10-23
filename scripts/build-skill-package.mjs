@@ -27,7 +27,9 @@ const ALLOWED_EXT = new Set([
   ".js", ".cjs", ".mjs", ".ts", ".py", ".sh", ".toml", ".html", ".css", ".csv",
 ]);
 // CLI 与协议共同排除的目录
-const EXCLUDE_DIRS = new Set([".git", ".idea", ".vscode", "node_modules", "__pycache__", ".astro", ".astron"]);
+// vendor/ 是 bootstrap 按锁定 commit 取回的上游 skills/ 子树（.gitignore 内）——
+// 它是官方产物，不随本仓分发；不排除会把 800+ 个上游文件打进技能包。
+const EXCLUDE_DIRS = new Set([".git", ".idea", ".vscode", "node_modules", "vendor", "__pycache__", ".astro", ".astron"]);
 const EXCLUDE_NAMES = new Set([".DS_Store", "Thumbs.db"]);
 
 // 平台协议 §8.3 体积与数量上限

@@ -1,7 +1,9 @@
 # 生产工作流规则
 
 > 本文件是生产流程的唯一所有者：官方 HF Step 0–6 的落点、harness 适配点、用户决策门、强制质量能力清单、交接与问题账本。
-> 官方流程细节一律以 `$HYPERFRAMES_REPO/skills/faceless-explainer/SKILL.md` 及其引用（`skills/hyperframes/references/` 下的 brief-contract / review-loop / storyboard-format / subagent-dispatch / frame-worker-core）为唯一真源；本文件只写管理层纪律，不复制官方正文。
+> 官方流程细节一律以**锁定 commit**（`v0.8.36` / `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`）下的 `skills/faceless-explainer/SKILL.md` 及其引用为唯一真源——由 `scripts/bootstrap.sh` 按该 commit 取回至 `vendor/skills/`，本仓脚本与规则只读这一份。合同文件位于 `skills/hyperframes-core/references/`（brief-contract / review-loop / storyboard-format / subagent-dispatch / frame-worker-core），采样门合同位于 `skills/hyperframes/references/pitch-round.md`。本文件只写管理层纪律，不复制官方正文。
+>
+> 路径经 2026-10-21 上游合同变更审计校正，详见 `docs/architecture/hf-contract-audit-2026-10-21.md`。
 
 ## 1. 运行边界
 

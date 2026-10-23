@@ -60,7 +60,7 @@ Already-delivered videos are **no longer maintained and no longer supported**. D
 
 ## Version pinning
 
-HyperFrames is pinned to `0.8.36`. Upgrading is not a version-number change but a **contract audit** task: official skill content changes together with `skills update`, and the rules here quote it verbatim. Do a contract diff audit first, then verify the risk points separately, and only then change the pinned version.
+HyperFrames is pinned to `0.8.36`. Upgrading is not a version-number change but a **contract audit** task: official skill content changes with upstream commits, and the rules here quote it verbatim (this repo fetches the official `skills/` tree at the pinned commit, never upstream's live tree). Do a contract diff audit first, then verify the risk points separately, and only then change the pinned version.
 
 ## License
 

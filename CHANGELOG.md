@@ -5,7 +5,7 @@
 本项目的版本记录 notable changes。
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-> ⚠️ **HyperFrames 版本锁定**：`0.8.36`。升级不是版本号的改动，而是**合同审计**任务——官方 skill 内容随 `skills update` 一并变动，而本仓规则直接引用其原文。
+> ⚠️ **HyperFrames 版本锁定**：`0.8.36`。升级不是版本号的改动，而是**合同审计**任务——官方 skill 内容随上游 commit 一并变动，而本仓规则直接引用其原文。
 
 ## [未发布]
 
@@ -18,13 +18,24 @@
 > 版本号说明：本仓首个 SkillHub 制品由平台在审核通过后自行发布为 `0.2.1`（内容等同于 `v0.2.0` 加 `SKILL.md`）。协议要求本地版本严格大于线上版本，故本次直接升至 `0.2.2`；GitHub 侧不发布 `0.2.1`，避免同一版本号在两条版本线上指向不同内容。
 
 ### 新增
+- `tests/packaging.test.mjs`（2 项）：打包脚本此前未排除 `vendor/`——bootstrap 取回上游 `skills/` 子树后，打包会把它一并扫进来（实测 805 个文件，远超平台 §8.3 的 100 上限，产出被拒）。用例用最小合成仓库驱动打包脚本（不依赖开发机是否已 bootstrap），断言产物中不含 `vendor/` 且文件数在限内。已用变异测试（从排除清单移除 `vendor`）确认两项用例均当场转红。
 - `tests/docs-links.test.mjs`（5 项）：把此前靠人工核对的文档一致性变成机器门禁——① 全仓 markdown 相对链接零死链；② README 中英目录锚点与实际标题一致（按 GitHub 真实 slug 规则逐空格替换，不折叠）；③ 版本号在 `package.json` / `package-lock.json` / `CITATION.cff` / `SKILL.md` 四处一致；④ `SKILL.md` 满足协议 §8.2 的 frontmatter 要求（`name` 为 kebab-case、`version` 为合法 SemVer、`displayName` 与 `description` 非空且单行）；⑤ `SKILL.md` 声明自己只做路由。四项均以变异测试验证敏感性——注入死链、还原版本倒挂、去掉 `name`、去掉路由声明，用例均当场转红，还原后复绿。其中第③项正是本版本修掉的版本倒挂缺陷的原样再现。
 - `scripts/build-skill-package.mjs`：把本仓打成 SkillHub 可上传的技能包。平台协议（`iflytek/skillhub` docs/07 §8.3）限定文件类型白名单、数量 ≤100、总包 ≤10MB、单文件 ≤1MB，而本仓的 `LICENSE` / `NOTICE` / `.gitignore` / `CITATION.cff` 均不在白名单内。脚本按准入规则过滤、逐项 fail-closed 校验后产出到独立目录，并写出含每个文件 SHA-256 的 `package-manifest.json`。单步、幂等、确定性、零 agent 调用。
 - `scripts/install-skill.sh`（`npm run install-skill`）：把本仓安装到客户端的技能发现目录。**这是补缺口的实作**：SkillHub CLI 的默认安装路径不被任何客户端扫描（实测落在 `/private/tmp/skills/`），且该 CLI 不写 `AGENTS.md` 的 `<skill>` 索引块（源码中 `agents/skills` 与 `AGENTS.md` 命中数均为 0，协议 §8.4 / §8.5 均未实现）。脚本按协议 §8.4 的四级优先级探测目标目录（或由 `--dir` 指定），打包后安装并 fail-closed 校验 `SKILL.md` 存在，最后打印自举与索引两步提示。单步、幂等、确定性、零 agent 调用。
 
 ### 修复
+- **上游合同审计：官方 skills 改为按锁定 commit 取回**。上游于 2026-10-21（PR #5651，破坏性变更）退役 `skills/faceless-explainer/` 与 `skills/embedded-captions/`，本仓 CI 因此全红（`Unknown skill(s): faceless-explainer`）。审计结论与证据见 `docs/architecture/hf-contract-audit-2026-10-21.md`。
+  - `scripts/bootstrap.sh` 不再使用 `hyperframes skills update`——该命令把「latest」硬编码为上游 main 的**实时 HEAD**，无法固定到本仓声明的锁定 commit，且会「移除任何不再发布的 skill」。改用 git 按 SHA 取回官方 `skills/` 到 `vendor/skills/`：外层换传输通路（HTTPS / SSH）、内层换 ref 形态（按 SHA / 按 tag），四种组合逐一尝试，每次成功取回都立刻用 `git rev-parse FETCH_HEAD` 校验取回的确实是锁定 commit；`--filter=blob:none` 使 fetch 只取 commit 与 tree、blob 在 checkout 时按需拉取，避免传输与本仓需求无关的整仓内容。随后对本仓实际引用的 10 个官方产物逐项 fail-closed 校验，缺失即报错而不静默跳过。
+  - 实测排除了一条看似可用的替代路径：`npx skills add owner/repo@<sha>` 只在**发现阶段**认 sha（提示 Found 13 skills），实际装出的内容逐字节等于 main HEAD——它无法真正按 commit 固定。
+  - 把锁定版本软链到各智能体发现目录（`~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`），使 agent 读到的官方合同与本仓规则引用的版本一致。
+  - **bootstrap 改为幂等**：vendor 里已锁定在同一 commit 时跳过取回（实测重复运行 17 秒 → 1.0 秒）；发现目录的替换一律用 `ln -sfn` 原地改指向，而非「删除后再建」——软链替换是 O(1)，而删除的代价随目录内容量级变化（在带可恢复删除 shim 的环境里，逐项 `rm -rf` 实测可达分钟级）；只有目标确实是真实目录时才挪到暂存区、末尾一次性清理。
+- **校正两处陈旧的官方合同路径**：规则与架构文档把 brief-contract / review-loop / storyboard-format / subagent-dispatch / frame-worker-core 写在 `skills/hyperframes/references/` 下，而锁定 commit 中它们位于 `skills/hyperframes-core/references/`。该错误在本次上游变更前即已存在——bootstrap 一直拉 main 的实时产物，而 main 上那些文件早已不在。`scripts/gate.mjs` 引用的 `skills/hyperframes/references/pitch-round.md` 路径本就正确，无需改动。
+- **更正 `sprintf-js` 残留告警的表述**：其 advisory（GHSA-hp3w-g68c-fv3c）已于 2026-10-22 被**撤回**（`withdrawn_at` 非空），不再是有效漏洞。此前记入 `[0.2.0]` 的「将在发布补丁前持续为 open」按当时事实成立，故历史条目不回写，在此更正。
+- `hono` 由 4.13.7 升至 4.13.13（传递依赖，落在既有 `^4.0.0` 范围内，`hyperframes` 版本锁未动），修复 GHSA-5r4p-p66f-jhc7——该 advisory 声明受影响区间为 `>=4.12.4, <4.13.11`、修复版 4.13.11，而本仓原装的 4.13.7 落在区间内。Dependabot 未能自动修复（它读到的 `first_patched_version` 为空），故手动在既有 semver 范围内升版。
 - `.github/ISSUE_TEMPLATE/question.md` 的 README 链接为相对路径 `README.md`，从该目录解析后指向不存在的文件——修正为 `../../README.md`。
+- `scripts/doctor.sh` 的注释声称检查 skills，实际并无对应检查项——补上：验证锁定 commit 的官方 skills 已取回至 `vendor/skills/`，且生产主链真正 import 的四个运行时文件（`captions.mjs` / `audio.mjs` / `lib/tokens.mjs` / `lib/dimensions.mjs`）齐备。体检脚本的声明与实现此前不一致，这本身是一处真实缺陷。
 - 打包白名单按**实测准入**收敛为纯文本类。协议 §8.3 列举的白名单含 `.png` / `.jpg` / `.svg`，但线上服务端实际拒收 `.jpg`（错误「不允许的文件类型: assets/wechat-qr.jpg」）——文档与线上部署不一致，以实测为准。
+- `scripts/build-skill-package.mjs` 的排除清单补入 `vendor/`。该目录是 bootstrap 按锁定 commit 取回的上游产物树（`.gitignore` 内），不随本仓分发；不排除时打包会把它一并扫进来（实测 805 个文件，远超平台 §8.3 的 100 上限，产出被拒）。
 - 版本号倒挂：平台线上版本已由审核流程推进至 `0.2.1`，本地仍为 `0.2.0`，下次发布会撞 409。本仓版本号（`package.json` / `package-lock.json` / `CITATION.cff` / `SKILL.md`）统一升至 `0.2.2`。
 
 ### 文档
@@ -33,6 +44,8 @@
 - **`SKILL.md` 的 `description` 改写为触发条件式**。协议 §8.2 规定 `description` 映射为 `skill.summary`，即平台展示与路由匹配所用的那段文字；此前写的是「它是什么」，检索时匹配度不佳，现改为「当需要……时使用本技能」。
 - **`SKILL.md` 补三段实测事实**：「如何被新智能体加载」（发现目录优先级、CLI 不写 `AGENTS.md` 索引块）、「如何开工生产」（`new-video.mjs init` / `segment` 的完整参数形式）、「目录约定说明」（`docs/` 承担协议 `references/` 角色，`tools/` 承担 `assets/` 角色，二者协议中均为可选）。
 - README 中英双份新增「作为 SkillHub 技能安装」段，给出平台安装与本地安装两条命令、发现目录优先级，以及三条须知（必须显式指定目录、装完仍需自举、不会自动进索引）。
+- `CONTRIBUTING.md` / `CONTRIBUTING.en.md` 与 `.github/dependabot.yml` 中「官方 skill 内容随 `skills update` 一并变动」的表述校正为「随上游 commit 一并变动」——取回方式已改为按锁定 commit 取回，`skills update` 不再是本仓的取回路径。
+- `AGENTS.md` / `SKILL.md` / README 中英双份的冲突裁决表述原以 `$HYPERFRAMES_REPO` 为官方合同真源——该变量在本仓已无对应实体（上游仓库不再整体检出，取回的是 `skills/` 子树），改为「锁定 commit 下 `vendor/skills/` 的官方原文」。
 
 ## [0.2.0] — 2026-10-08
 

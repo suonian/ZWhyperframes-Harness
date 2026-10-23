@@ -25,13 +25,14 @@
 | `docs/rules/captions-contract.md` | 字幕合同唯一所有者（要求不可变更） |
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
 
-冲突裁决顺序：用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同（以 `$HYPERFRAMES_REPO` 真源为准）。
+冲突裁决顺序：用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 
 > `SKILL.md` 是本仓在 SkillHub 上的分发封装，**只做路由、不承载规范**。若与本文件或 `docs/rules/` 冲突，一律以后两者为准。
 
 ## 版本与网络
 
-- 生产锁定 HyperFrames `v0.8.36` / commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`。官方 Skill、role、packet builder、Registry 的唯一真源是构建后的 `$HYPERFRAMES_REPO`。
+- 生产锁定 HyperFrames `v0.8.36` / commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`（= 上游 tag `v0.8.36`）。官方 Skill、role、packet builder、Registry 的唯一真源是**按该 commit 取回**的 `vendor/skills/`——由 `scripts/bootstrap.sh` 用 git 按 SHA 取回并逐项 fail-closed 校验，**不是上游 main 的实时产物**（上游 main 已于 2026-10-21 退役 workflow 类 skills，见 `docs/architecture/hf-contract-audit-2026-10-21.md`）。
+- **官方 skills 只能来自锁定 commit。** `hyperframes skills update` 把「latest」硬编码为上游 main 的实时 HEAD，无法固定，且会「移除任何不再发布的 skill」——本仓依赖的 `faceless-explainer` 已被上游撤下，跑它会直接失败。`npx skills add owner/repo@<sha>` 同样不可靠：实测它只在发现阶段认 sha，实际装出来的内容逐字节等于 main HEAD。因此取回一律走 `bootstrap.sh` 的 git 按 SHA 路径。
 - **网络策略唯一所有者是 `scripts/net-env.sh`**（被 `bootstrap.sh` 与 `hf-env.sh` source）：下载优先中国大陆源（npm → `registry.npmmirror.com`）；GitHub/npm 代理**默认探测 `127.0.0.1:7890`，可达才启用**（不可达则直连，避免把流量指向不存在的本地端口导致静默挂死）；MiniMax 直连 `api.minimaxi.com`（`no_proxy` 豁免 + `tools/minimax` 内主动清代理，双保险）。
   - 覆盖：`HARNESS_NO_PROXY=1` 强制关闭；`HARNESS_PROXY=<地址>` 显式指定（跳过探测）。探测必须带硬超时，不得用 `nc` 或 bash `/dev/tcp`（静默丢包时二者自身会挂死）。
 - **生产离线可跑（最低要求，非网络禁令）**：P0 一次性准备完成后，**生产中途不联网也必须能把片子做完**。这约束的是"依赖"，不是"禁止联网"——按需能力（素材检索、catalog 检索、模型下载等）仍可联网，只是不许成为生产主链的前置条件。

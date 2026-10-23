@@ -6,7 +6,7 @@
 
 1. `AGENTS.md` + `README.md`
 2. `docs/rules/` 四份规则
-3. 官方真源：`$HYPERFRAMES_REPO/skills` 下 `hyperframes/SKILL.md`、`faceless-explainer/SKILL.md` 及入口要求的引用（brief-contract / review-loop / storyboard-format / subagent-dispatch / frame-worker-core）
+3. 官方真源：**锁定 commit（`v0.8.36` / `f86aae6`）下** `vendor/skills/` 的 `hyperframes/SKILL.md`、`faceless-explainer/SKILL.md`，及 `hyperframes-core/references/` 下的 brief-contract / review-loop / storyboard-format / subagent-dispatch / frame-worker-core（由 `scripts/bootstrap.sh` 按该 commit 取回并校验）
 4. 接续具体产品：读该产品 `00-项目总控/state.json`，从磁盘验证当前节点产物哈希后再报告下一步
 
 ## 启动检查

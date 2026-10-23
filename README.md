@@ -122,11 +122,15 @@ HyperFrames 的能力是齐的——composition、分镜、子智能体合同、
 git clone https://github.com/suonian/ZWhyperframes-Harness.git
 cd ZWhyperframes-Harness
 
-npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 刷新官方 skills
+npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills
 npm run doctor       # 环境体检：CLI 版本 / skills / 浏览器 / ffmpeg / MiniMax 凭证
 source ./hf-env.sh   # 生产环境入口（提供 hf 函数、网络策略、跳过 init 的联网检查）
-npm test             # 50 项测试
+npm test             # 52 项测试
 ```
+
+> **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，并对本仓实际引用的 10 个官方产物逐项 fail-closed 校验；缺失即报错，不静默跳过。
+>
+> 这是因为官方 CLI 的 `hyperframes skills update` 把「latest」硬编码为上游 main 的实时 HEAD，无法固定——上游已于 2026-10-21 退役 `faceless-explainer` 等 workflow 类 skills（破坏性变更），跑它会直接失败。审计记录见 `docs/architecture/hf-contract-audit-2026-10-21.md`。
 
 > 字幕用例会真正导入官方 `faceless-explainer` 的 `captions.mjs`（验证「渲染走官方」这条路径）。它依赖 `npm run bootstrap` 安装的官方 skill；未 bootstrap 时该用例会**明确标记为 skip** 而非失败。CI 会先跑 bootstrap，因此这条路径在 CI 上是**被真实执行**的。
 
@@ -215,7 +219,7 @@ SKILL.md               SkillHub 分发封装（只做路由，不承载规范）
 | `docs/rules/captions-contract.md` | 字幕合同唯一所有者（要求不可变更） |
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
 
-冲突裁决顺序：**用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同**（以构建后的 `$HYPERFRAMES_REPO` 为真源）。
+冲突裁决顺序：**用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同**（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 
 > **语言政策**：`docs/rules/` 下四份文件**仅维护中文版**，规范性要求以中文为准。这是刻意的——它们是单一所有者的规范合同，做英文孪生版本会给规范性要求造出两个 source of truth，而本仓的裁决顺序没有语言维度可以仲裁漂移。`AGENTS.md`、`docs/architecture/`、`docs/plans/` 同理。社区与治理文档则是双语的，入口见下方文档索引的「英文版」列。
 

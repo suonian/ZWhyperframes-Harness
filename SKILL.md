@@ -40,7 +40,7 @@ HyperFrames 的能力是齐的。问题不在缺功能，而在**生产由智能
 | `docs/rules/captions-contract.md` | 字幕合同唯一所有者（要求不可变更） |
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
 
-冲突裁决顺序：**用户当前指令 > `AGENTS.md` > `docs/rules/` > 官方 HF 合同**（以 `$HYPERFRAMES_REPO` 真源为准）。
+冲突裁决顺序：**用户当前指令 > `AGENTS.md` > `docs/rules/` > 官方 HF 合同**（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 
 协议 §8.3 约定技能包目录为 `SKILL.md + references/ + scripts/ + assets/`。本包把参考资料放在 `docs/rules/` 与 `docs/architecture/`、厂商工具放在 `tools/`，二者均为协议中的可选目录，规则不受影响。
 
@@ -76,11 +76,15 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 技能包**不含 `node_modules`**（平台打包排除），故须先自举：
 
 ```bash
-npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 刷新官方 skills（需联网）
+npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills（需联网）
 npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
-npm test             # 50 项测试，全部离线可跑
+npm test             # 52 项测试，全部离线可跑
 ```
+
+**官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 10 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。
+
+上游的 `hyperframes skills update` 不可用：它把「latest」硬编码为上游 main 的实时 HEAD，无法固定到本仓锁定的 commit，且在上游 2026-10-21 退役 workflow 类 skills 后会直接报「Unknown skill(s): faceless-explainer」。`npx skills add owner/repo@<sha>` 也不可用：实测它只在发现阶段认 sha，装出的内容逐字节等于 main HEAD。依据与完整证据见 `docs/architecture/hf-contract-audit-2026-10-21.md`。
 
 ## 如何开工生产
 

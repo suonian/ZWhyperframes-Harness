@@ -1,8 +1,8 @@
 # 依赖更新
 #
 # HyperFrames 由 package.json 的精确版本锁定（devDependencies: "0.8.36"）。
-# 该依赖不做自动升级：升级 HF 是**合同审计任务**——官方 skill 内容随
-# `skills update` 一并变动，而本仓规则直接引用其原文。请勿自动开升级 PR，
+# 该依赖不做自动升级：升级 HF 是**合同审计任务**——官方 skill 内容随上游
+# commit 一并变动，而本仓规则直接引用其原文。请勿自动开升级 PR，
 # 需人工按 CONTRIBUTING.md「版本锁定」一节执行审计。
 version: 2
 updates:

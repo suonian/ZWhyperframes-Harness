@@ -12,7 +12,7 @@ source "$HARNESS_ROOT/scripts/net-env.sh"
 export PATH="$HARNESS_ROOT/node_modules/.bin:$PATH"
 
 # 离线可跑（能力底线，非网络禁令）：官方 init 默认会联网 git clone skills。
-# bootstrap 已刷新官方 skills，段脚手架一律跳过该联网检查（官方 CI 逃生口）。
+# bootstrap 已按锁定 commit 取回官方 skills 至 vendor/skills/，段脚手架一律跳过该联网检查（官方 CI 逃生口）。
 # 需要联网时可覆盖：HYPERFRAMES_SKIP_SKILLS=0
 export HYPERFRAMES_SKIP_SKILLS="${HYPERFRAMES_SKIP_SKILLS:-1}"
 

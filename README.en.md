@@ -122,11 +122,15 @@ Of the 12 official quality capabilities, **only 3 have machine gates in tier 3.1
 git clone https://github.com/suonian/ZWhyperframes-Harness.git
 cd ZWhyperframes-Harness
 
-npm run bootstrap    # install locked dependencies + verify HF version + refresh official skills
+npm run bootstrap    # install locked dependencies + verify HF version + fetch official skills at the locked commit
 npm run doctor       # environment check: CLI version / skills / browser / ffmpeg / MiniMax credentials
 source ./hf-env.sh   # production entry point (provides the hf function, network policy, skips init's network check)
-npm test             # 50 tests
+npm test             # 52 tests
 ```
+
+> **Official skills are fetched at the locked commit, not from upstream's live tree.** `bootstrap.sh` uses git to fetch the official `skills/` tree at commit `f86aae6` (the `v0.8.36` release) into `vendor/skills/`, then fail-closed checks the 10 official artifacts this repo actually references — a missing one is an error, never a silent skip.
+>
+> The reason: the official CLI's `hyperframes skills update` hardcodes "latest" as upstream main's live HEAD and cannot be pinned — and upstream retired `faceless-explainer` and the other workflow skills on 2026-10-21 (a breaking change), so that command now fails outright. The audit record is in `docs/architecture/hf-contract-audit-2026-10-21.md`.
 
 > The caption test genuinely imports official `faceless-explainer`'s `captions.mjs` (verifying the "rendering goes through official" path). It depends on the official skill installed by `npm run bootstrap`; without bootstrapping, that test is **explicitly marked skip** rather than failed. CI runs bootstrap first, so this path is **really executed** in CI.
 
@@ -215,7 +219,7 @@ Video products **do not enter this repository**; by default they are written to 
 | `docs/rules/captions-contract.md` | Caption contract (requirements immutable) |
 | `docs/rules/segment-production-rules.md` | Locked-script freezing and segmentation |
 
-Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF contracts** (with the built `$HYPERFRAMES_REPO` as ground truth).
+Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF contracts** (with the official text at the locked commit under `vendor/skills/` as ground truth).
 
 > **Language policy.** The four files under `docs/rules/` are maintained in **Chinese only**, and Chinese is authoritative for their normative requirements. This is deliberate: they are normative contracts with a single owner, so an English twin would create two sources of truth, and this repo's precedence order has no language dimension to adjudicate drift. The same applies to `AGENTS.md`, `docs/architecture/`, and `docs/plans/`. Community and governance documents are bilingual — see the "English" column in the documentation index below.
 
