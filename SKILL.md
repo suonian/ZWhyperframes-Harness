@@ -79,7 +79,7 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills（需联网）
 npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
-npm test             # 52 项测试，全部离线可跑
+npm test             # 53 项测试，全部离线可跑
 ```
 
 **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 10 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。

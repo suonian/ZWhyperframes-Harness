@@ -107,3 +107,44 @@ test("SKILL.md 只做路由：正文不复制规则条款", () => {
     assert.ok(existsSync(join(REPO, f)), `SKILL.md 指向的规则文件不存在：${f}`);
   }
 });
+
+test("文档声明的测试数与 tests/ 实际用例数一致", () => {
+  // 「新增了用例却没改 README 徽章」是本仓反复出现的漂移形态：
+  // 文档说 50、实际 52，两者都没有错，但读者拿到的数是错的。
+  const testDir = join(REPO, "tests");
+  let actual = 0;
+  for (const name of readdirSync(testDir)) {
+    if (!name.endsWith(".test.mjs")) continue;
+    const text = readFileSync(join(testDir, name), "utf-8");
+    // 只认 `test("名称"` 这一种调用形态；`test.skip` / `test.only` 不计入。
+    // 注释里的同名形态必须先剥掉，否则本测试自身的说明文字会被计成一个用例。
+    const code = text
+      .split("\n")
+      .map((line) => line.replace(/^\s*\/\/.*$/, "").replace(/\s\/\/.*$/, ""))
+      .join("\n");
+    actual += [...code.matchAll(/(?<![\w.])test\(\s*["'`]/g)].length;
+  }
+  assert.ok(actual > 0, "未统计到任何用例，测试本身失效");
+
+  const claims = [];
+  for (const path of ["README.md", "README.en.md"]) {
+    const text = readFileSync(join(REPO, path), "utf-8");
+    const badge = text.match(/badge\/tests-(\d+)%20total/);
+    assert.ok(badge, `${path} 的测试徽章缺失或格式变化`);
+    claims.push(`${path} 徽章=${badge[1]}`);
+    const inline = text.match(/npm test\s+#\s*(\d+)\s*(?:项测试|tests)/);
+    assert.ok(inline, `${path} 的快速开始段缺少测试数声明`);
+    claims.push(`${path} 正文=${inline[1]}`);
+  }
+  const skillText = readFileSync(join(REPO, "SKILL.md"), "utf-8");
+  const skillInline = skillText.match(/npm test\s+#\s*(\d+)\s*项测试/);
+  assert.ok(skillInline, "SKILL.md 的快速开始段缺少测试数声明");
+  claims.push(`SKILL.md=${skillInline[1]}`);
+
+  for (const claim of claims) {
+    assert.equal(
+      Number(claim.split("=")[1]), actual,
+      `文档声明的测试数与实际用例数不符（实际 ${actual}）：${claim}`,
+    );
+  }
+});
