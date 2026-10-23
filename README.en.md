@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-45%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-50%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 A harness engineering project for HyperFrames: rules constrain the official production flow, gates enforce that official capabilities are actually executed. Core official capabilities are never rebuilt.
 
@@ -125,10 +125,32 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # install locked dependencies + verify HF version + refresh official skills
 npm run doctor       # environment check: CLI version / skills / browser / ffmpeg / MiniMax credentials
 source ./hf-env.sh   # production entry point (provides the hf function, network policy, skips init's network check)
-npm test             # 45 tests
+npm test             # 50 tests
 ```
 
 > The caption test genuinely imports official `faceless-explainer`'s `captions.mjs` (verifying the "rendering goes through official" path). It depends on the official skill installed by `npm run bootstrap`; without bootstrapping, that test is **explicitly marked skip** rather than failed. CI runs bootstrap first, so this path is **really executed** in CI.
+
+### Install as a SkillHub skill
+
+This repo is also distributed as a SkillHub skill under the slug `zwhyperframes-harness`. Once installed into a client's skill discovery directory, a new agent can load it and produce videos.
+
+```bash
+# From the platform — the discovery directory must be given explicitly
+skillhub install zwhyperframes-harness --dir ~/.agents/skills
+
+# Or from the local repo (picks up your changes immediately, no platform release needed)
+npm run install-skill
+```
+
+Both routes produce the same content: `SKILL.md`, `AGENTS.md`, the four `docs/rules/` files, `scripts/`, `tests/`, and `tools/`.
+
+Discovery directory precedence (SkillHub protocol §8.4): `./.agents/skills` → `~/.agents/skills` → `./.claude/skills` → `~/.claude/skills`.
+
+> **Three things to know.**
+>
+> ① **The discovery directory must be given explicitly.** The SkillHub CLI's default install path is not scanned by any client (it lands in `/private/tmp/skills/`), so omitting it is the same as not installing at all.
+> ② **The install still needs bootstrapping.** The skill package ships without `node_modules`, so run `npm run bootstrap` inside the installed directory, then `source ./hf-env.sh`.
+> ③ **It won't enter the index on its own.** The current CLI does not write the `<skill>` block into `AGENTS.md`, so name the skill explicitly in the session, or reference `SKILL.md` from your project's `AGENTS.md`.
 
 ### Networking
 
@@ -175,8 +197,11 @@ scripts/               Management scripts (single-step, deterministic, agent-cal
   gate.mjs             Gates (10 commands, see "Why you can trust it")
   state.mjs            The only write entry point for state and approvals
   finalize-master.mjs  Master concatenation (thin ffmpeg concat)
+  build-skill-package.mjs  Builds the SkillHub-uploadable skill package (platform admission rules + fail-closed checks)
+  install-skill.sh    Installs this repo into a client's skill discovery directory (npm run install-skill)
 tools/minimax/         MiniMax API callers (TTS / image / video)
 tests/                 Tests (unit + e2e, fully offline)
+SKILL.md               SkillHub distribution wrapper (routes only, carries no normative requirements)
 ```
 
 Video products **do not enter this repository**; by default they are written to `~/Documents/ZWhyperframes-products/`.

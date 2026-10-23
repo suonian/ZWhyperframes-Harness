@@ -1,16 +1,16 @@
 ---
 name: zwhyperframes-harness
 slug: zwhyperframes-harness
-version: 0.2.0
-displayName: ZWhyperframes Harness
-summary: HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行，不重写官方能力。
-description: 驾驭 HyperFrames 的那一层工程。解决「HF 会跑但不会自守」——规则与官方质量能力名义上在用，却没有机制保证真的执行过；用规则把官方流程钉死，用门禁把「声称做过」变成「不通过就卡住」。
-tags: [hyperframes, video-production, agent-harness, workflow-enforcement, guardrails]
+version: 0.2.2
+displayName: HyperFrames Harness
+summary: HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
+description: 当需要用 HyperFrames 生产中文无真人出镜知识视频时使用本技能——用规则把官方流程钉死，用门禁把官方质量能力「名义上在用」变成「不跑就卡住」，并把「声称做过」变成「不通过就卡住」。核心能力全部来自 HyperFrames 官方，本技能一行不重写。
+tags: [hyperframes, video-production, agent-harness, workflow-enforcement, guardrails, chinese-video]
 license: Apache-2.0
 homepage: https://github.com/suonian/ZWhyperframes-Harness
 ---
 
-# ZWhyperframes Harness
+# HyperFrames Harness
 
 HyperFrames 的 harness 工程，用于生产中文无真人出镜知识类视频。
 
@@ -42,6 +42,28 @@ HyperFrames 的能力是齐的。问题不在缺功能，而在**生产由智能
 
 冲突裁决顺序：**用户当前指令 > `AGENTS.md` > `docs/rules/` > 官方 HF 合同**（以 `$HYPERFRAMES_REPO` 真源为准）。
 
+协议 §8.3 约定技能包目录为 `SKILL.md + references/ + scripts/ + assets/`。本包把参考资料放在 `docs/rules/` 与 `docs/architecture/`、厂商工具放在 `tools/`，二者均为协议中的可选目录，规则不受影响。
+
+## 如何被新智能体加载
+
+**装到发现目录，否则新智能体看不到。** SkillHub CLI 的默认安装路径不是任何客户端的技能发现路径，必须显式指定：
+
+```bash
+skillhub install zwhyperframes-harness --dir ~/.agents/skills
+```
+
+发现目录优先级：`./.agents/skills/` → `~/.agents/skills/` → `./.claude/skills/` → `~/.claude/skills/`。装完的目录名等于 `skill.slug`，即 `zwhyperframes-harness`。
+
+**当前 CLI 不会写 `AGENTS.md` 的 `<skill>` 索引块**，因此安装后不会自动出现在项目的智能体索引里——需要在会话中显式点名本技能，或在项目 `AGENTS.md` 中手工引用 `SKILL.md`。
+
+若需把本包重建为可上传的技能包：
+
+```bash
+node scripts/build-skill-package.mjs --root . --out <产物目录>
+```
+
+该脚本按平台准入规则过滤并逐项 fail-closed 校验（文件数 ≤100、总包 ≤10MB、单文件 ≤1MB、必须含 `SKILL.md`），产出含每个文件 SHA-256 的 `package-manifest.json`。
+
 ## 前置条件
 
 - macOS；Node.js ≥ 22；ffmpeg
@@ -51,12 +73,28 @@ HyperFrames 的能力是齐的。问题不在缺功能，而在**生产由智能
 
 ## 快速开始
 
+技能包**不含 `node_modules`**（平台打包排除），故须先自举：
+
 ```bash
-npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 刷新官方 skills
+npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 刷新官方 skills（需联网）
 npm run doctor       # 环境体检
-source ./hf-env.sh   # 生产环境入口
-npm test             # 45 项测试，全部离线可跑
+source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
+npm test             # 50 项测试，全部离线可跑
 ```
+
+## 如何开工生产
+
+```bash
+# 开案：资料归档 + 锁定稿提取冻结 + 项目状态初始化
+node scripts/new-video.mjs init --project <产品项目目录> --source <资料包文件或目录>
+
+# 逐段：按分段计划执行官方 hyperframes init + 段骨架
+node scripts/new-video.mjs segment --project <产品项目目录> --plan <segment-plan.json> --id <NN>
+```
+
+分段计划（语义切分）由主智能体判断后写入 `segment-plan.json`；脚本只校验与执行。产品默认写入 `~/Documents/ZWhyperframes-products/`，不进入本包。
+
+**完整生产顺序以 `docs/rules/production-workflow-rules.md` §2 为准**（官方 Step 0–6 + harness 落点）。本文件不复制该顺序。
 
 ## 关于强制力的真实覆盖
 
@@ -70,7 +108,7 @@ npm test             # 45 项测试，全部离线可跑
 - 用户决策门只有四个：每段「开始授权」、每段「final look 渲染授权」、master「final look」、全项目「收尾审批」。文字分镜不送审。
 - 字幕永远走官方渲染；**不得自建** composition、装配、转场、字幕渲染、check、渲染能力。
 - **不重造轮子是边界，不是目的。**
-- 视频产品写入 `~/Documents/ZWhyperframes-products/`，不写入本仓。
+- 视频产品写入 `~/Documents/ZWhyperframes-products/`，不写入本包。
 - 修改规则、脚本或 schema 后必须运行 `npm test`。
 
 ## 许可与非官方声明

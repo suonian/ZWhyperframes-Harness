@@ -9,12 +9,30 @@
 
 ## [未发布]
 
+暂无。
+
+## [0.2.2] — 2026-10-23
+
+本仓以 SkillHub 技能的形式对外分发；同时把「装到发现目录」「装完自举」「不会自动进索引」三件实测事实写进文档，不再依赖使用者自行推断。
+
+> 版本号说明：本仓首个 SkillHub 制品由平台在审核通过后自行发布为 `0.2.1`（内容等同于 `v0.2.0` 加 `SKILL.md`）。协议要求本地版本严格大于线上版本，故本次直接升至 `0.2.2`；GitHub 侧不发布 `0.2.1`，避免同一版本号在两条版本线上指向不同内容。
+
 ### 新增
-- `scripts/build-skill-package.mjs`：把本仓打成 SkillHub 可上传的技能包。平台协议（`iflytek/skillhub` docs/07 §8.3）限定文件类型白名单、数量 ≤100、总包 ≤10MB、单文件 ≤1MB，而本仓的 `LICENSE` / `NOTICE` / `.gitignore` / `CITATION.cff` 均不在白名单内。脚本按白名单过滤、逐项 fail-closed 校验后产出到独立目录，并写出含每个文件 SHA-256 的 `package-manifest.json`。单步、幂等、确定性、零 agent 调用。
+- `tests/docs-links.test.mjs`（5 项）：把此前靠人工核对的文档一致性变成机器门禁——① 全仓 markdown 相对链接零死链；② README 中英目录锚点与实际标题一致（按 GitHub 真实 slug 规则逐空格替换，不折叠）；③ 版本号在 `package.json` / `package-lock.json` / `CITATION.cff` / `SKILL.md` 四处一致；④ `SKILL.md` 满足协议 §8.2 的 frontmatter 要求（`name` 为 kebab-case、`version` 为合法 SemVer、`displayName` 与 `description` 非空且单行）；⑤ `SKILL.md` 声明自己只做路由。四项均以变异测试验证敏感性——注入死链、还原版本倒挂、去掉 `name`、去掉路由声明，用例均当场转红，还原后复绿。其中第③项正是本版本修掉的版本倒挂缺陷的原样再现。
+- `scripts/build-skill-package.mjs`：把本仓打成 SkillHub 可上传的技能包。平台协议（`iflytek/skillhub` docs/07 §8.3）限定文件类型白名单、数量 ≤100、总包 ≤10MB、单文件 ≤1MB，而本仓的 `LICENSE` / `NOTICE` / `.gitignore` / `CITATION.cff` 均不在白名单内。脚本按准入规则过滤、逐项 fail-closed 校验后产出到独立目录，并写出含每个文件 SHA-256 的 `package-manifest.json`。单步、幂等、确定性、零 agent 调用。
+- `scripts/install-skill.sh`（`npm run install-skill`）：把本仓安装到客户端的技能发现目录。**这是补缺口的实作**：SkillHub CLI 的默认安装路径不被任何客户端扫描（实测落在 `/private/tmp/skills/`），且该 CLI 不写 `AGENTS.md` 的 `<skill>` 索引块（源码中 `agents/skills` 与 `AGENTS.md` 命中数均为 0，协议 §8.4 / §8.5 均未实现）。脚本按协议 §8.4 的四级优先级探测目标目录（或由 `--dir` 指定），打包后安装并 fail-closed 校验 `SKILL.md` 存在，最后打印自举与索引两步提示。单步、幂等、确定性、零 agent 调用。
+
+### 修复
+- `.github/ISSUE_TEMPLATE/question.md` 的 README 链接为相对路径 `README.md`，从该目录解析后指向不存在的文件——修正为 `../../README.md`。
+- 打包白名单按**实测准入**收敛为纯文本类。协议 §8.3 列举的白名单含 `.png` / `.jpg` / `.svg`，但线上服务端实际拒收 `.jpg`（错误「不允许的文件类型: assets/wechat-qr.jpg」）——文档与线上部署不一致，以实测为准。
+- 版本号倒挂：平台线上版本已由审核流程推进至 `0.2.1`，本地仍为 `0.2.0`，下次发布会撞 409。本仓版本号（`package.json` / `package-lock.json` / `CITATION.cff` / `SKILL.md`）统一升至 `0.2.2`。
 
 ### 文档
 - 新增 `SKILL.md`：本仓在 SkillHub 上的分发封装。它只做路由、不承载规范，全部要求仍由 `AGENTS.md` 与 `docs/rules/` 各自唯一持有；`AGENTS.md` 相应加了一条互指，声明冲突时以 `AGENTS.md` 与 `docs/rules/` 为准。
 - `SKILL.md` 的 frontmatter 补 `name` 字段（协议 §8.2 必需，且首次发布后映射为 `skill.slug` 不可变更）；`LICENSE` 链接改为指向 GitHub 绝对地址并注明该文件不随包分发。
+- **`SKILL.md` 的 `description` 改写为触发条件式**。协议 §8.2 规定 `description` 映射为 `skill.summary`，即平台展示与路由匹配所用的那段文字；此前写的是「它是什么」，检索时匹配度不佳，现改为「当需要……时使用本技能」。
+- **`SKILL.md` 补三段实测事实**：「如何被新智能体加载」（发现目录优先级、CLI 不写 `AGENTS.md` 索引块）、「如何开工生产」（`new-video.mjs init` / `segment` 的完整参数形式）、「目录约定说明」（`docs/` 承担协议 `references/` 角色，`tools/` 承担 `assets/` 角色，二者协议中均为可选）。
+- README 中英双份新增「作为 SkillHub 技能安装」段，给出平台安装与本地安装两条命令、发现目录优先级，以及三条须知（必须显式指定目录、装完仍需自举、不会自动进索引）。
 
 ## [0.2.0] — 2026-10-08
 
@@ -80,6 +98,7 @@
 ### 许可
 - Apache-2.0（与上游 HyperFrames 一致）。本项目不含 HF 源码，仅作外部依赖调用。
 
-[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...HEAD
+[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...v0.2.2
 [0.2.0]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/suonian/ZWhyperframes-Harness/releases/tag/v0.1.0

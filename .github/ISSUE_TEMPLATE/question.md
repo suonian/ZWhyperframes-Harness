@@ -13,7 +13,7 @@ assignees: ''
 ## 我已经尝试
 
 - [ ] `npm run doctor`（环境体检）
-- [ ] 阅读 [README](README.md) 的快速开始与网络说明
+- [ ] 阅读 [README](../../README.md) 的快速开始与网络说明
 - [ ] 搜索过既有 issue
 
 <!-- 简述你做了什么，以及结果 -->

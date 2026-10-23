@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-45%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-50%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
 
@@ -125,10 +125,32 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 刷新官方 skills
 npm run doctor       # 环境体检：CLI 版本 / skills / 浏览器 / ffmpeg / MiniMax 凭证
 source ./hf-env.sh   # 生产环境入口（提供 hf 函数、网络策略、跳过 init 的联网检查）
-npm test             # 45 项测试
+npm test             # 50 项测试
 ```
 
 > 字幕用例会真正导入官方 `faceless-explainer` 的 `captions.mjs`（验证「渲染走官方」这条路径）。它依赖 `npm run bootstrap` 安装的官方 skill；未 bootstrap 时该用例会**明确标记为 skip** 而非失败。CI 会先跑 bootstrap，因此这条路径在 CI 上是**被真实执行**的。
+
+### 作为 SkillHub 技能安装
+
+本仓同时以 SkillHub 技能的形式分发，slug 为 `zwhyperframes-harness`。装到客户端的技能发现目录后，新智能体即可加载它生产视频。
+
+```bash
+# 从平台安装——必须显式指定发现目录
+skillhub install zwhyperframes-harness --dir ~/.agents/skills
+
+# 或从本地仓库安装（改完代码即时生效，不必等平台发版）
+npm run install-skill
+```
+
+两种方式装出的内容一致：`SKILL.md`、`AGENTS.md`、四份 `docs/rules/`、`scripts/`、`tests/`、`tools/`。
+
+发现目录优先级（SkillHub 协议 §8.4）：`./.agents/skills` → `~/.agents/skills` → `./.claude/skills` → `~/.claude/skills`。
+
+> **两点须知。**
+>
+> ① **必须显式指定发现目录。** SkillHub CLI 的默认安装路径不被任何客户端扫描（实测落在 `/private/tmp/skills/`），不指定就等于没装。
+> ② **装完仍需自举。** 技能包不含 `node_modules`，需在技能目录内执行一次 `npm run bootstrap`，再 `source ./hf-env.sh`。
+> ③ **不会自动进入索引。** 当前 CLI 不写 `AGENTS.md` 的 `<skill>` 块，需在会话中点名本技能，或在项目 `AGENTS.md` 中手工引用 `SKILL.md`。
 
 ### 关于网络
 
@@ -175,8 +197,11 @@ scripts/               管理脚本（单步、确定性、零 agent 调用）
   gate.mjs             门禁（10 个命令，见「凭什么可信」）
   state.mjs            状态与授权记录的唯一写入入口
   finalize-master.mjs  master 拼接（thin ffmpeg concat）
+  build-skill-package.mjs  打包为 SkillHub 可上传的技能包（按平台准入规则过滤 + fail-closed 校验）
+  install-skill.sh    安装本仓到客户端的技能发现目录（npm run install-skill）
 tools/minimax/         MiniMax API 调用器（TTS / 图片 / 视频）
 tests/                 测试（单元 + e2e，全部离线可跑）
+SKILL.md               SkillHub 分发封装（只做路由，不承载规范）
 ```
 
 视频产品**不进入本仓**，默认写入 `~/Documents/ZWhyperframes-products/`。

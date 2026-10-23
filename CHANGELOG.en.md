@@ -11,12 +11,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.2] — 2026-10-23
+
+This repo is now distributed as a SkillHub skill; the three facts that actually decide whether it works — install into a discovery directory, bootstrap after install, no automatic index entry — are now documented instead of left for the user to infer.
+
+> On the version number: the platform published this repo's first SkillHub artifact as `0.2.1` after review passed (content equivalent to `v0.2.0` plus `SKILL.md`). The protocol requires the local version to be strictly greater than the published one, so this release goes straight to `0.2.2`. GitHub does not publish `0.2.1`, so the same version number never points at different content on the two release lines.
+
 ### Added
-- `scripts/build-skill-package.mjs`: builds this repo into a SkillHub-uploadable skill package. The platform protocol (`iflytek/skillhub` docs/07 §8.3) constrains uploads to a file-type whitelist, ≤100 files, ≤10MB total, and ≤1MB per file — while this repo's `LICENSE` / `NOTICE` / `.gitignore` / `CITATION.cff` are all outside that whitelist. The script filters by the whitelist, validates every constraint fail-closed, emits to a separate directory, and writes a `package-manifest.json` carrying each file's SHA-256. Single-step, idempotent, deterministic, agent-call-free.
+- `tests/docs-links.test.mjs` (5 cases): turns previously manual document consistency checks into a machine gate — ① zero dead relative links across all markdown; ② README TOC anchors in both languages match their headings (using GitHub's real slug rule, each space replaced individually, never collapsed); ③ the version number agrees across `package.json` / `package-lock.json` / `CITATION.cff` / `SKILL.md`; ④ `SKILL.md` satisfies protocol §8.2's frontmatter requirements (`name` kebab-case, `version` valid SemVer, `displayName` and `description` present and single-line); ⑤ `SKILL.md` declares that it only routes. All four checks were mutation-verified — injecting a dead link, restoring the version skew, dropping `name`, dropping the routing declaration each turns a case red, and restoring turns them green again. Item ③ is the version-skew defect this release fixes, reproduced verbatim.
+- `scripts/build-skill-package.mjs`: builds this repo into a SkillHub-uploadable skill package. The platform protocol (`iflytek/skillhub` docs/07 §8.3) constrains uploads by file type, ≤100 files, ≤10MB total, and ≤1MB per file — while this repo's `LICENSE` / `NOTICE` / `.gitignore` / `CITATION.cff` are all outside that set. The script filters by the admission rules, validates every constraint fail-closed, emits to a separate directory, and writes a `package-manifest.json` carrying each file's SHA-256. Single-step, idempotent, deterministic, agent-call-free.
+- `scripts/install-skill.sh` (`npm run install-skill`): installs this repo into a client's skill discovery directory. **This fills a real gap**: the SkillHub CLI's default install path is not scanned by any client (it lands in `/private/tmp/skills/`), and the CLI does not write the `<skill>` block into `AGENTS.md` (both `agents/skills` and `AGENTS.md` occur zero times in its source — protocol §8.4 and §8.5 are unimplemented). The script probes the four-level priority from §8.4 (or takes `--dir`), installs, fail-closed checks that `SKILL.md` exists, and prints the bootstrap and index steps. Single-step, idempotent, deterministic, agent-call-free.
+
+### Fixed
+- `.github/ISSUE_TEMPLATE/question.md` linked to `README.md` relatively, which resolved to a non-existent file from that directory — corrected to `../../README.md`.
+- The packaging allowlist now follows the **measured** admission rules. Protocol §8.3 lists `.png` / `.jpg` / `.svg`, but the live server rejects `.jpg` ("不允许的文件类型: assets/wechat-qr.jpg") — the documentation and the deployed service disagree, so the measurement wins.
+- Version skew: the published version had already advanced to `0.2.1` through the review flow while the local tree was still at `0.2.0`, which would have failed the next publish with a 409. The project version (`package.json` / `package-lock.json` / `CITATION.cff` / `SKILL.md`) now moves to `0.2.2`.
 
 ### Documentation
 - Added `SKILL.md`: the repo's SkillHub distribution wrapper. It routes only and carries no normative requirements — those remain uniquely owned by `AGENTS.md` and `docs/rules/`. `AGENTS.md` gained a reciprocal note stating that `AGENTS.md` and `docs/rules/` win on any conflict.
 - `SKILL.md` frontmatter gained the `name` field (required by protocol §8.2, and mapped to `skill.slug` on first publish, after which it cannot change); the `LICENSE` link now points at an absolute GitHub URL, with a note that the file is not distributed in the package.
+- **`SKILL.md`'s `description` is now a trigger condition.** Protocol §8.2 maps `description` to `skill.summary` — the text the platform displays and uses for routing. It previously described what the skill *is*; matching in search was poor, so it now states *when to use it*.
+- **`SKILL.md` gained three measured facts**: "how a new agent loads it" (discovery directory precedence; the CLI writes no `AGENTS.md` index block), "how to start production" (the full parameter forms of `new-video.mjs init` / `segment`), and a note on directory conventions (`docs/` plays the protocol's `references/` role, `tools/` plays `assets/`; both are optional in the protocol).
+- Both READMEs gained an "Install as a SkillHub skill" section with the platform and local install commands, the discovery directory precedence, and three caveats (the directory must be given explicitly, the install still needs bootstrapping, it won't enter the index on its own).
 
 ## [0.2.0] — 2026-10-08
 
@@ -82,6 +100,7 @@ First public release.
 ### License
 - Apache-2.0 (consistent with upstream HyperFrames). This project contains no HF source code and only calls it as an external dependency.
 
-[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...v0.2.2
 [0.2.0]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/suonian/ZWhyperframes-Harness/releases/tag/v0.1.0
