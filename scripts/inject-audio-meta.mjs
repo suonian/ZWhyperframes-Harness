@@ -10,7 +10,8 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { sha256File, writeJson, findProjectRoot, HARNESS_ROOT, INJECTION_BINDING_SCHEMA_VERSION } from "./lib/harness.mjs";
+import { sha256File, writeJson, findProjectRoot, INJECTION_BINDING_SCHEMA_VERSION } from "./lib/harness.mjs";
+import { requireOfficialScript } from "./lib/official-skills.mjs";
 import { readStoryboard } from "./lib/storyboard.mjs";
 import { parseTitles, validateFrameCoverage, mapFramesToWords, buildVoices } from "./lib/audio-inject.mjs";
 
@@ -126,31 +127,12 @@ writeJson(join(audioDir, "injection-binding.json"), {
 });
 console.log(`audio_meta.json 注入并同步完成：${voices.length}/${frameMaps.length} 帧有语音（BGM=${bgmMode}）`);
 
-// media-use 音频引擎的确定性定位：官方技能目录（bootstrap 的 skills update 安装）。
+// 官方音频引擎的确定性定位：唯一真源是 vendor/skills/（bootstrap 按锁定 commit 取回）。
+// 不回退到各发现目录——那里的同名 skill 可能来自任意版本，详见 scripts/lib/official-skills.mjs。
 function resolveFacelessAudioScript() {
-  const candidates = [
-    join(HARNESS_ROOT, "vendor", "skills"),
-    join(process.env.HOME ?? "", ".claude", "skills"),
-    join(process.env.HOME ?? "", ".agents", "skills"),
-    join(process.env.HOME ?? "", ".config", "opencode", "skills"),
-  ];
-  for (const root of candidates) {
-    const script = join(root, "faceless-explainer", "scripts", "audio.mjs");
-    if (existsSync(script)) return script;
-  }
-  throw new Error("未找到官方 faceless-explainer audio.mjs；先运行 ./scripts/bootstrap.sh");
+  return requireOfficialScript("faceless-explainer", "scripts/audio.mjs");
 }
 
 function resolveMediaEngine() {
-  const candidates = [
-    join(HARNESS_ROOT, "vendor", "skills"),
-    join(process.env.HOME ?? "", ".claude", "skills"),
-    join(process.env.HOME ?? "", ".agents", "skills"),
-    join(process.env.HOME ?? "", ".config", "opencode", "skills"),
-  ];
-  for (const root of candidates) {
-    const engine = join(root, "media-use", "audio", "scripts", "audio.mjs");
-    if (existsSync(engine)) return engine;
-  }
-  throw new Error("未找到官方 media-use 音频引擎；先运行 ./scripts/bootstrap.sh（skills update）");
+  return requireOfficialScript("media-use", "audio/scripts/audio.mjs");
 }

@@ -7,7 +7,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { HARNESS_ROOT } from "./lib/harness.mjs";
+import { requireOfficialSkill } from "./lib/official-skills.mjs";
 import { readStoryboard } from "./lib/storyboard.mjs";
 
 const args = process.argv.slice(2);
@@ -222,15 +222,10 @@ export function buildGroups({ text, tokens, frameStart, totalDuration }) {
 }
 
 // ── 官方运行时加载（captions.mjs 的 buildFromSkin / brandFontFaces + 官方 tokens 库） ──
+// 唯一真源是 vendor/skills/（bootstrap 按锁定 commit 取回并校验），不回退到各发现目录——
+// 详见 scripts/lib/official-skills.mjs 顶部的理由。
 function resolveFacelessSkillsDir() {
-  const candidates = [
-    join(HARNESS_ROOT, "vendor", "skills", "faceless-explainer"),
-    join(process.env.HOME ?? "", ".claude", "skills", "faceless-explainer"),
-    join(process.env.HOME ?? "", ".agents", "skills", "faceless-explainer"),
-    join(process.env.HOME ?? "", ".config", "opencode", "skills", "faceless-explainer"),
-  ];
-  for (const dir of candidates) if (existsSync(join(dir, "scripts", "captions.mjs"))) return dir;
-  throw new Error("未找到官方 faceless-explainer skill（先运行 ./scripts/bootstrap.sh）");
+  return requireOfficialSkill("faceless-explainer");
 }
 
 async function loadOfficialCaptionsModule() {

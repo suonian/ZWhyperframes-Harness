@@ -9,15 +9,15 @@ import { tmp } from "./lib/tmp.mjs";
 const TMP = () => tmp("zw-captions-zh-");
 
 // 该用例会把官方 faceless-explainer 的 captions.mjs 作为模块导入——那是
-// 「渲染永远走官方」的真实路径，值得被真正执行。但它依赖 bootstrap 安装的官方
-// skill，新克隆尚未 bootstrap 时**明确跳过**（而非含混失败）；CI 会先跑 bootstrap
-// 从而完整覆盖这条路径。
-const HAS_OFFICIAL_SKILL = [
-  join(import.meta.dirname, "..", "vendor", "skills", "faceless-explainer"),
-  join(process.env.HOME ?? "", ".claude", "skills", "faceless-explainer"),
-  join(process.env.HOME ?? "", ".agents", "skills", "faceless-explainer"),
-  join(process.env.HOME ?? "", ".config", "opencode", "skills", "faceless-explainer"),
-].some((dir) => existsSync(join(dir, "scripts", "captions.mjs")));
+// 「渲染永远走官方」的真实路径，值得被真正执行。但它依赖 bootstrap 按锁定 commit
+// 取回的官方 skill，新克隆尚未 bootstrap 时**明确跳过**（而非含混失败）；CI 会先跑
+// bootstrap 从而完整覆盖这条路径。
+//
+// 只认 vendor/skills/：各发现目录下的同名 skill 可能来自任意版本，用它们「通过」
+// 并不等于验证了锁定版本的官方产物。
+const HAS_OFFICIAL_SKILL = existsSync(
+  join(import.meta.dirname, "..", "vendor", "skills", "faceless-explainer", "scripts", "captions.mjs"),
+);
 
 const SKIP_REASON = "需要官方 faceless-explainer skill（先运行 npm run bootstrap；CI 中会先 bootstrap）";
 
