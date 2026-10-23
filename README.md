@@ -132,7 +132,7 @@ npm test             # 53 项测试
 >
 > 这是因为官方 CLI 的 `hyperframes skills update` 把「latest」硬编码为上游 main 的实时 HEAD，无法固定——上游已于 2026-10-21 退役 `faceless-explainer` 等 workflow 类 skills（破坏性变更），跑它会直接失败。审计记录见 `docs/architecture/hf-contract-audit-2026-10-21.md`。
 
-> 字幕用例会真正导入官方 `faceless-explainer` 的 `captions.mjs`（验证「渲染走官方」这条路径）。它依赖 `npm run bootstrap` 安装的官方 skill；未 bootstrap 时该用例会**明确标记为 skip** 而非失败。CI 会先跑 bootstrap，因此这条路径在 CI 上是**被真实执行**的。
+> 字幕用例会真正导入官方 `faceless-explainer` 的 `captions.mjs`（验证「渲染走官方」这条路径）。它只认 `vendor/skills/`——即 `npm run bootstrap` 按锁定 commit 取回的那一份；各智能体发现目录下的同名 skill 可能来自任意版本，故不作为来源。未 bootstrap 时该用例会**明确标记为 skip** 而非失败。CI 会先跑 bootstrap，因此这条路径在 CI 上是**被真实执行**的。
 
 ### 作为 SkillHub 技能安装
 

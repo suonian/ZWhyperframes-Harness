@@ -132,7 +132,7 @@ npm test             # 53 tests
 >
 > The reason: the official CLI's `hyperframes skills update` hardcodes "latest" as upstream main's live HEAD and cannot be pinned — and upstream retired `faceless-explainer` and the other workflow skills on 2026-10-21 (a breaking change), so that command now fails outright. The audit record is in `docs/architecture/hf-contract-audit-2026-10-21.md`.
 
-> The caption test genuinely imports official `faceless-explainer`'s `captions.mjs` (verifying the "rendering goes through official" path). It depends on the official skill installed by `npm run bootstrap`; without bootstrapping, that test is **explicitly marked skip** rather than failed. CI runs bootstrap first, so this path is **really executed** in CI.
+> The caption test genuinely imports official `faceless-explainer`'s `captions.mjs` (verifying the "rendering goes through official" path). It accepts `vendor/skills/` only — the copy `npm run bootstrap` fetches at the locked commit; the skill of the same name in an agent's discovery directory may come from any version, so it is not used as a source. Without bootstrapping, that test is **explicitly marked skip** rather than failed. CI runs bootstrap first, so this path is **really executed** in CI.
 
 ### Install as a SkillHub skill
 
