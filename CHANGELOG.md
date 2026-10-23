@@ -36,6 +36,7 @@
 - `scripts/doctor.sh` 的注释声称检查 skills，实际并无对应检查项——补上：验证锁定 commit 的官方 skills 已取回至 `vendor/skills/`，且生产主链真正 import 的四个运行时文件（`captions.mjs` / `audio.mjs` / `lib/tokens.mjs` / `lib/dimensions.mjs`）齐备。体检脚本的声明与实现此前不一致，这本身是一处真实缺陷。
 - 打包白名单按**实测准入**收敛为纯文本类。协议 §8.3 列举的白名单含 `.png` / `.jpg` / `.svg`，但线上服务端实际拒收 `.jpg`（错误「不允许的文件类型: assets/wechat-qr.jpg」）——文档与线上部署不一致，以实测为准。
 - `scripts/build-skill-package.mjs` 的排除清单补入 `vendor/`。该目录是 bootstrap 按锁定 commit 取回的上游产物树（`.gitignore` 内），不随本仓分发；不排除时打包会把它一并扫进来（实测 805 个文件，远超平台 §8.3 的 100 上限，产出被拒）。
+- 文档链接门禁排除 `vendor/`。该目录下的 326 份 markdown 由上游维护，其内部相对链接的成败不应让本仓门禁变红——门禁只能对本仓负责的内容断言。已验证：向 `vendor/` 注入一份含死链的 markdown 后，本仓五项文档门禁仍全绿。
 - 版本号倒挂：平台线上版本已由审核流程推进至 `0.2.1`，本地仍为 `0.2.0`，下次发布会撞 409。本仓版本号（`package.json` / `package-lock.json` / `CITATION.cff` / `SKILL.md`）统一升至 `0.2.2`。
 
 ### 文档

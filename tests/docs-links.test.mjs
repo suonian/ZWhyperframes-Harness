@@ -5,7 +5,9 @@ import { join, resolve, relative, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SKIP_DIRS = new Set([".git", "node_modules", "__pycache__", ".skillhub-pkg"]);
+// vendor/ 是 bootstrap 按锁定 commit 取回的上游产物树（.gitignore 内），不属于本仓：
+// 它的 326 份 markdown 由上游维护，其内部相对链接的成败不应让本仓的门禁变红。
+const SKIP_DIRS = new Set([".git", "node_modules", "vendor", "__pycache__", ".skillhub-pkg"]);
 
 // GitHub 真实锚点算法：转小写 → 去掉标点（保留字母/数字/空白/连字符/下划线）→ 逐个空格换成连字符。
 // 关键：空格是「逐个」替换，不折叠，因此 "a · b" 得到 "a--b"（中间那个 `·` 被删，留下两个空格）。
