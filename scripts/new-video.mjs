@@ -3,11 +3,11 @@
 //   init    资料归档 + 锁定稿提取冻结 + 项目状态初始化（拒绝非空目录）
 //   segment 按分段计划对单段执行官方 hyperframes init + 段骨架
 // 分段计划（语义切分）由主智能体判断后写入 segment-plan.json；本脚本只校验与执行。
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, cpSync, statSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, cpSync, statSync, rmSync } from "node:fs";
 import { join, resolve, relative, isAbsolute, basename } from "node:path";
 import {
   PRODUCTS_ROOT_DEFAULT, CONTROL_DIR, MASTER_DIR, STATE_VERSION,
-  sha256File, writeJson, readState, writeState, runHf, assertHfVersion, nowIso,
+  sha256File, sha256Text, writeJson, readState, writeState, runHf, assertHfVersion, nowIso,
 } from "./lib/harness.mjs";
 
 const args = process.argv.slice(2);
@@ -86,7 +86,9 @@ function extractLockedScript(source) {
 // ── init ─────────────────────────────────────────────────────────────────────
 function runInit() {
   const projectDir = resolve(get("project") ?? ".");
-  const source = resolve(get("source") ?? "");
+  const sourceArg = get("source");
+  if (!sourceArg) throw new Error("init 需要 --source <资料包文件或目录>");
+  const source = resolve(sourceArg);
   const productsRoot = resolve(get("products-root") ?? PRODUCTS_ROOT_DEFAULT);
   if (!existsSync(source)) throw new Error(`来源不存在：${source}`);
   const rel = relative(productsRoot, projectDir);
@@ -96,14 +98,17 @@ function runInit() {
   if (existsSync(projectDir) && readdirSync(projectDir).length > 0) {
     throw new Error(`目标目录非空，拒绝覆盖：${projectDir}`);
   }
+  // 先提取/校验锁稿，再创建项目目录：提取失败时不会留下不可重试的半成品。
+  const lockedScript = extractLockedScript(source);
+  const projectExisted = existsSync(projectDir);
   const controlDir = join(projectDir, CONTROL_DIR);
+  try {
   mkdirSync(join(controlDir, "资料包"), { recursive: true });
   if (statSync(source).isDirectory()) {
     cpSync(source, join(controlDir, "资料包"), { recursive: true });
   } else {
     copyFileSync(source, join(controlDir, "资料包", basename(source)));
   }
-  const lockedScript = extractLockedScript(source);
   const scriptPath = join(controlDir, "锁定口播稿.md");
   writeFileSync(scriptPath, lockedScript);
   mkdirSync(join(projectDir, MASTER_DIR, "candidates"), { recursive: true });
@@ -120,14 +125,25 @@ function runInit() {
     master: { approvals: {}, candidate: null },
     created_at: nowIso(),
   });
+  } catch (error) {
+    // 新建项目（原本不存在）的复制/写盘失败：清掉本次半成品，允许重试。
+    if (!projectExisted) rmSync(projectDir, { recursive: true, force: true });
+    throw error;
+  }
   console.log(`项目初始化完成：${projectDir}`);
   console.log("下一步：主智能体语义分段后写 00-项目总控/segment-plan.json，再执行 new-video.mjs segment");
 }
 
 // ── segment ──────────────────────────────────────────────────────────────────
-function validateSegmentPlan(state, plan) {
+function validateSegmentPlan(state, plan, projectDir) {
   if (!Array.isArray(plan.segments) || !plan.segments.length) throw new Error("segment-plan.json 缺少 segments");
   const total = state.locked_script.line_count;
+  const lockedPath = join(projectDir, state.locked_script.path ?? `${CONTROL_DIR}/锁定口播稿.md`);
+  if (!existsSync(lockedPath)) throw new Error(`缺少锁定口播稿：${lockedPath}`);
+  if (!plan.locked_script_sha256 || plan.locked_script_sha256 !== sha256File(lockedPath)) {
+    throw new Error("segment-plan.json 的 locked_script_sha256 缺失或与当前锁稿不一致");
+  }
+  const lockedLines = readFileSync(lockedPath, "utf8").split("\n");
   let cursor = 1;
   for (const seg of plan.segments) {
     const [start, end] = seg.lines;
@@ -135,6 +151,11 @@ function validateSegmentPlan(state, plan) {
       throw new Error(`段 ${seg.id} 行范围非法：${seg.lines}（锁稿共 ${total} 行）`);
     }
     if (start !== cursor) throw new Error(`段 ${seg.id} 行范围不连续：期望从 ${cursor} 开始，实际 ${start}`);
+    const segmentText = lockedLines.slice(start - 1, end).join("\n").trim();
+    const accepted = new Set([sha256Text(segmentText), sha256Text(`${segmentText}\n`)]);
+    if (!seg.text_sha256 || !accepted.has(seg.text_sha256)) {
+      throw new Error(`段 ${seg.id} 的 text_sha256 缺失或与锁稿该段正文不一致`);
+    }
     cursor = end + 1;
   }
   if (cursor !== total + 1) throw new Error(`分段计划未覆盖锁稿全部 ${total} 行（覆盖到 ${cursor - 1}）`);
@@ -148,10 +169,14 @@ function runSegment() {
   const planPath = resolve(get("plan") ?? join(projectDir, CONTROL_DIR, "segment-plan.json"));
   const plan = JSON.parse(readFileSync(planPath, "utf8"));
   const segmentId = get("id");
-  validateSegmentPlan(state, plan);
+  validateSegmentPlan(state, plan, projectDir);
   const seg = plan.segments.find((s) => String(s.id) === String(segmentId));
   if (!seg) throw new Error(`segment-plan 中缺少段 ${segmentId}`);
   if (state.segments.some((s) => String(s.id) === String(segmentId))) throw new Error(`段 ${segmentId} 已存在，不得重复脚手架`);
+  const planSha256 = sha256File(planPath);
+  if (state.segment_plan_sha256 && state.segment_plan_sha256 !== planSha256) {
+    throw new Error("segment-plan.json 在项目脚手架期间被改动（哈希与 state 不一致）");
+  }
   if (typeof seg.dir !== "string" || !seg.dir || isAbsolute(seg.dir)) {
     throw new Error(`段 ${seg.id} 目录必须是项目根内的相对路径：${seg.dir}`);
   }
@@ -191,6 +216,8 @@ function runSegment() {
     user_script_sha256: sha256File(userScriptPath),
     created_at: nowIso(),
   });
+  state.segment_plan_sha256 = planSha256;
+  state.segment_plan = { path: relative(projectDir, planPath), sha256: planSha256 };
   state.segments.push({
     id: String(seg.id), dir: seg.dir, lines: seg.lines,
     status: "planned", approvals: {}, mp4: null,
@@ -198,7 +225,7 @@ function runSegment() {
   });
   writeState(projectDir, state);
   console.log(`段 ${seg.id} 脚手架完成：${segDir}`);
-  console.log("下一步：主智能体写 BRIEF.md（官方 Step 0，init 之后）→ capture（Step 1）→ 官方 preset（Step 2）");
+  console.log("下一步：写 BRIEF.md（官方 Step 0，init 之后；项目根或段内）→ Step 1 brief（faceless 无 capture）→ Step 2 `build-frame.mjs --preset`（frame.md + caption skin）");
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────

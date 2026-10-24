@@ -31,6 +31,10 @@ const metaPath = join(segmentDir, "audio_meta.json");
 
 if (!existsSync(titlesPath) || !existsSync(audioPath)) throw new Error("缺少 TTS 产物；先运行 minimax-tts.mjs");
 const binding = JSON.parse(readFileSync(bindingPath, "utf8"));
+const currentTextSha = sha256File(join(segmentDir, "user_script.txt"));
+if (binding.text_sha256 !== currentTextSha) {
+  throw new Error("TTS 绑定文本哈希与当前 user_script.txt 不一致；改稿后必须重跑 minimax-tts.mjs");
+}
 for (const [key, file] of [["audio_sha256", "narration.mp3"], ["titles_sha256", "narration.titles"], ["manifest_sha256", "narration.manifest.json"]]) {
   const path = join(audioDir, file);
   if (!existsSync(path) || binding[key] !== sha256File(path)) throw new Error(`TTS 产物与绑定漂移：${file}；请重新运行 minimax-tts.mjs`);
@@ -51,7 +55,7 @@ const audioDurationMs = words.at(-1).endMs;
 const voiceDir = join(segmentDir, "assets", "voice");
 mkdirSync(voiceDir, { recursive: true });
 // 源音频总时长：帧音频可越过末词进入源尾音（避免末句被截断）
-const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", audioPath], { encoding: "utf8" });
+const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", audioPath], { encoding: "utf8", timeout: 10 * 60 * 1000 });
 const sourceDurationMs = Number(probe.stdout.trim()) > 0 ? Number(probe.stdout.trim()) * 1000 : null;
 const voices = buildVoices(frameMaps, audioDurationMs, 0.08, sourceDurationMs);
 
@@ -60,6 +64,7 @@ for (const voice of voices) {
   const abs = join(segmentDir, voice.path);
   const r = spawnSync("ffmpeg", ["-y", "-i", audioPath, "-ss", String(voice.firstStartS), "-to", String(voice.to), "-c:a", "pcm_s16le", abs], {
     encoding: "utf8",
+    timeout: 10 * 60 * 1000,
     stdio: ["ignore", "ignore", "pipe"],
   });
   if (r.status !== 0 || !existsSync(abs)) throw new Error(`帧 ${voice.frame} 音频切分失败：${r.stderr ?? ""}`);
@@ -84,9 +89,14 @@ writeJson(requestPath, {
 const engine = resolveMediaEngine();
 const bgmRun = spawnSync("node", [engine, "--request", requestPath, "--hyperframes", segmentDir, "--out", neutralPath, "--only", "bgm"], {
   encoding: "utf8",
+  timeout: 30 * 60 * 1000,
   stdio: ["ignore", "inherit", "inherit"],
 });
 if (bgmRun.status !== 0) throw new Error("官方音频引擎 BGM 阶段失败");
+const neutralAfterBgm = existsSync(neutralPath) ? JSON.parse(readFileSync(neutralPath, "utf8")) : {};
+if (bgmMode === "retrieve" && !neutralAfterBgm.bgm) {
+  console.error("[inject] 警告：BGM 检索没有返回曲目（无凭证/无匹配/网络失败）；audio_meta.bgm 将为 null。");
+}
 
 // ── voices 合并进 neutral sidecar（engine 的 --only 合并保留非本阶段内容） ────
 const neutral = existsSync(neutralPath) ? JSON.parse(readFileSync(neutralPath, "utf8")) : {};
@@ -105,6 +115,7 @@ writeJson(metaPath, {
 const syncScript = resolveFacelessAudioScript();
 const sync = spawnSync("node", [syncScript, "sync-durations", "--hyperframes", segmentDir, "--audio-meta", metaPath, "--storyboard", join(segmentDir, "STORYBOARD.md")], {
   encoding: "utf8",
+  timeout: 30 * 60 * 1000,
   stdio: ["ignore", "inherit", "inherit"],
 });
 if (sync.status !== 0) throw new Error("官方 sync-durations 失败");

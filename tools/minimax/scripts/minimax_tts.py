@@ -267,7 +267,12 @@ def main() -> int:
     subtitle_path = None
     if isinstance(subtitle_result, str) and subtitle_result.startswith("http"):
         suffix = pathlib.Path(subtitle_result.split("?", 1)[0]).suffix or ".json"
-        subtitle_name = f"{args.name}.titles" if suffix in (".title", ".titles") else f"{args.name}.subtitle{suffix}"
+        # MiniMax 的 titles 有时以 .json 或无后缀 URL 返回；生产 wrapper 统一消费 <name>.titles。
+        subtitle_name = (
+            f"{args.name}.titles"
+            if suffix in (".title", ".titles", ".json")
+            else f"{args.name}.subtitle{suffix}"
+        )
         subtitle_path = out_dir / subtitle_name
         download_file(subtitle_result, subtitle_path)
 

@@ -10,21 +10,21 @@
 - 每支视频 = 一个项目根（`~/Documents/ZWhyperframes-products/<project_id>/`），内含多个段落子项目（每段一个 HF 项目）。
 - 生产锁定 HF `v0.8.36` / commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`；段内 `hyperframes.json` 由官方 `init --skill=faceless-explainer` 产生。
 - 锁定口播稿是内容真源；段落 `user_script.txt` 是其冻结片段；MiniMax 语音、词级时间、字幕与 STORYBOARD 通过哈希绑定。已有项目的代码、字幕、视频、分镜与自评都不是输入。
-- P0 允许准备：HF checkout、依赖、Chrome、字体、on-device catalog 索引、MiniMax、官方 skills 刷新。**P0 之后生产中途不联网也必须能跑完全片**——这是能力底线，不是网络禁令：按需能力仍可联网，但不得成为生产主链的前置条件。
-- **离线底线的唯一强制点**：官方 `hyperframes init` 默认联网 `git clone` skills，这是段脚手架里唯一的隐藏联网依赖。段脚手架（`new-video.mjs segment`）以官方逃生口 `HYPERFRAMES_SKIP_SKILLS=1` 跳过（官方 skills 已由 `bootstrap.sh` 在 P0 刷新）。测试同理（`tests/pipeline-e2e.test.mjs`），另加 120s spawnSync 超时兜底，确保 `npm test` 永不挂死。
+- P0 允许准备：HF checkout、依赖、Chrome、字体、on-device catalog 索引、MiniMax 凭证与全部段 TTS、官方 skills 刷新。**P0 之后脚手架、字幕、装配、check 与渲染可离线完成**；TTS 与 BGM 检索需要联网窗口，或在 P0 预生成全部段语音。这是能力底线，不是网络禁令：按需能力仍可联网，但不得成为生产主链的前置条件。
+- **离线底线的强制点**：官方 `hyperframes init` 默认联网 `git clone` skills；段脚手架（`new-video.mjs segment`）以官方逃生口 `HYPERFRAMES_SKIP_SKILLS=1` 跳过（官方 skills 已由 `bootstrap.sh` 在 P0 刷新）。测试同理（`tests/pipeline-e2e.test.mjs`），另加 120s spawnSync 超时兜底。TTS/BGM 的联网依赖见上一行的适用范围。
 - 网络策略（npm 中国大陆镜像 / GitHub 代理 `127.0.0.1:7890` 可达才启用 / MiniMax 直连豁免）由 `scripts/net-env.sh` 单点提供；代理不可达时自动直连，不得让静默挂死拖垮生产。
 
 ## 2. 流程与落点（官方 Step 0–6 + harness 适配）
 
 | 阶段 | 官方做什么 | harness 适配 |
 | --- | --- | --- |
-| 开案 | `/hyperframes` 意图层：pitch-round 采样门 → BRIEF.md | `new-video.mjs`：锁稿冻结、分段计划、逐段 init；`flow: automation`、`storyboard: no`（autonomous） |
-| Step 0–2 | init、capture、官方 preset 选择 → `build-frame.mjs` → frame.md + caption skin | 无（官方机制） |
+| 开案 | `/hyperframes` 意图层：pitch-round 采样门 → BRIEF.md（每段项目内） | `new-video.mjs`：锁稿冻结、分段计划、逐段 init；`flow: automation`、`storyboard: no`（autonomous）；`gate.mjs pitch-round --segment` 优先读段内 BRIEF，回退项目根 |
+| Step 0–2 | Step 0 init → Step 1 brief（faceless 无 capture）→ Step 2 官方 preset 选择 → `build-frame.mjs --preset` → frame.md + caption skin | 无（官方机制）；BRIEF.md 在 init 之后写入 |
 | Step 3 | STORYBOARD.md / SCRIPT.md（按锁稿逐字） | 段内叙事复审（主智能体自审，从磁盘重读） |
 | Step 3.1 | 音频引擎 BGM | `minimax-tts.mjs` 生成语音+词级时间 → `inject-audio-meta.mjs` 写官方 `audio_meta.json`（voices.words 帧相对）；官方引擎 `--only bgm` |
 | Step 4 | catalog 检索 → blueprint/compose + time-coded Scenes + Video direction | 强制 `--on-device` 语义检索；高风险页双机制 compare |
-| Step 5 | packet builder → 子智能体逐帧实现 → lint/check 复核 | 派发纪律见 §4；每页 animation-map 供主审 |
-| Step 6 | fetch-sfx / captions / assemble / transitions / carve / check / snapshot / Studio | final look 授权（用户）→ 官方 render → `gate.mjs` 段 MP4 校验 |
+| Step 5 | packet builder → 子智能体逐帧实现 → lint/check 复核 | 派发纪律见 §4；每个 composition 一份 animation-map（默认段内单文件；逐页需 `--out` 并在 state/receipt 登记） |
+| Step 6 | fetch-sfx / captions / assemble / transitions / carve / check / snapshot / Studio | final look 授权（用户；`state approve` 内部先跑 `gate preflight`）→ 官方 render → `gate.mjs mp4` 校验 |
 | 段间 | — | 下一段开始授权同时确认上一段（MP4 SHA-256 绑定） |
 | master | — | `finalize-master.mjs`（thin ffmpeg concat，仅用已确认段 MP4）→ master final look（用户）→ 收尾审批 |
 | 交付 | publish / recipe | 交付说明 + recipe freeze 提议 |
@@ -37,9 +37,9 @@
 
 | # | 能力 | 门禁命令 | 校验的产物 |
 | --- | --- | --- | --- |
-| 1 | pitch-round 创意采样门 | `gate.mjs pitch-round` | 项目根 `BRIEF.md` 的 `## Intent` 非空 |
-| 5 | animation-map | `gate.mjs animation-map` | 段内 `.hyperframes/anim-map/animation-map.json` 存在 |
-| 6 | check --strict | 内建于 `gate.mjs final-look` | 官方 `check --strict` 退出码；**渲染授权不可绕过** |
+| 1 | pitch-round 创意采样门 | `gate.mjs pitch-round` | 项目根或段内 `BRIEF.md` 的 `## Intent` 非空（`--segment` 优先段内） |
+| 5 | animation-map | `gate.mjs animation-map` | 段内 `.hyperframes/anim-map/animation-map.json` 存在且为非空 JSON |
+| 6 | check --strict | 内建于 `gate.mjs final-look` / `gate preflight` | `state approve final-look` 先跑 preflight（verify/captions/animation-map/layout/check），授权记录绑定 receipt；**不可先授权后补 check** |
 
 ### 3.2 官方 CLI 命令（须真实执行；退出码即证据）
 
@@ -47,7 +47,7 @@
 
 | # | 能力 | 官方命令 / 产物 |
 | --- | --- | --- |
-| 2 | 官方 frame preset | `hyperframes init` 落地的 `frame.md`（命中命名 preset） |
+| 2 | 官方 frame preset | `build-frame.mjs --preset` 生成的 `frame.md`（Step 2） |
 | 3 | catalog --on-device 语义检索 | `hyperframes catalog` |
 | 4 | voiceover carve（BGM 存在时） | 官方 `skills/hyperframes-audio/scripts/carve.mjs` |
 | 7 | keyframes 诊断（有 camera/mask/zoom/转场风险时） | `hyperframes keyframes` |
@@ -80,7 +80,7 @@
 3. master「final look」（候选预览授权；**同时确认末段**）
 4. 全项目「收尾审批」（绑定 exact 候选哈希）
 
-授权记录：轻量文件（actor=user、时间戳、产物 SHA-256），无密码学签名。用户说「继续」= 完成当前授权。文字分镜不送审。
+授权记录：轻量文件（actor=user、时间戳、evidence）；段 final-look 另绑 `gate receipt` 的 SHA-256，master final-look/close 另绑 candidate 的 SHA-256；无密码学签名。用户说「继续」= 完成当前授权。文字分镜不送审。
 
 段状态机（`state.json`，唯一真源）：`planned → authorized（开始授权）→ rendered（set-mp4 绑定）→ accepted（下一段开始授权或 master final look 机械确认）`。
 

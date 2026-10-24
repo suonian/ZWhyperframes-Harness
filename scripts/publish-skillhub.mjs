@@ -52,6 +52,7 @@ for (let i = 2; i < process.argv.length; i += 1) {
 // 产物落在系统临时目录而非仓库内：包内不应包含上一次打包的产物，
 // 也不该在工作区留下未忽略的构建物。
 const PKG_DIR = join(tmpdir(), `skillhub-pkg-${process.pid}`);
+process.on("exit", () => rmSync(PKG_DIR, { recursive: true, force: true }));
 const build = spawnSync("node", [join(HARNESS_ROOT, "scripts", "build-skill-package.mjs"), "--root", sourceRoot, "--out", PKG_DIR], {
   encoding: "utf8",
 });
@@ -202,7 +203,7 @@ const req = https.request(
       "Content-Type": `multipart/form-data; boundary=${boundary}`,
       "Content-Length": String(body.length),
       Accept: "application/json",
-      "User-Agent": "zwhyperframes-harness/0.2.2 (skillhub-publish)",
+      "User-Agent": `zwhyperframes-harness/${meta.version} (skillhub-publish)`,
     },
     timeout: 180000,
   },

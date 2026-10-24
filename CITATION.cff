@@ -10,7 +10,7 @@ abstract: >-
   without reimplementing any core official capability.
 type: software
 version: 0.2.3
-date-released: "2026-10-08"
+date-released: "2026-10-24"
 license: Apache-2.0
 repository-code: "https://github.com/suonian/ZWhyperframes-Harness"
 url: "https://github.com/suonian/ZWhyperframes-Harness"

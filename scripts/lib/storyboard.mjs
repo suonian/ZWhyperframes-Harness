@@ -11,7 +11,9 @@ export function parseStoryboard(md) {
   const globals = {};
   const frames = [];
   let current = null;
-  let inFrontmatter = false;
+  // unknown → open → done：只允许文件开头的第一个 --- 打开 frontmatter；
+  // 关闭后绝不再把正文里的水平分隔线 --- 误当成 frontmatter 开关。
+  let frontmatter = "unknown";
 
   const flush = () => {
     if (current) {
@@ -21,11 +23,18 @@ export function parseStoryboard(md) {
   };
 
   for (const line of lines) {
-    if (line.trim() === "---" && frames.length === 0 && current === null) {
-      inFrontmatter = !inFrontmatter;
-      continue;
-    }
-    if (inFrontmatter) {
+    if (frontmatter === "unknown") {
+      if (line.trim() === "") continue;
+      if (line.trim() === "---") {
+        frontmatter = "open";
+        continue;
+      }
+      frontmatter = "done";
+    } else if (frontmatter === "open") {
+      if (line.trim() === "---") {
+        frontmatter = "done";
+        continue;
+      }
       const m = /^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/u.exec(line);
       if (m) globals[m[1]] = m[2].trim();
       continue;

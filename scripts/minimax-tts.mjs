@@ -7,6 +7,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { sha256File, writeJson, readJsonIfPresent, findProjectRoot, nowIso, HARNESS_ROOT } from "./lib/harness.mjs";
+import { canReuseTts } from "./lib/tts-reuse.mjs";
 
 const args = process.argv.slice(2);
 const get = (k) => {
@@ -26,10 +27,9 @@ const bindingPath = join(audioDir, "tts-binding.json");
 if (!existsSync(textPath)) throw new Error(`缺少锁定段落稿：${textPath}`);
 const textSha = sha256File(textPath);
 
-const audioOk = existsSync(audioPath) && existsSync(titlesPath) && existsSync(manifestPath);
 const previous = readJsonIfPresent(bindingPath);
-if (audioOk && previous?.text_sha256 === textSha) {
-  console.log(`TTS 复用（文本未漂移）：${audioPath}`);
+if (canReuseTts({ binding: previous, textSha, audioPath, titlesPath, manifestPath })) {
+  console.log(`TTS 复用（文本与 mp3/titles/manifest 哈希均未漂移）：${audioPath}`);
   process.exit(0);
 }
 
@@ -40,8 +40,10 @@ if (manifest.user_script_sha256 !== textSha) throw new Error("段落稿与 segme
 
 mkdirSync(audioDir, { recursive: true });
 const ttsScript = join(HARNESS_ROOT, "tools", "minimax", "scripts", "minimax_tts.py");
-const run = spawnSync("python3", [ttsScript, "--text-file", textPath, "--out-dir", audioDir, "--name", name], {
+const python = process.env.MINIMAX_PYTHON || "python3";
+const run = spawnSync(python, [ttsScript, "--text-file", textPath, "--out-dir", audioDir, "--name", name], {
   encoding: "utf8",
+  timeout: 30 * 60 * 1000,
   stdio: ["ignore", "pipe", "pipe"],
 });
 if (run.status !== 0) {

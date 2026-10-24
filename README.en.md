@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-59%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-68%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 A harness engineering project for HyperFrames: rules constrain the official production flow, gates enforce that official capabilities are actually executed. Core official capabilities are never rebuilt.
 
@@ -34,12 +34,12 @@ The root cause is not missing functionality. It is that **production is driven b
 
 **Characteristics.**
 
-- **Customizable visuals, consistent across the film** — palette, type ramp, radii, and composition rules are all locked in a single project-root `frame.md`, which is the visual source of truth for the whole video. The current configuration defines 12 custom colors (cream / ink / green / pink / orange / yellow / blue plus dark variants), shared by all 7 segments. Change it once and the whole film changes; frame workers take tokens only from it and may not invent colors.
-- **Single source of truth across the chain** — content (locked script), visuals (`frame.md`), state (`state.json`), networking (`net-env.sh`), governance (each file under `docs/rules/` is a single owner); every artifact is bound by SHA-256 to the input that produced it, and drift is rejected.
-- **Modular, with no duplicated implementation** — shared capability lives in `scripts/lib/`, with nothing copied between scripts; scripts are single-responsibility, single-step, idempotent, deterministic, and agent-call-free; vendor capability is isolated in `tools/minimax/`; captions only produce grouping data, rendering still goes through official.
+- **Customizable visuals, consistent across the film** — each segment project has its own `frame.md` (the official Step 2 artifact); the current 7 segments use the same template, copied per segment. Update the template and sync it to every segment to change the film; frame workers take tokens only from the segment `frame.md` and may not invent colors.
+- **Single source of truth across the chain** — content (locked script), visuals (the segment `frame.md`), state (`state.json`), networking (`net-env.sh`), governance (each file under `docs/rules/` is a single owner); locked script / TTS / injection / MP4 are chained by SHA-256, and drift is rejected.
+- **Modular, with shared capability reused** — shared capability lives in `scripts/lib/`; scripts are single-responsibility, single-step, idempotent, deterministic, and agent-call-free; vendor capability is isolated in `tools/minimax/`; caption grouping data is produced by this repo, while rendering still goes through the official skin/runtime.
 - **Self-evolving** — self-built layers are retired as upstream catches up: after the capability audit confirmed that official natively adopts a "single agent + one sub-agent per frame" model, the previous generation's worker execution layer, three-slot queue, and heartbeat/lease were all retired. Production blockers enter an issue ledger and are merged by root cause, marked resolved once fixed; cross-session handoff re-verifies artifact hashes on disk before resuming.
-- **Enforcement, not suggestion** — rules are written as decidable conditions and fail closed when unmet; evidence cannot be fabricated, and back-filling a hash to green a gate is forbidden.
-- **Runs offline** — after one-time P0 preparation, a video is completable with no network mid-production.
+- **Enforcement, not suggestion** — rules are written as decidable conditions and fail closed when unmet; back-filling a hash to green a gate is forbidden. `state.json` is a local plaintext record; tamper resistance comes from process and review, not cryptographic signatures.
+- **Runs offline** — after one-time P0 preparation, scaffolding, captions, assembly, `check`, and rendering can run offline; TTS and BGM retrieval still need a network window (or all segment voiceovers pre-generated during P0).
 - **Decision gates converge to four** — interrupts only where a human must decide.
 - **No reinvention** — not a line of official core capability is rebuilt; this repo only adds constraints.
 
@@ -90,7 +90,7 @@ HyperFrames' capabilities are complete — composition, storyboarding, sub-agent
 
 ## Why you can trust it
 
-The "enforcement" above is not an adjective but a verifiable fact. The mechanism: locked script → TTS → injection binding → MP4 are chained with SHA-256; a frame's voiceover is released only when fully equal to the locked script after normalization — not similarity; a missing binding can only be re-derived.
+The "enforcement" above is not an adjective but a verifiable fact. The mechanism: locked script → TTS → injection binding → MP4 are chained with SHA-256; a frame's voiceover is checked for full equality with the locked script after normalization at injection/final check — not similarity; a missing binding can only be re-derived.
 
 ### Enforcement comes in three tiers, and we don't call tier 2 and 3 "enforced"
 
@@ -98,7 +98,7 @@ The "enforcement" above is not an adjective but a verifiable fact. The mechanism
 
 | Tier | Meaning | Coverage |
 | --- | --- | --- |
-| **3.1 Machine gates in this repo** | Missing one is fail-closed | `verify` / `final-look` / `pitch-round` / `animation-map` / `check` / `mp4` / `next-segment` / `master-inputs` / `layout-guard` / `authorized` |
+| **3.1 Machine gates in this repo** | Critical paths fail closed | `preflight` / `verify` / `final-look` / `pitch-round` / `animation-map` / `check` / `mp4` / `next-segment` / `master-inputs` / `layout-guard` / `authorized` |
 | **3.2 Official CLI commands** | Must genuinely be executed; the exit code is the evidence. **No machine gate in this repo** | Official `catalog` / `keyframes` / `compare` / `publish` / carve |
 | **3.3 Process / review evidence** | **No machine gate in this repo** | frame-comments disposition, recipe freeze, media-treatment |
 
@@ -125,10 +125,10 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # install locked dependencies + verify HF version + fetch official skills at the locked commit
 npm run doctor       # environment check: CLI version / skills / browser / ffmpeg / MiniMax credentials
 source ./hf-env.sh   # production entry point (provides the hf function, network policy, skips init's network check)
-npm test             # 59 tests
+npm test             # 68 tests
 ```
 
-> **Official skills are fetched at the locked commit, not from upstream's live tree.** `bootstrap.sh` uses git to fetch the official `skills/` tree at commit `f86aae6` (the `v0.8.36` release) into `vendor/skills/`, then fail-closed checks the 10 official artifacts this repo actually references — a missing one is an error, never a silent skip.
+> **Official skills are fetched at the locked commit, not from upstream's live tree.** `bootstrap.sh` uses git to fetch the official `skills/` tree at commit `f86aae6` (the `v0.8.36` release) into `vendor/skills/`, then fail-closed checks the 13 official artifacts this repo actually references — a missing one is an error, never a silent skip.
 >
 > The reason: the official CLI's `hyperframes skills update` hardcodes "latest" as upstream main's live HEAD and cannot be pinned — and upstream retired `faceless-explainer` and the other workflow skills on 2026-10-21 (a breaking change), so that command now fails outright. The audit record is in `docs/architecture/hf-contract-audit-2026-10-21.md`.
 
@@ -142,11 +142,11 @@ This repo is also distributed as a SkillHub skill under the slug `zwhyperframes-
 # From the platform — the discovery directory must be given explicitly
 skillhub install zwhyperframes-harness --dir ~/.agents/skills
 
-# Or from the local repo (picks up your changes immediately, no platform release needed)
+# Or from the local repo (rerun `npm run install-skill` after changes; no platform release needed)
 npm run install-skill
 ```
 
-Both routes produce the same content: `SKILL.md`, `AGENTS.md`, the four `docs/rules/` files, `scripts/`, `tests/`, and `tools/`.
+Both routes produce the same content: `SKILL.md`, `AGENTS.md`, the four `docs/rules/` files, `scripts/`, and `tools/`. The distributed package **does not include `tests/`** — the suite depends on the full repository and `vendor/`, so it runs in the repo only.
 
 Discovery directory precedence (SkillHub protocol §8.4): `./.agents/skills` → `~/.agents/skills` → `./.claude/skills` → `~/.claude/skills`.
 
@@ -171,6 +171,7 @@ Overrides:
 ```bash
 HARNESS_NO_PROXY=1 bash scripts/bootstrap.sh          # force proxy off
 HARNESS_PROXY=http://127.0.0.1:1080 bash scripts/bootstrap.sh   # explicit (no probing)
+HARNESS_NPM_REGISTRY=https://registry.npmjs.org bash scripts/bootstrap.sh  # override the default npm mirror
 ```
 
 ### MiniMax credentials
@@ -198,7 +199,7 @@ scripts/               Management scripts (single-step, deterministic, agent-cal
   minimax-tts.mjs      MiniMax speech + word-level timing
   inject-audio-meta.mjs  Word-level timing → official audio_meta.json
   captions-zh.mjs      Chinese caption grouping data (rendering still official)
-  gate.mjs             Gates (10 commands, see "Why you can trust it")
+  gate.mjs             Gates (11 commands, see "Why you can trust it")
   state.mjs            The only write entry point for state and approvals
   finalize-master.mjs  Master concatenation (thin ffmpeg concat)
   build-skill-package.mjs  Builds the SkillHub-uploadable skill package (platform admission rules + fail-closed checks)
@@ -215,7 +216,7 @@ Video products **do not enter this repository**; by default they are written to 
 | File | Owns |
 | --- | --- |
 | `docs/rules/production-workflow-rules.md` | Official Step 0–6 landing points, decision gates, three-tier mandatory capability list, handoff and issue ledger |
-| `docs/rules/visual-production-rulebook.md` | Visual quality floor |
+| `docs/rules/visual-production-rulebook.md` | Visual quality floor (official worker contract first + project requirements) |
 | `docs/rules/captions-contract.md` | Caption contract (requirements immutable) |
 | `docs/rules/segment-production-rules.md` | Locked-script freezing and segmentation |
 

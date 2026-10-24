@@ -47,7 +47,7 @@ feat(skills)!: publish seven knowledge skills aligned with Studio and retire the
 | --- | --- | --- |
 | `scripts/bootstrap.sh` | `hyperframes skills update faceless-explainer` | **硬失败**——这就是 CI 变红的直接原因 |
 | `scripts/captions-zh.mjs` | 导入官方 `faceless-explainer/scripts/captions.mjs` + `lib/tokens.mjs` + `lib/dimensions.mjs` | 运行时缺失即抛错 |
-| `scripts/inject-audio-meta.mjs` | 官方 `faceless-explainer/scripts/audio.mjs` | 已有 `media-use` 新路径兜底 |
+| `scripts/inject-audio-meta.mjs` | 官方 `faceless-explainer/scripts/audio.mjs`（sync-durations） | **无兜底**；`media-use` 只用于 BGM 引擎 |
 | `scripts/new-video.mjs` | `hyperframes init --skill=faceless-explainer` | `--skill` 只用于遥测归因，且「Ignored unless it is a slug」；不影响段脚手架本身 |
 | `tests/captions-zh.test.mjs` | 官方 skill 存在则不跳过 | 找不到即 skip |
 
@@ -69,14 +69,14 @@ feat(skills)!: publish seven knowledge skills aligned with Studio and retire the
   - 外层换传输通路、内层换 ref 形态，四种组合逐一尝试：HTTPS / SSH × 按 SHA / 按 tag。CI runner 无 SSH 密钥但 HTTPS 可用；部分本机环境的 git HTTPS 传输不稳，SSH 更可靠；按 SHA 取回被服务端拒绝时退回按 tag 取回（tag 指向同一 commit）。
   - `--filter=blob:none`：只取 commit 与 tree，blob 在 checkout 时按需拉取。否则一次 fetch 会把整仓该 commit 的全部 blob 传下来，与只取 `skills/` 的需求无关。
   - **每次 fetch 成功后都立刻用 `git rev-parse FETCH_HEAD` 校验**取回的确实是锁定 commit——「fetch 返回 0」不等于「取回了锁定的那一个」。
-  - 逐项 fail-closed 校验本仓实际引用的 10 个官方产物；缺失即报错，并指向本文档——**不静默跳过**。
+  - 逐项 fail-closed 校验本仓实际引用的 13 个官方产物；缺失即报错，并指向本文档——**不静默跳过**。
   - 把锁定版本软链到各智能体发现目录（`~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`），使 agent 读到的合同与本仓规则引用的版本一致；替换既有非软链目录时打印该路径（版本漂移的可追溯痕迹）。
   - **幂等**：vendor 里已锁定在同一 commit 时跳过取回（实测重复运行 17 秒 → 1.0 秒）。发现目录的替换一律用 `ln -sfn` 原地改指向，而非「删除后再建」——软链替换是 O(1)，删除的代价随目录内容量级变化（在带可恢复删除 shim 的环境里，逐项 `rm -rf` 实测达分钟级）；只有目标确实是真实目录时才挪到暂存区、末尾一次性清理。
-- `vendor/` 已在 `.gitignore` 中——取回的是上游产物，不入本仓；`vendor/skills/` 恰是 `scripts/captions-zh.mjs` 与 `scripts/inject-audio-meta.mjs` 的**首选**解析路径，无需改动这两个脚本。
+- `vendor/` 已在 `.gitignore` 中——取回的是上游产物，不入本仓；`vendor/skills/` 是 `scripts/captions-zh.mjs` 与 `scripts/inject-audio-meta.mjs` 的**唯一**解析路径，无需改动这两个脚本。
 - 陈旧路径校正为锁定 commit 下的真实路径：`skills/hyperframes-core/references/{brief-contract,review-loop,storyboard-format,subagent-dispatch,frame-worker-core}.md`。
 
 ## 6. 遗留
 
 - 上游 main 仍在演进。若将来决定迁移到「七个知识 skill + Studio」的新结构，那是一次独立的合同审计与规则语料重写，不在本次范围内。
-- `hyperframes init --skill=faceless-explainer` 的遥测归因：官方 help 写明该参数「Ignored unless it is a slug」，而 `faceless-explainer` 已不在上游 manifest 中，实际是否仍写入 `hyperframes.json` 需在下一支视频生产时实测。本仓不依赖该字段做任何门禁。
+- `hyperframes init --skill=faceless-explainer` 的遥测归因：实测现有产品 `fde-juedan/*/hyperframes.json` 已写入 `"authoringSkill": "faceless-explainer"`；本仓仍不依赖该字段做任何门禁。
 - `sprintf-js` 的 advisory 已于 2026-10-22 被**撤回**，此前记入 CHANGELOG 的「残留告警」表述据此更正。

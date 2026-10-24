@@ -10,7 +10,7 @@ assignees: ''
 
 ```bash
 node --version      # 期望 >= 22
-hyperframes --version   # 期望 0.8.36（版本锁定，漂移即拒绝运行）
+node node_modules/.bin/hyperframes --version   # 期望 0.8.36（版本锁定，漂移即拒绝运行）
 ffmpeg -version
 python3 --version
 ```

@@ -22,7 +22,7 @@ assignees: ''
 
 ```bash
 node --version
-hyperframes --version   # 期望 0.8.36
+node node_modules/.bin/hyperframes --version   # 期望 0.8.36
 ```
 
 - 操作系统：

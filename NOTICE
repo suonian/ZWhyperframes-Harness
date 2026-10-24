@@ -1,7 +1,7 @@
 ZWhyperframes-Harness
 Copyright 2026 suonian
 
-This product is an independent management layer built ON TOP OF HyperFrames.
+This product is an independent harness layer built ON TOP OF HyperFrames.
 It contains no HyperFrames source code; HyperFrames is consumed as an
 external dependency (npm package `hyperframes`, Apache-2.0, HeyGen, Inc.).
 

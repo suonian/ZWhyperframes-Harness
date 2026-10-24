@@ -86,7 +86,7 @@ source ./hf-env.sh
 - `demo.mp3`
 - `demo.response.json`
 - `demo.manifest.json`
-- 若 API 返回字幕文件地址，会额外下载字幕文件。
+- 若 API 返回字幕文件地址，会额外下载；生产 wrapper 要求生成 `<name>.titles`，API 不返回字幕时 TTS 会失败（不静默生成无词级时间的音频）。
 
 注意：MiniMax 下载到本地的字幕是原始 `.titles` JSON，不能原样作为 HF 字幕输入。后续视频项目需要把它转换成 HF `audio_meta.json` / transcript 结构，详见：
 

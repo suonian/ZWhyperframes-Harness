@@ -297,7 +297,7 @@ python3 tools/minimax/scripts/minimax_video.py \
 | 视频模板查询 | `GET /v1/query/video_template_generation?task_id=...` |
 | 文件下载 | `GET /v1/files/retrieve?file_id=...` |
 
-这些接口的完整参数记录见同目录 `API_SURVEY.md`。
+这些接口的完整参数记录见本文件与 MiniMax 官方文档；仓库内没有单独的 `API_SURVEY.md`。
 
 ## 7. 跨项目复制
 
@@ -337,6 +337,6 @@ manifest 可以按项目审计要求决定是否纳入版本控制，但必须�
 ## 9. 相关文件
 
 - `../README.md`：本项目快速入口。
-- `API_SURVEY.md`：较完整的接口调研记录。
+- 本文件：接口参数与脚本用法；更完整的调研记录未随仓库分发。
 - `VOICE_PROFILE.md`：本项目固定语音档案。
 - `HF_AUDIO_SUBTITLE_FORMAT.md`：MiniMax 字幕转换为 HF 时间轴的项目专用说明。

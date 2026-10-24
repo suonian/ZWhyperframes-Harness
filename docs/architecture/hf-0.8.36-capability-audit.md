@@ -21,9 +21,9 @@
 | 自建 Claude CLI Worker + 三槽队列 + heartbeat/lease | **退役**：官方 subagent-dispatch 合同 | 采用官方合同；三槽并行退化为规则纪律（官方：并发上限只减并行不减工作，按波次派发） |
 | `build-hf-frame-packets.mjs`（自建） | 官方 `frame-packets.mjs --project <dir> --storyboard <path> [--out-dir]` → `.hyperframes/frame-packets/<id>.md` + `_role.md` | 直接调用 |
 | STORYBOARD.md 解析（自建 parseOfficialStoryboard） | 官方 parser `@hyperframes/core/storyboard`；frontmatter: `format/duration/message/arc/audience/mode`；帧字段：`status(src) duration transition_in scene voiceover poster` + 未知键保留进 `extra`；status: outline→built→animated；评论通道 `.hyperframes/frame-comments.json` | 读官方 parser；harness 门禁消费解析结果 |
-| MiniMax TTS 注入 | 官方音频引擎 `media-use/audio/scripts/audio.mjs`（providers: auto\|heygen\|elevenlabs\|kokoro），帧键 meta 形状 `audio_meta.json: {bgm, bgm_pending, voices:[{frame,path,duration_s,words:[{id,text,start,end}]}], sfx}`；`--only tts,bgm,sfx` 支持 MERGE 进既有 `--out` | **MiniMax 适配路径不变**：harness 生成语音+词级时间，直写 `audio_meta.json`（voices.words = 帧相对词级时间）；BGM/SFX 用官方引擎 `--only bgm,sfx` 合并（需实测） |
+| MiniMax TTS 注入 | 官方音频引擎 `media-use/audio/scripts/audio.mjs`（providers: auto\|heygen\|elevenlabs\|kokoro），帧键 meta 形状 `audio_meta.json: {bgm, bgm_pending, voices:[{frame,path,duration_s,words:[{id,text,start,end}]}], sfx}`；`--only tts,bgm,sfx` 支持 MERGE 进既有 `--out` | **MiniMax 适配路径不变**：harness 生成语音+词级时间，直写 `audio_meta.json`（voices.words = 帧相对词级时间）；BGM 用官方引擎 `--only bgm` 合并（SFX 由 Step 6 fetch-sfx 负责） |
 | 官方 BGM/SFX（fetch-sfx） | `audio.mjs fetch-sfx`（engine `--only sfx`）；BGM 检索模式，无 HeyGen 凭证则跳过（不阻断） | 直接调用 |
-| 字幕（自建单行适配） | `captions.mjs build` 消费 `audio_meta.json` 词级时间 → `caption_groups.json`；caption skin 由 `frame.md` token 注入（`.hyperframes/caption-skin.html`）；`caption-overrides.json` 空 shim | 直接调用；「单行 30 字」中文合同是否保留待验证官方分组行为后定 |
+| 字幕（自建单行适配） | `captions.mjs build` 消费 `audio_meta.json` 词级时间 → `caption_groups.json`；caption skin 由 `frame.md` token 注入（`.hyperframes/caption-skin.html`）；`caption-overrides.json` 空 shim | 直接调用；「单行 ≤22 字」最终由 `docs/rules/captions-contract.md` 定为不可变更合同 |
 | transitions（前代只开放 cut/none） | `transitions.mjs inject/verify`；transition_in 词汇：`crossfade | blur-crossfade | push-slide | zoom-through | squeeze` + 可选 DIR / 秒数；`cut/none/空` = hard cut；机制 EXTEND-OUTGOING-ONLY | 直接采用（0.7.88 时代的 cut-only 限制解除） |
 | `.83` 字幕安全区 | worker 合同固定 top ~83% / bottom ~17% keep-out（即使 captions disabled 也守）；精确像素（68px 中轴、y≤896）是项目适配层 | 项目适配层保留（视觉规则书） |
 | `hf check --snapshots` | `npx hyperframes check --snapshots`（check 先跑 lint；`--strict` 门禁 warn）；`snapshot --at <t>` 接触表；已知误报：caption 词的 `text_box_overflow` 1–4px 不追 | 直接调用 |
@@ -31,7 +31,7 @@
 | media-use resolve 素材账本 | `media-use/scripts/resolve.mjs --type --intent --project [--adopt --from]` 接口不变 | 沿用素材冻结纪律 |
 | Studio final look + 重对齐（data-hf-id 注入） | review-loop.md §4 final look 合同仍在；data-hf-id 注入是否仍发生待实测 | 保留重对齐检查（实现时验证） |
 | 渲染 | `render --quality high --output renders/video.mp4`（draft/high；docker/batch/cloud 可选）；`preview --background` 两种表面（storyboard board `?view=storyboard` / 最终合成预览） | 直接调用 |
-| 授权签名（Ed25519） | 官方无此物（前代自建） | 保留 harness 自建（用户决策证据） |
+| 授权签名（Ed25519） | 官方无此物（前代自建） | **放弃**，降为轻量授权记录（见 `docs/plans/project-launch-design.md`） |
 
 ## 3. 0.8.36 新能力（旧项目没有）
 
@@ -47,7 +47,7 @@
 
 1. MiniMax 注入：预写 `audio_engine_meta.json`（neutral）+ 官方引擎 `--only bgm,sfx` 合并是否保留自定义 voices（前代 0.7.88 的「neutral sidecar」路径在 0.8.36 的对应验证）
 2. `audio.mjs sync-durations` 改写 STORYBOARD.md 时与 harness 锁稿哈希的交互（时长同步是机械改写，需纳入 harness 门禁口径）
-3. 字幕分组行为：中文词级时间下 captions.mjs 的分组/密度逻辑；「单行 30 字」是否作为项目 caption skin/合同保留
+3. 字幕分组行为：中文词级时间下 captions.mjs 的分组/密度逻辑；「单行 ≤22 字」是否作为项目 caption skin/合同保留（已在 captions-contract 定稿）
 4. `hyperframes init --non-interactive --example=blank --skill=faceless-explainer` 的非交互行为与产物形状（hyperframes.json）
 5. Studio preview 是否仍注入 `data-hf-id`（决定 resync 脚本需求）
 6. `check` 的 caption zone 参数（前代曾传 `.83`）在 0.8.36 的对应配置点

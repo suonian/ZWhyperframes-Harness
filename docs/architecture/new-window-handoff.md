@@ -12,7 +12,7 @@
 ## 启动检查
 
 ```bash
-source ./hf-env.sh            # 生产只用本环境提供的 hf/npx hyperframes
+source ./hf-env.sh            # 生产只用本环境提供的 hf（锁定版本）；禁止 npx hyperframes
 git status --short --branch
 hf --version                  # 必须为 v0.8.36
 npm test

@@ -10,7 +10,7 @@
 
 ## 第三方内容与版权
 
-本项目是**生产工具**，不托管、不分发、不下载任何第三方内容。
+本项目是**生产工具**，不托管、不分发任何第三方内容。`bootstrap.sh` 会按锁定 commit 把官方 skills 取回本机 `vendor/`（不入仓、不随分发包分发）；`npm install` 会按锁文件下载依赖。
 
 用户在使用本项目生成视频时，涉及的**内容、素材、文案、音频与视觉素材的版权与授权责任完全由使用者承担**：
 
@@ -34,4 +34,4 @@
 
 ## 许可
 
-本项目采用 [Apache License 2.0](LICENSE)。HyperFrames 同样采用 Apache-2.0，版权归 HeyGen 所有，详见 [NOTICE](NOTICE)。
+本项目采用 [Apache License 2.0](https://github.com/suonian/ZWhyperframes-Harness/blob/main/LICENSE)。HyperFrames 同样采用 Apache-2.0，版权归 HeyGen 所有，详见 [NOTICE](https://github.com/suonian/ZWhyperframes-Harness/blob/main/NOTICE)。

@@ -49,3 +49,21 @@ test("Frame/Beat/Scene 标题均接受", () => {
   assert.equal(board.frames[1].number, 4);
   assert.equal(board.frames[1].voiceover, "b");
 });
+
+test("frontmatter 关闭后的 --- 分隔线不会吞掉帧", () => {
+  const md = `---
+format: 1920x1080
+---
+
+---
+
+## Frame 1 — Hook
+
+- voiceover: "hello"
+- duration: 3s
+`;
+  const board = parseStoryboard(md);
+  assert.equal(board.frames.length, 1);
+  assert.equal(board.frames[0].voiceover, "hello");
+  assert.equal(board.globals.format, "1920x1080");
+});

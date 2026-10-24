@@ -16,7 +16,9 @@ TARGET=""
 NO_BUILD=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --dir) TARGET="$2"; shift 2 ;;
+    --dir)
+      [ $# -ge 2 ] || { echo "[install-skill] --dir 需要目录参数" >&2; exit 2; }
+      TARGET="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
     -h|--help)
       echo "用法: bash scripts/install-skill.sh [--dir <发现目录>] [--no-build]"
@@ -45,8 +47,9 @@ fi
 mkdir -p "$TARGET"
 
 DEST="$TARGET/$SLUG"
+STAGE_DEST="$TARGET/.$SLUG.stage.$$"
 STAGING="$(mktemp -d)"
-cleanup() { rm -rf "$STAGING"; }
+cleanup() { rm -rf "$STAGING" "$STAGE_DEST"; }
 trap cleanup EXIT
 
 if [ "$NO_BUILD" -eq 0 ]; then
@@ -67,9 +70,12 @@ if [ ! -f "$SRC/SKILL.md" ]; then
   exit 1
 fi
 
+# 先完整复制到同目录暂存区，再替换正式目录：复制失败不会破坏已安装版本。
+rm -rf "$STAGE_DEST"
+mkdir -p "$STAGE_DEST"
+cp -R "$SRC/." "$STAGE_DEST/"
 rm -rf "$DEST"
-mkdir -p "$DEST"
-cp -R "$SRC/." "$DEST/"
+mv "$STAGE_DEST" "$DEST"
 
 COUNT=$(find "$DEST" -type f | wc -l | tr -d ' ')
 echo "[install-skill] 已安装 $COUNT 个文件 → $DEST"

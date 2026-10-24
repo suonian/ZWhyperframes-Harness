@@ -34,6 +34,15 @@ test("语块切分：标点收尾、收尾引号归前段、不吞下一段", ()
   }
 });
 
+test("连续终止标点不产出以标点开端的独立行", () => {
+  const clauses = splitClauses("什么？！真的。");
+  assert.deepEqual(clauses.map((c) => c.text), ["什么？！", "真的。"]);
+  const lines = planLines(clauses);
+  for (const line of lines) {
+    assert.doesNotMatch(line.text, /^[。！？，、；：]/u);
+  }
+});
+
 test("行计划：≤22 一段一行；超长均衡切分且不拆英文词", () => {
   const text = "短句，这是一个特别特别特别特别特别特别特别特别特别特别长的没有标点的英文AI落地项目句子。";
   const lines = planLines(splitClauses(text));
@@ -120,6 +129,7 @@ test("captions-zh build/verify：确定性产物 + 官方 skin 填充", { skip: 
   const html = readFileSync(join(seg, "compositions", "captions.html"), "utf8");
   assert.match(html, /这是第一句，/u);
   assert.match(html, /var DURATION = 2\.5;/u);
+  assert.equal(readFileSync(join(seg, "caption-overrides.json"), "utf8").trim(), "[]");
 
   const verify = spawnSync(process.execPath, [join(import.meta.dirname, "..", "scripts", "captions-zh.mjs"), "verify", "--segment", seg], { encoding: "utf8" });
   assert.equal(verify.status, 0, verify.stderr || verify.stdout);

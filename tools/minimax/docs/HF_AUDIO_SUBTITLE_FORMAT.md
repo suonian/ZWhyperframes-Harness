@@ -2,11 +2,13 @@
 
 调研日期：2026-07-09
 
+> **历史文档**：本文件记录的是 2026-07 的调研结论，部分内容已被现行实现取代。字幕要求的唯一所有者是 `docs/rules/captions-contract.md`；语音注入的现行脚本是 `scripts/inject-audio-meta.mjs` 与 `scripts/captions-zh.mjs`。本文件仅作历史参考，不作为生产依据。
+
 ## 结论
 
-> 现行生产决策更新（2026-07-16）：每个不超过 120 秒的语义大段落生成一条连续 MiniMax 主语音，再由项目适配器按 `SCRIPT.md` 的 Frame 边界切成本地音频片段，并生成 HF 官方 `audio_meta.json`。详细规则以项目根目录 `docs/rules/hf-official-workflow-execution-rules.md` 为准。
+> 现行生产决策更新（2026-07-16）：每个不超过 120 秒的语义大段落生成一条连续 MiniMax 主语音，再由项目适配器按 `SCRIPT.md` 的 Frame 边界切成本地音频片段，并生成 HF 官方 `audio_meta.json`。详细规则以 `docs/rules/captions-contract.md` 与 `docs/rules/production-workflow-rules.md` 为准。
 
-MiniMax 当前返回的 `.titles` 字幕文件不能原样直接作为 HF 字幕输入，但它包含 HF 需要的核心信息：词语、词级开始时间、词级结束时间。正式生产统一转换为 HF `audio_meta.json`；字幕分组和字幕 composition 随后由官方 `captions.mjs` 生成，不再建立项目自定义的平行字幕合同。
+MiniMax 当前返回的 `.titles` 字幕文件不能原样直接作为 HF 字幕输入，但它包含 HF 需要的核心信息：词语、词级开始时间、词级结束时间。正式生产统一转换为 HF `audio_meta.json`；字幕分组由本项目按 `docs/rules/captions-contract.md` 生成，再调用官方 `captions.mjs` 的 `buildFromSkin` 填充 skin；渲染仍是官方。
 
 本项目应采用：
 
@@ -220,7 +222,7 @@ SCRIPT.md 每个 frame 一段旁白
   -> 每个大段落调用一次 MiniMax
   -> 保存一条连续 narration.mp3 和原始 .titles
   -> 按 SCRIPT.md 的 Frame 边界精确对齐词级时间
-  -> 切出 audio/frames/NN.mp3
+  -> 切出 assets/voice/NN.wav
   -> 生成 HF audio_meta.json 的 voices[].words[]
   -> 官方 audio.mjs 根据真实语音同步 Storyboard 时长
   -> 官方 captions.mjs 生成 caption_groups.json
@@ -262,9 +264,9 @@ MiniMax narration.mp3
 每个使用 MiniMax 旁白的 HF 项目，至少应能核验：
 
 - 音频文件存在，且被 HF `<audio>` 引用。
-- 项目根目录存在 HF 官方 `audio_meta.json`，且 `provider=minimax`。
+- 项目根目录存在 HF 官方 `audio_meta.json`；`tts_provider=minimax` 记录在 `audio_engine_meta.json` 中（`audio_meta.json` 不写 provider）。
 - 词级 `start/end` 单位为秒，并与 MiniMax 原始 `timestamped_words` 对应。
-- `voices[]` 与 `SCRIPT.md` Frame 一一对应，音频片段存在。
+- `voices[]` 覆盖有语音的 Frame；静音帧允许跳过，音频片段存在。
 - `caption_groups.json` 和字幕 composition 已由 HF 官方 `captions.mjs` 生成。
 - 关键动效使用同一套词级或短语级时间点，不另起一套估算时间。
 - 最终分别执行 `hf check`、`hf snapshot` 和 render 验收，确认语音、字幕与元素动效同步。

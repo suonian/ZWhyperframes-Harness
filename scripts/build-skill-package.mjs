@@ -53,7 +53,9 @@ const EXCLUDE_NAMES = new Set([".DS_Store", "Thumbs.db"]);
 const CONTENT_EXCLUDE_DIRS = new Set(["tests", "docs/architecture", "docs/plans"]);
 const CONTENT_EXCLUDE_FILES = new Set([
   "CHANGELOG.md", "CHANGELOG.en.md",
-  "README.en.md",
+  "RELEASE-HANDBOOK.md",
+  "AUDIT-REPORT.md",
+  "README.md", "README.en.md", "README.package.md",
   "CONTRIBUTING.md", "CONTRIBUTING.en.md",
   "SECURITY.md", "SECURITY.en.md",
   "CODE_OF_CONDUCT.md", "CODE_OF_CONDUCT.en.md",
@@ -62,7 +64,9 @@ const CONTENT_EXCLUDE_FILES = new Set([
 
 // 平台协议 §8.3 体积与数量上限
 const MAX_FILES = 100;
-const MAX_TOTAL_BYTES = 10 * 1024 * 1024;
+// 服务端 publish 请求体实测约 476KB；协议文档的 10MB 与线上不一致。
+// 打包阶段就用 460KB 安全线，避免产出「本地通过、发布必失败」的包。
+const MAX_TOTAL_BYTES = 460 * 1024;
 const MAX_FILE_BYTES = 1 * 1024 * 1024;
 
 const root = resolve(get("root") ?? "..");
@@ -103,6 +107,12 @@ function walk(dir) {
   }
 }
 walk(root);
+// 分发包用 README.package.md 作为 README.md：仓库 README 链接到大量治理文档，
+// 这些文档不在包内（体积/定位原因），直接分发会产生一片死链。
+const packageReadme = join(root, "README.package.md");
+if (existsSync(packageReadme)) {
+  included.push({ abs: packageReadme, rel: "README.md", size: statSync(packageReadme).size });
+}
 included.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 
 // fail-closed：先校验，后产出

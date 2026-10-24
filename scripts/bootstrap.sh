@@ -33,6 +33,9 @@ HF_REQUIRED_ARTIFACTS="faceless-explainer/scripts/captions.mjs
 faceless-explainer/scripts/audio.mjs
 faceless-explainer/scripts/build-frame.mjs
 faceless-explainer/scripts/frame-packets.mjs
+faceless-explainer/scripts/lib/tokens.mjs
+faceless-explainer/scripts/lib/dimensions.mjs
+media-use/audio/scripts/audio.mjs
 hyperframes-core/references/frame-worker-core.md
 hyperframes-core/references/subagent-dispatch.md
 hyperframes-core/references/brief-contract.md
@@ -62,17 +65,43 @@ echo "[bootstrap] 按锁定 commit 取回官方 skills（${HF_SKILLS_COMMIT}）�
 # 幂等：vendor 里已锁定在同一个 commit 且产物齐全时不重新下载。
 # 这既省掉一次完整网络取回，也让重复 bootstrap 的代价降到秒级。
 VENDOR_STAMP="$HARNESS_ROOT/vendor/.skills-commit"
+VENDOR_HASH_FILE="$HARNESS_ROOT/vendor/.skills-content-sha256"
+
+# vendor 内容树的聚合哈希；用来发现「stamp 正确但文件被改/陈旧」的情况。
+vendor_content_hash() {
+  local hasher
+  if command -v shasum >/dev/null 2>&1; then
+    hasher="shasum -a 256"
+  else
+    hasher="sha256sum"
+  fi
+  find "$VENDOR_SKILLS" -type f -print | LC_ALL=C sort | xargs $hasher | $hasher | awk '{print $1}'
+}
+
 SKILLS_READY=0
-if [ -f "$VENDOR_STAMP" ] && [ "$(cat "$VENDOR_STAMP" 2>/dev/null || true)" = "$HF_SKILLS_COMMIT" ]; then
-  if [ -d "$VENDOR_SKILLS" ]; then
-    echo "[bootstrap] vendor/skills 已锁定在 ${HF_SKILLS_COMMIT}，跳过取回。"
+VENDOR_SWAP_OK=0
+VENDOR_SWAP_STARTED=0
+if [ -f "$VENDOR_STAMP" ] && [ "$(cat "$VENDOR_STAMP" 2>/dev/null || true)" = "$HF_SKILLS_COMMIT" ] && [ -d "$VENDOR_SKILLS" ]; then
+  if [ -f "$VENDOR_HASH_FILE" ] && [ "$(vendor_content_hash)" = "$(cat "$VENDOR_HASH_FILE" 2>/dev/null || true)" ]; then
+    echo "[bootstrap] vendor/skills 已锁定在 ${HF_SKILLS_COMMIT} 且内容哈希一致，跳过取回。"
     SKILLS_READY=1
+  else
+    echo "[bootstrap] vendor/skills 的 commit stamp 正确但内容哈希缺失/不一致；重新取回。"
   fi
 fi
 
 if [ "$SKILLS_READY" -ne 1 ]; then
   TMP="$(mktemp -d)"
-  cleanup() { rm -rf "$TMP"; }
+  cleanup() {
+    # 取回/复制失败时，先把半成品清掉，再把旧 vendor 放回，避免“旧的已挪走、新的没落地”。
+    if [ "${VENDOR_SWAP_OK:-0}" -ne 1 ] && [ "${VENDOR_SWAP_STARTED:-0}" -eq 1 ]; then
+      rm -rf "$VENDOR_SKILLS"
+      if [ -e "$TMP/old-skills" ]; then
+        mv "$TMP/old-skills" "$VENDOR_SKILLS"
+      fi
+    fi
+    rm -rf "$TMP"
+  }
   trap cleanup EXIT
   git -C "$TMP" init -q
   git -C "$TMP" remote add origin "$HF_SKILLS_REPO_URL"
@@ -114,7 +143,7 @@ if [ "$SKILLS_READY" -ne 1 ]; then
       if perl -e 'alarm shift; exec @ARGV' "$FETCH_TIMEOUT" \
            git -C "$TMP" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 \
            fetch --depth 1 --filter=blob:none origin "$ref"; then
-        CANDIDATE="$(git -C "$TMP" rev-parse FETCH_HEAD 2>/dev/null || true)"
+        CANDIDATE="$(git -C "$TMP" rev-parse "FETCH_HEAD^{commit}" 2>/dev/null || true)"
         if [ "$CANDIDATE" = "$HF_SKILLS_COMMIT" ]; then
           FETCHED=1
           GOT_SHA="$CANDIDATE"
@@ -162,6 +191,7 @@ if [ "$SKILLS_READY" -ne 1 ]; then
   if [ -e "$VENDOR_SKILLS" ]; then
     mv "$VENDOR_SKILLS" "$TMP/old-skills"
   fi
+  VENDOR_SWAP_STARTED=1
   cp -R "$TMP/skills" "$VENDOR_SKILLS"
   printf '%s\n' "$HF_SKILLS_COMMIT" > "$VENDOR_STAMP"
 fi
@@ -182,6 +212,10 @@ if [ -n "${MISSING}" ]; then
   exit 1
 fi
 
+# 记录内容树哈希：下次 bootstrap 的幂等跳过会同时校验它。
+vendor_content_hash > "$VENDOR_HASH_FILE"
+VENDOR_SWAP_OK=1
+
 # 把锁定版本的官方 skill 暴露给各智能体的发现目录（软链到 vendor，vendor 是唯一真源）。
 # 上游 skill 的内容随 commit 变，agent 目录里若留着别的版本，会与本仓规则引用的
 # 合同文本不一致——那正是「规则说 A、实际跑 B」的漂移。
@@ -194,7 +228,7 @@ fi
 echo "[bootstrap] 链接官方 skills 到智能体发现目录…"
 SUPERSEDED="$(mktemp -d "$HOME/.harness-superseded.XXXXXX")"
 for root in "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.config/opencode/skills"; do
-  [ -d "$root" ] || continue
+  mkdir -p "$root"
   for skill_dir in "$VENDOR_SKILLS"/*/; do
     [ -f "${skill_dir}SKILL.md" ] || continue
     name="$(basename "$skill_dir")"
@@ -207,9 +241,9 @@ for root in "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.config/opencod
     ln -sfn "$src" "$target"
   done
 done
-# 清理被替换下来的旧版本（统一一次，避免逐项慢删除）
+# 被替换下来的旧版本保留在 $SUPERSEDED（不自动删除）——用户手工安装的版本可恢复。
 if [ -n "$(ls -A "$SUPERSEDED" 2>/dev/null)" ]; then
-  rm -rf "$SUPERSEDED"
+  echo "[bootstrap] 被替换的旧版本保留在：${SUPERSEDED}"
 else
   rmdir "$SUPERSEDED" 2>/dev/null || true
 fi

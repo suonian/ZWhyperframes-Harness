@@ -10,6 +10,7 @@
 #   HARNESS_NO_PROXY=1            强制关闭代理
 #   HARNESS_PROXY=<地址>          显式指定（不做探测，按你的设置走）
 #   HARNESS_PROXY=""              等同强制关闭
+#   HARNESS_NPM_REGISTRY=<地址>   覆盖默认 npm 镜像（默认 registry.npmmirror.com）
 #
 # 为什么默认要探测：把代理指向一个不存在的本地端口会让 git / npm **静默挂死**
 # （无超时），这对没开代理的开发者是致命的。探测可达才启用，两种环境都不需改配置。
@@ -19,8 +20,11 @@
 HARNESS_PROXY_DEFAULT="http://127.0.0.1:7890"
 HARNESS_NO_PROXY="${HARNESS_NO_PROXY-0}"
 
-# npm 走中国大陆镜像（GitHub 资源由代理解决，见下）
-export npm_config_registry="${npm_config_registry:-https://registry.npmmirror.com}"
+# npm 默认走中国大陆镜像（GitHub 资源由代理解决，见下）。
+# 注意：npm 在 lifecycle 脚本里会注入 npm_config_registry；若沿用「已设置就不覆盖」，
+# `npm run bootstrap` 实际会走用户默认 registry，而不是本仓声明的镜像。
+# 需要自定义时显式设 HARNESS_NPM_REGISTRY。
+export npm_config_registry="${HARNESS_NPM_REGISTRY:-https://registry.npmmirror.com}"
 
 # 带硬超时的端口探测；不可用时返回 2（表示「无法判断」）。
 probe_proxy() {

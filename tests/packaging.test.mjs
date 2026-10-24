@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, statSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, rmSync, existsSync } from "node:fs";
 import { join, resolve, dirname, relative, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -20,6 +20,9 @@ function makeFixture() {
     "summary: fixture\ndescription: fixture\n---\n\n# fixture\n",
   );
   writeFileSync(join(root, "keep.txt"), "keep\n");
+  writeFileSync(join(root, "RELEASE-HANDBOOK.md"), "local only\n");
+  writeFileSync(join(root, "README.md"), "[dead](CHANGELOG.md)\n");
+  writeFileSync(join(root, "README.package.md"), "# package readme\n");
   // vendor/ 是 bootstrap 取回的上游产物树，模拟其体量足以撞破平台上限。
   for (let i = 0; i < 120; i += 1) {
     const dir = join(root, "vendor", "skills", `skill-${i}`, "scripts");
@@ -51,6 +54,10 @@ test("打包排除 vendor/：上游产物树不得进入技能包", () => {
     );
     assert.ok(rel.includes("SKILL.md"), "产物缺少 SKILL.md");
     assert.ok(rel.includes("keep.txt"), "产物缺少普通文件");
+    assert.ok(rel.includes("README.md"), "产物缺少 README");
+    assert.match(readFileSync(join(out, "README.md"), "utf8"), /package readme/u);
+    assert.ok(!rel.includes("README.package.md"), "README.package.md 只作为映射源，不应原样入包");
+    assert.ok(!rel.includes("RELEASE-HANDBOOK.md"), "本地专用手册不得进入发布包");
     // 清单是**关于**包的元数据，不是包的内容：它写在包目录的同级，
     // 放进包里会让包多带一份自指的文件。
     assert.ok(!rel.includes("package-manifest.json"), "清单不应打进包内");
@@ -88,7 +95,7 @@ test("发布：请求体超过服务端实测上限时 fail-closed，不发出�
     writeFileSync(join(root, "huge.txt"), "x".repeat(500 * 1024));
     const r = spawnSync("node", [PUBLISHER, "--root", root, "--dry-run"], { encoding: "utf-8" });
     assert.notEqual(r.status, 0, "超限时必须以非零码退出");
-    assert.match(r.stderr + r.stdout, /超过服务端实测上限/u, "错误信息须说明是体积超限");
+    assert.match(r.stderr + r.stdout, /超过.*上限/u, "错误信息须说明是体积超限");
     // 关键：不得发出任何请求——干跑模式下即使体积合格也不会请求，
     // 所以这里只需确认失败发生在体积闸门上（而非打包或凭据环节）。
     assert.doesNotMatch(r.stdout, /HTTP \d+/u, "体积超限时不得发出请求");

@@ -86,6 +86,17 @@ test("不污染调用方的 IFS，且自定义 IFS 下去重依然生效", () =>
   assert.ok(items.includes("localhost"));
 });
 
+test("npm registry 默认走镜像，HARNESS_NPM_REGISTRY 可覆盖", () => {
+  assert.equal(
+    sourceWith('echo "$npm_config_registry"', {}, { pre: "unset npm_config_registry" }),
+    "https://registry.npmmirror.com",
+  );
+  assert.equal(
+    sourceWith('echo "$npm_config_registry"', { HARNESS_NPM_REGISTRY: "https://registry.example" }, { pre: "unset npm_config_registry" }),
+    "https://registry.example",
+  );
+});
+
 test("HARNESS_NO_PROXY=1 强制关闭且不做探测", () => {
   const out = sourceWith(
     'echo "${HARNESS_PROXY_STATUS}|${HARNESS_PROXY_REASON}|${HTTP_PROXY-<none>}"',

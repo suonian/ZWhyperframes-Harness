@@ -42,7 +42,7 @@ HyperFrames 的能力是齐的。问题不在缺功能，而在**生产由智能
 
 冲突裁决顺序：**用户当前指令 > `AGENTS.md` > `docs/rules/` > 官方 HF 合同**（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 
-协议 §8.3 约定技能包目录为 `SKILL.md + references/ + scripts/ + assets/`。本包把参考资料放在 `docs/rules/` 与 `docs/architecture/`、厂商工具放在 `tools/`，二者均为协议中的可选目录，规则不受影响。
+协议 §8.3 约定技能包目录为 `SKILL.md + references/ + scripts/ + assets/`。本包把规范合同放在 `docs/rules/`、厂商工具放在 `tools/`，二者均为协议中的可选目录，规则不受影响。架构审计与交接记录只在 GitHub 仓库的 `docs/architecture/` 中提供（不在分发包内）。
 
 ## 如何被新智能体加载
 
@@ -62,11 +62,11 @@ skillhub install zwhyperframes-harness --dir ~/.agents/skills
 node scripts/build-skill-package.mjs --root . --out <产物目录>
 ```
 
-该脚本按平台准入规则过滤并逐项 fail-closed 校验（文件数 ≤100、总包 ≤10MB、单文件 ≤1MB、必须含 `SKILL.md`），产出含每个文件 SHA-256 的 `package-manifest.json`。
+该脚本按平台准入规则过滤并逐项 fail-closed 校验（文件数 ≤100、总包 ≤460KB（服务端实测上限）、单文件 ≤1MB、必须含 `SKILL.md`），产出含每个文件 SHA-256 的清单 `<out>.manifest.json`（写在包目录同级，不放进包内）。
 
 ## 前置条件
 
-- macOS；Node.js ≥ 22；ffmpeg
+- macOS / Linux（Keychain 仅 macOS）；Node.js ≥ 22；ffmpeg
 - HyperFrames 锁定 `v0.8.36`（commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`）
 - MiniMax API Key：只从环境变量或 macOS Keychain 读取，不入仓、不入日志
 - 网络策略唯一所有者是 `scripts/net-env.sh`：下载优先中国大陆源，GitHub/npm 代理探测可达才启用
@@ -79,12 +79,12 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills（需联网）
 npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
-npm test             # 59 项测试，全部离线可跑
+npm test             # 68 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
 ```
 
-**官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 10 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。
+**官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 13 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。
 
-上游的 `hyperframes skills update` 不可用：它把「latest」硬编码为上游 main 的实时 HEAD，无法固定到本仓锁定的 commit，且在上游 2026-10-21 退役 workflow 类 skills 后会直接报「Unknown skill(s): faceless-explainer」。`npx skills add owner/repo@<sha>` 也不可用：实测它只在发现阶段认 sha，装出的内容逐字节等于 main HEAD。依据与完整证据见 `docs/architecture/hf-contract-audit-2026-10-21.md`。
+上游的 `hyperframes skills update` 不可用：它把「latest」硬编码为上游 main 的实时 HEAD，无法固定到本仓锁定的 commit，且在上游 2026-10-21 退役 workflow 类 skills 后会直接报「Unknown skill(s): faceless-explainer」。`npx skills add owner/repo@<sha>` 也不可用：实测它只在发现阶段认 sha，装出的内容逐字节等于 main HEAD。依据与完整证据见 <https://github.com/suonian/ZWhyperframes-Harness/blob/main/docs/architecture/hf-contract-audit-2026-10-21.md>。
 
 ## 如何开工生产
 
@@ -106,14 +106,9 @@ node scripts/new-video.mjs segment --project <产品项目目录> --plan <segmen
 
 规则文档中写明：**任何声称本仓对全部 12 项 fail-closed 的表述都是错的。** 门禁只能强制可校验的产物——除非某项能力留下产物，否则无法证明它真的被执行过。
 
-## 硬边界
+## 硬边界（指向唯一所有者）
 
-- 脚本单步、幂等、确定性、**零 agent 调用**；子智能体派发只发生在主智能体对话内。
-- 用户决策门只有四个：每段「开始授权」、每段「final look 渲染授权」、master「final look」、全项目「收尾审批」。文字分镜不送审。
-- 字幕永远走官方渲染；**不得自建** composition、装配、转场、字幕渲染、check、渲染能力。
-- **不重造轮子是边界，不是目的。**
-- 视频产品写入 `~/Documents/ZWhyperframes-products/`，不写入本包。
-- 修改规则、脚本或 schema 后必须运行 `npm test`。
+脚本纪律、四个用户决策门、字幕要求、官方质量能力清单、API Key 规则与测试要求，均以 `AGENTS.md` 与 `docs/rules/` 为唯一所有者；本文件不复述，避免形成第二信源。
 
 ## 许可与非官方声明
 

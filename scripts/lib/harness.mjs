@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, renameSync } from "node:fs";
 import { join, resolve, relative } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -18,7 +18,13 @@ export const HARNESS_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 /** 运行 harness 本地锁定的 HyperFrames CLI（唯一入口，禁止全局 hyperframes）。 */
 export function runHf(args, { cwd, env = {} } = {}) {
   const bin = join(HARNESS_ROOT, "node_modules", ".bin", "hyperframes");
-  const result = spawnSync("node", [bin, ...args], { cwd, encoding: "utf8", env: { ...process.env, ...env } });
+  const result = spawnSync("node", [bin, ...args], {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+    timeout: 15 * 60 * 1000,
+    maxBuffer: 10 * 1024 * 1024,
+  });
   return result;
 }
 
@@ -48,8 +54,11 @@ export function readJsonIfPresent(path) {
 }
 
 export function writeJson(path, value) {
-  mkdirSync(resolve(path, ".."), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+  const dir = resolve(path, "..");
+  mkdirSync(dir, { recursive: true });
+  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
+  writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`);
+  renameSync(tmp, path);
 }
 
 /** 从任意路径向上定位项目根（含 00-项目总控/state.json）。 */
@@ -104,6 +113,11 @@ export function normalizeText(text) {
 
 export function nowIso() {
   return new Date().toISOString();
+}
+
+/** 授权记录的形状校验：truthy 的 true/字符串不算授权。 */
+export function isUserApproval(value) {
+  return Boolean(value && typeof value === "object" && value.actor === "user" && typeof value.at === "string" && value.at);
 }
 
 export function listProjectSegmentDirs(projectRoot) {

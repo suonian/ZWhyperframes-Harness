@@ -11,7 +11,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed (2026-10-24 audit closure)
+- **Gate orchestration**: added `gate.mjs preflight`; `state.mjs approve --kind final-look` now runs it and refuses to record approval on an empty scaffold / missing TTS / missing captions; the approval binds the SHA-256 of `.hyperframes/final-look-receipt.json`. `gate verify` is strict by default (`--allow-missing` for the early stage).
+- **Master evidence chain**: `master final-look` requires a candidate and binds its SHA-256; `finalize-master` refuses to re-run after master final-look/close; `set-mp4` refuses after master approval/close and clears the segment `final_look` when the cut changes; `close` writes `master.closed`.
+- **Distribution**: excludes `RELEASE-HANDBOOK.md` / `AUDIT-REPORT.md`; maps `README.package.md` to the package `README.md`, removing package-only dead links; `npm test` exits non-zero when `tests/` is absent; publish UA reads the `SKILL.md` version.
+- **TTS/injection**: `minimax-tts` verifies mp3/titles/manifest hashes before reuse; `inject-audio-meta` checks the binding text hash; `MINIMAX_PYTHON` is honored; `.json` subtitle URLs are stored as `<name>.titles`.
+- **Scaffold/plan**: `--source` is required; the locked script is extracted before creating the project directory; the segment plan validates `locked_script_sha256` and each `text_sha256`, and its hash is stored in state.
+- **Captions/storyboard**: `captions-zh` merges consecutive terminal punctuation, writes `caption-overrides.json`, and recomputes canvas size from STORYBOARD; `storyboard` no longer swallows frames on a `---` separator; `layout-guard` handles portrait `cqw` and `clamp/rem/vw`.
+- **Environment**: bootstrap requires 13 artifacts and peels annotated tags with `^{commit}`; `net-env` no longer lets npm's injected registry override the mirror; `hf()` refuses a version mismatch; `writeJson` writes atomically.
+- **Docs**: aligned capture / frame.md / animation-map / BRIEF / offline scope / Ed25519 / 30-char / packageManager conflicts; see the audit report.
 
 ## [0.2.3] — 2026-10-24
 
@@ -118,7 +126,7 @@ Project positioning unified as a harness engineering project, with the true cove
 - Enabled private vulnerability reporting — the channel `SECURITY.md` points reporters to was previously disabled.
 
 ### Changed
-- Corrected official contract reference paths: the 5 contracts actually live in `skills/hyperframes/references/`, while the path previously documented, `skills/hyperframes-core/references/`, was a dead link (each one verified individually).
+- Corrected official contract reference paths: the 5 contracts actually live in `skills/hyperframes/references/`, while the path previously documented, `skills/hyperframes-core/references/`, was a dead link (each one verified individually). **Correction (0.2.2): this conclusion was reversed — at the locked commit the contracts live in `hyperframes-core/references/`; see the [0.2.2] section.**
 
 ## [0.1.0] — 2026-10-08
 
@@ -144,7 +152,8 @@ First public release.
 ### License
 - Apache-2.0 (consistent with upstream HyperFrames). This project contains no HF source code and only calls it as an external dependency.
 
-[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...v0.2.2
 [0.2.0]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/suonian/ZWhyperframes-Harness/releases/tag/v0.1.0

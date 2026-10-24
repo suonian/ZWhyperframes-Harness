@@ -41,8 +41,10 @@ export function splitClauses(text) {
   let i = 0;
   while (i < chars.length) {
     if (BOUNDARY.has(chars[i])) {
+      // 连续的终止标点（？！ / ！？ / 。，）与收尾引号/括号属于同一语块；
+      // 否则会产生“！”这种以标点开端的独立字幕行。
       let end = i + 1;
-      while (end < chars.length && CLOSERS.has(chars[end])) end += 1;
+      while (end < chars.length && (BOUNDARY.has(chars[end]) || CLOSERS.has(chars[end]))) end += 1;
       const clause = makeClause(chars, start, end);
       if (clause) clauses.push(clause);
       start = end;
@@ -163,7 +165,7 @@ export function buildGroups({ text, tokens, frameStart, totalDuration }) {
     // 纯标点 span 并入前 span（无前则并入后）——标点跟随前词，不单独起高亮
     for (let si = spans.length - 1; si >= 0; si -= 1) {
       const s = spans[si];
-      if (/^[。！？，、；：""''（）《》…—·]+$/u.test(s.text)) {
+      if (/^[\p{P}\p{S}]+$/u.test(s.text)) {
         const absorbEnd = s.tokenId >= 0 ? tokens[s.tokenId].endAbs : null;
         if (si > 0) {
           spans[si - 1].text += s.text;
@@ -284,6 +286,8 @@ function buildTokensCss(framePath, H, tokensLib, dimensionsLib) {
   if (existsSync(framePath)) {
     const md = readFileSync(framePath, "utf8");
     const colors = tokensLib.parseColors(md);
+    // 与官方 frameTokensCss 一致：先输出 raw token，再输出语义 token。
+    for (const [key, value] of colors) out.push(`      --${key}: ${value};`);
     const sem = tokensLib.semanticColors(colors);
     if (sem.ink) out.push(`      --cap-ink: ${sem.ink};`);
     if (sem.canvas) out.push(`      --cap-canvas: ${sem.canvas};`);
@@ -305,9 +309,8 @@ async function buildHtml(segmentDir, inputs, groups, onDiskDimensions = null) {
   const framePath = join(segmentDir, "frame.md");
   const [width, height] = onDiskDimensions ?? (() => {
     const fmt = String(inputs.board.globals.format ?? "1920x1080");
-    const m = /^(\d+)x(\d+)$/u.exec(fmt);
-    if (!m) throw new Error(`STORYBOARD format 无法解析：${fmt}`);
-    return [Number(m[1]), Number(m[2])];
+    const parsed = dimensionsLib.parseFormat(fmt);
+    return [parsed.width, parsed.height];
   })();
   const tokens = buildTokensCss(framePath, height, tokensLib, dimensionsLib);
   const faces = mod.brandFontFaces(framePath, segmentDir);
@@ -325,6 +328,13 @@ async function runBuild(segmentDir) {
   mkdirSync(join(segmentDir, "compositions"), { recursive: true });
   writeFileSync(groupsPath, `${JSON.stringify({ total_duration_s: inputs.totalDuration, width, height, groups }, null, 2)}\n`);
   writeFileSync(htmlPath, html);
+  // 官方 captions.mjs 在写 captions.html 时同时写一个 [] shim，压掉运行时的 validate fetch。
+  const overridesPath = join(segmentDir, "caption-overrides.json");
+  try {
+    writeFileSync(overridesPath, "[]\n", { flag: "wx" });
+  } catch {
+    /* shim 已存在 */
+  }
   console.log(`✓ captions-zh build: ${groups.length} 组 / ${inputs.tokens.length} 词级 token → ${htmlPath}`);
   return { groups, html, groupsPath, htmlPath };
 }
@@ -337,10 +347,14 @@ async function runVerify(segmentDir) {
   if (!existsSync(groupsPath)) throw new Error("缺少 caption_groups.json（先 build）");
   const onDisk = JSON.parse(readFileSync(groupsPath, "utf8"));
   if (!Number.isInteger(onDisk.width) || !Number.isInteger(onDisk.height)) throw new Error("caption_groups.json 缺少有效画布尺寸");
-  const recomputed = { total_duration_s: inputs.totalDuration, width: onDisk.width, height: onDisk.height, groups };
+  // 画布尺寸从 STORYBOARD 重新推导，不能信任在盘 JSON。
+  const built = await buildHtml(segmentDir, inputs, groups);
+  if (onDisk.width !== built.width || onDisk.height !== built.height) {
+    throw new Error(`caption_groups.json 画布尺寸 ${onDisk.width}x${onDisk.height} 与 STORYBOARD 推导的 ${built.width}x${built.height} 不一致`);
+  }
+  const recomputed = { total_duration_s: inputs.totalDuration, width: built.width, height: built.height, groups };
   if (JSON.stringify(recomputed) !== JSON.stringify(onDisk)) throw new Error("caption_groups.json 与本仓脚本确定性复算不一致（fail-closed，禁止手改分组数据）");
-  const { html } = await buildHtml(segmentDir, inputs, groups, [onDisk.width, onDisk.height]);
-  if (!existsSync(htmlPath) || readFileSync(htmlPath, "utf8") !== html) throw new Error("captions.html 与官方 skin 确定性复算不一致（fail-closed）");
+  if (!existsSync(htmlPath) || readFileSync(htmlPath, "utf8") !== built.html) throw new Error("captions.html 与官方 skin 确定性复算不一致（fail-closed）");
   console.log("✓ captions-zh verify: 分组数据与 HTML 产物复算一致");
 }
 

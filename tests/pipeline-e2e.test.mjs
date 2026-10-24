@@ -40,9 +40,35 @@ const PACKAGE = `# AI 概念入门
 与口播无关。
 `;
 
+function writePlan(project, segments) {
+  const controlDir = join(project, "00-项目总控");
+  const state = JSON.parse(readFileSync(join(controlDir, "state.json"), "utf8"));
+  const locked = readFileSync(join(project, state.locked_script.path), "utf8").split("\n");
+  const plan = {
+    version: 1,
+    locked_script_sha256: state.locked_script.sha256,
+    segments: segments.map((segment) => {
+      const text = locked.slice(segment.lines[0] - 1, segment.lines[1]).join("\n").trim();
+      return { ...segment, text_sha256: createHash("sha256").update(`${text}\n`).digest("hex") };
+    }),
+  };
+  writeFileSync(join(controlDir, "segment-plan.json"), JSON.stringify(plan, null, 2));
+  return plan;
+}
+
 function makeTinyMp4(path, seconds = 1) {
   const r = spawnSync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=white:s=1920x1080:r=30", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-t", String(seconds), "-c:v", "libx264", "-c:a", "aac", "-shortest", path], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
+}
+
+// 该用例只验证 state/finalize 的状态机；final-look 的完整 preflight 由专门用例覆盖。
+// 这里直接写入 approval，避免为一个状态机测试构造整套帧/音频/字幕 fixture。
+function setFinalLookApproval(statePath, segmentId) {
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  const segment = state.segments.find((s) => String(s.id) === String(segmentId));
+  segment.approvals = segment.approvals ?? {};
+  segment.approvals.final_look = { actor: "user", kind: "final-look", at: "t", evidence: "x" };
+  writeFileSync(statePath, JSON.stringify(state, null, 2));
 }
 
 test("new-video init：锁稿提取 + 状态初始化", () => {
@@ -64,9 +90,20 @@ test("new-video init：无标记资料包 fail-closed", () => {
   const root = TMP();
   const source = join(root, "nope.md");
   writeFileSync(source, "没有锁定口播标记。\n");
-  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", source, "--allow-outside-products-root"]);
+  const project = join(root, "demo");
+  const r = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /未找到锁定口播/u);
+  assert.equal(existsSync(project), false, "init 失败不应留下半成品目录");
+});
+
+test("new-video init：缺少 --source 拒绝且不创建项目目录", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const r = run("new-video.mjs", ["init", "--project", project, "--allow-outside-products-root"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /需要 --source/u);
+  assert.equal(existsSync(project), false);
 });
 
 test("new-video init：目录资料包——整体归档 + 显式标记锁稿提取", () => {
@@ -124,7 +161,7 @@ test("new-video segment：段目录越出项目根拒绝", () => {
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
   assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
-  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify({ segments: [{ id: "01", dir: "../outside", lines: [1, 3] }] }));
+  writePlan(project, [{ id: "01", dir: "../outside", lines: [1, 3] }]);
   const result = run("new-video.mjs", ["segment", "--project", project, "--id", "01"]);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /必须位于项目根内/u);
@@ -150,15 +187,15 @@ test("new-video segment：官方 init + 段骨架 + 计划连续性校验", () =
   writeFileSync(source, PACKAGE);
   assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-开场", lines: [1, 2], title: "开场" }, { id: "02", dir: "02-收束", lines: [3, 3], title: "收束" }] };
-  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
+  writePlan(project, plan.segments);
 
   const gapPlan = { segments: [{ id: "01", dir: "01-a", lines: [2, 3] }] };
-  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(gapPlan));
+  writePlan(project, gapPlan.segments);
   const gap = run("new-video.mjs", ["segment", "--project", project, "--id", "01"]);
   assert.equal(gap.status, 1);
   assert.match(gap.stderr, /不连续/u);
 
-  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
+  writePlan(project, plan.segments);
   const ok = run("new-video.mjs", ["segment", "--project", project, "--id", "01"]);
   assert.equal(ok.status, 0, ok.stderr || ok.stdout);
   assert.ok(existsSync(join(project, "01-开场", "hyperframes.json")));
@@ -179,6 +216,7 @@ const OFFLINE_ENV = {
   HTTP_PROXY: "http://127.0.0.1:1", HTTPS_PROXY: "http://127.0.0.1:1", ALL_PROXY: "http://127.0.0.1:1",
   http_proxy: "http://127.0.0.1:1", https_proxy: "http://127.0.0.1:1", all_proxy: "http://127.0.0.1:1",
   NO_PROXY: "", no_proxy: "",
+  HYPERFRAMES_SKIP_SKILLS: "1",
 };
 
 test("离线底线：黑洞代理下 init + 段脚手架仍可完成（生产中途不联网可生产）", () => {
@@ -189,7 +227,7 @@ test("离线底线：黑洞代理下 init + 段脚手架仍可完成（生产中
   const init = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"], { env: OFFLINE_ENV });
   assert.equal(init.status, 0, init.stderr || init.stdout);
   const plan = { segments: [{ id: "01", dir: "01-开场", lines: [1, 3], title: "开场" }] };
-  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
+  writePlan(project, plan.segments);
   const seg = run("new-video.mjs", ["segment", "--project", project, "--id", "01"], { env: OFFLINE_ENV });
   assert.equal(seg.status, 0, seg.stderr || seg.stdout);
   assert.ok(existsSync(join(project, "01-开场", "hyperframes.json")));
@@ -229,7 +267,20 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "start", "--evidence", "x"]).status, 1);
 
   assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4a]).status, 0);
-  assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "01", "--kind", "final-look", "--evidence", "x"]).status, 0);
+  setFinalLookApproval(statePath, "01");
+  // 换片必须清除旧 final-look，不能把同一授权复用到不同 cut。
+  assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4a]).status, 0);
+  assert.equal(JSON.parse(readFileSync(statePath, "utf8")).segments[0].approvals.final_look, undefined);
+  setFinalLookApproval(statePath, "01");
+
+  // 前段 MP4 哈希被篡改时，下一段开始授权必须被拒绝（不能只看 mp4 真值）。
+  const tampered = JSON.parse(readFileSync(statePath, "utf8"));
+  const originalHash = tampered.segments[0].mp4.sha256;
+  tampered.segments[0].mp4.sha256 = "0".repeat(64);
+  writeFileSync(statePath, JSON.stringify(tampered, null, 2));
+  assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "start", "--evidence", "x"]).status, 1);
+  tampered.segments[0].mp4.sha256 = originalHash;
+  writeFileSync(statePath, JSON.stringify(tampered, null, 2));
 
   // 段 02 开始授权 → 机械确认段 01 accepted。
   assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "start", "--evidence", "x"]).status, 0);
@@ -238,7 +289,7 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   assert.equal(mid.segments[1].status, "authorized");
 
   assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "02", "--mp4", mp4b]).status, 0);
-  assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "final-look", "--evidence", "x"]).status, 0);
+  setFinalLookApproval(statePath, "02");
   // 末段仍为 rendered（尚未给 master 确认）时，即可生成 master 候选（用户先看候选再批）。
   assert.equal(run("gate.mjs", ["master-inputs", "--project", project]).status, 0);
   const bad = JSON.parse(readFileSync(statePath, "utf8"));
@@ -249,6 +300,9 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   const good = JSON.parse(readFileSync(statePath, "utf8"));
   good.segments[0].mp4.sha256 = sha256File(mp4a);
   writeFileSync(statePath, JSON.stringify(good, null, 2));
+
+  // candidate 尚未生成时，master final look 必须被拒绝。
+  assert.equal(run("state.mjs", ["master", "--project", project, "--kind", "final-look", "--evidence", "x"]).status, 1);
 
   const fin = run("finalize-master.mjs", ["--project", project]);
   assert.equal(fin.status, 0, fin.stderr);
@@ -267,6 +321,9 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   assert.equal(mid.segments[1].status, "accepted");
   assert.equal(mid.master.candidate.inputs.length, 2);
   assert.equal(mid.master.candidate.inputs[0].sha256, sha256File(mp4a));
+  // master final look 后 candidate 冻结：不能换段 MP4，也不能重新 finalize。
+  assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "02", "--mp4", mp4a]).status, 1);
+  assert.equal(run("finalize-master.mjs", ["--project", project]).status, 1);
   const changedInput = JSON.parse(readFileSync(statePath, "utf8"));
   changedInput.segments[0].mp4.sha256 = "0".repeat(64);
   writeFileSync(statePath, JSON.stringify(changedInput, null, 2));
@@ -274,12 +331,35 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   changedInput.segments[0].mp4.sha256 = sha256File(mp4a);
   writeFileSync(statePath, JSON.stringify(changedInput, null, 2));
   assert.equal(run("state.mjs", ["master", "--project", project, "--kind", "close", "--evidence", "x"]).status, 0);
+  // 收尾后项目冻结：换片 / 重新 finalize 都必须失败。
+  assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4b]).status, 1);
+  assert.equal(run("finalize-master.mjs", ["--project", project]).status, 1);
 
   assert.equal(run("gate.mjs", ["authorized", "--project", project, "--segment", "01"]).status, 0);
   const noApproval = JSON.parse(readFileSync(statePath, "utf8"));
+  noApproval.segments[1].approvals.start = true;
+  writeFileSync(statePath, JSON.stringify(noApproval, null, 2));
+  assert.equal(run("gate.mjs", ["authorized", "--project", project, "--segment", "02"]).status, 1, "truthy true 不是合法授权");
   noApproval.segments[1].approvals.start = null;
   writeFileSync(statePath, JSON.stringify(noApproval, null, 2));
   assert.equal(run("gate.mjs", ["authorized", "--project", project, "--segment", "02"]).status, 1);
+});
+
+test("state approve final-look：preflight 未通过时拒绝写入授权", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const source = join(root, "package.md");
+  writeFileSync(source, PACKAGE);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  const plan = { segments: [{ id: "01", dir: "01-a", lines: [1, 3] }] };
+  writePlan(project, plan.segments);
+  assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
+  assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "01", "--kind", "start", "--evidence", "x"]).status, 0);
+  const r = run("state.mjs", ["approve", "--project", project, "--segment", "01", "--kind", "final-look", "--evidence", "x"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /前置检查未通过/u);
+  const state = JSON.parse(readFileSync(join(project, "00-项目总控", "state.json"), "utf8"));
+  assert.equal(state.segments[0].approvals.final_look, undefined);
 });
 
 test("gate verify：锁稿/TTS 绑定漂移 fail-closed", () => {
@@ -289,21 +369,28 @@ test("gate verify：锁稿/TTS 绑定漂移 fail-closed", () => {
   writeFileSync(source, PACKAGE);
   assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-开场", lines: [1, 3] }] };
-  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
+  writePlan(project, plan.segments);
   assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
-  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 0);
+  // 严格 verify 在没有任何绑定时必须失败；早期阶段用 --allow-missing 明确放行。
+  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 1);
+  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01", "--allow-missing"]).status, 0);
   const seg = join(project, "01-开场");
   mkdirSync(join(seg, "audio"), { recursive: true });
   writeFileSync(join(seg, "audio", "narration.mp3"), "audio");
   writeFileSync(join(seg, "audio", "narration.titles"), "titles");
   writeFileSync(join(seg, "audio", "narration.manifest.json"), "{}");
   const sha = (value) => createHash("sha256").update(value).digest("hex");
-  writeFileSync(join(seg, "audio", "tts-binding.json"), JSON.stringify({ text_sha256: sha(readFileSync(join(seg, "user_script.txt"))), audio_sha256: sha("audio"), titles_sha256: sha("titles"), manifest_sha256: sha("{}") }));
-  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 0);
+  const bindingJson = JSON.stringify({ text_sha256: sha(readFileSync(join(seg, "user_script.txt"))), audio_sha256: sha("audio"), titles_sha256: sha("titles"), manifest_sha256: sha("{}") });
+  writeFileSync(join(seg, "audio", "tts-binding.json"), "not-json");
+  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 1, "损坏的 binding 在严格模式必须失败");
+  writeFileSync(join(seg, "audio", "tts-binding.json"), bindingJson);
+  // TTS 绑定有了，但 injection-binding 还没有：严格 verify 仍须失败。
+  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 1);
+  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01", "--allow-missing"]).status, 0);
   writeFileSync(join(seg, "audio", "narration.titles"), "tampered");
-  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 1);
+  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01", "--allow-missing"]).status, 1);
   writeFileSync(join(project, "01-开场", "user_script.txt"), "改过的口播稿。\n");
-  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status, 1);
+  assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01", "--allow-missing"]).status, 1);
 });
 
 test("gate layout-guard：可见字号 <28px fail-closed；≥28px 通过", () => {
@@ -313,7 +400,7 @@ test("gate layout-guard：可见字号 <28px fail-closed；≥28px 通过", () =
   writeFileSync(source, PACKAGE);
   assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-a", lines: [1, 3], title: "a" }] };
-  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
+  writePlan(project, plan.segments);
   assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
   const framesDir = join(project, "01-a", "compositions", "frames");
   mkdirSync(framesDir, { recursive: true });
@@ -326,6 +413,19 @@ test("gate layout-guard：可见字号 <28px fail-closed；≥28px 通过", () =
   const failRun = run("gate.mjs", ["layout-guard", "--project", project, "--segment", "01"]);
   assert.equal(failRun.status, 1);
   assert.match(failRun.stderr, /可见字号低于 28px/u);
+
+  // 竖屏下 1.5cqw 实际约 16.2px（1080 宽），不能按 1920 宽算成 28.8px。
+  writeFileSync(join(project, "01-a", "STORYBOARD.md"), "---\nformat: 1080x1920\n---\n\n## Frame 1 — a\n\n- duration: 3s\n");
+  writeFileSync(join(framesDir, "01-a.html"), '<template><div id="root"><span style="font-size: 1.5cqw">a</span></div></template>');
+  const portrait = run("gate.mjs", ["layout-guard", "--project", project, "--segment", "01"]);
+  assert.equal(portrait.status, 1);
+  assert.match(portrait.stderr, /16\.2px/u);
+
+  // clamp() 取下界，不能被当成无法判定而放行。
+  writeFileSync(join(framesDir, "01-a.html"), '<template><div id="root"><span style="font-size: clamp(16px, 2vw, 22px)">a</span></div></template>');
+  const clamped = run("gate.mjs", ["layout-guard", "--project", project, "--segment", "01"]);
+  assert.equal(clamped.status, 1);
+  assert.match(clamped.stderr, /16\.0px/u);
 });
 
 // §3 第 1 项此前在规则文档里声称「`gate.mjs` 校验 BRIEF.md 含 `## Intent` 胜出概念」，
@@ -362,7 +462,7 @@ test("gate animation-map：官方 animation-map.json 产物缺失 fail-closed", 
   writeFileSync(source, PACKAGE);
   assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-a", lines: [1, 3], title: "a" }] };
-  writeFileSync(join(project, "00-项目总控", "segment-plan.json"), JSON.stringify(plan));
+  writePlan(project, plan.segments);
   assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
 
   const missing = run("gate.mjs", ["animation-map", "--project", project, "--segment", "01"]);
@@ -373,6 +473,10 @@ test("gate animation-map：官方 animation-map.json 产物缺失 fail-closed", 
   const outDir = join(project, "01-a", ".hyperframes", "anim-map");
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "animation-map.json"), "{}");
+  const emptyMap = run("gate.mjs", ["animation-map", "--project", project, "--segment", "01"]);
+  assert.equal(emptyMap.status, 1);
+  assert.match(emptyMap.stderr, /为空或形状非法/u);
+  writeFileSync(join(outDir, "animation-map.json"), JSON.stringify({ frames: [] }));
   const ok = run("gate.mjs", ["animation-map", "--project", project, "--segment", "01"]);
   assert.equal(ok.status, 0, ok.stderr || ok.stdout);
 
@@ -380,6 +484,6 @@ test("gate animation-map：官方 animation-map.json 产物缺失 fail-closed", 
   const custom = join(root, "custom-map");
   mkdirSync(custom, { recursive: true });
   assert.equal(run("gate.mjs", ["animation-map", "--project", project, "--segment", "01", "--out", custom]).status, 1);
-  writeFileSync(join(custom, "animation-map.json"), "{}");
+  writeFileSync(join(custom, "animation-map.json"), JSON.stringify({ frames: [] }));
   assert.equal(run("gate.mjs", ["animation-map", "--project", project, "--segment", "01", "--out", custom]).status, 0);
 });

@@ -21,9 +21,9 @@
 | --- | --- | --- |
 | 品牌 | **放弃前代品牌** | 无品牌 preset/片尾/人物/Logo；设计系统直接用官方 13 个 frame presets 按叙事选择 |
 | 字幕 | **要求不变**（锁定稿逐字一致、标点语块切分、单行显示、无动效、仅当前行高亮） | 实现路线：① 先官方 captions.mjs 原生验证中文效果；② 不满足则 harness 只写「分组数据」（走官方 caption-overrides 通道），官方运行时渲染——渲染永远官方，我们最多供数据。逐字一致以 MiniMax 词级时间文本=锁稿原文保证 |
-| 授权签名 | **放弃 Ed25519**，降为轻量授权记录（actor=user + 产物 SHA-256 + 时间戳） | 单人流水线，用户亲签+聊天留痕已足够；密码学层收益低 |
+| 授权签名 | **放弃 Ed25519**，降为轻量授权记录（actor=user + 时间戳 + evidence；段 final-look 绑 gate receipt，master 绑 candidate SHA-256） | 单人流水线，用户亲签+聊天留痕已足够；密码学层收益低 |
 | 任务图 | **放弃 v2 任务图**，仅保留轻量 `state.json`（段计划/状态/授权/哈希） | 官方已有帧状态机（outline→built→animated）+ board + 交接文档 |
-| 生产模式 | **autonomous**（`flow: automation, storyboard: no`）；用户决策保留两门：每段「开始授权」+「final look 渲染授权」，master 两门 + 收尾一门 | 前代已验证的节奏；文字分镜不送审 |
+| 生产模式 | **autonomous**（`flow: automation, storyboard: no`）；用户决策门四个：每段「开始授权」+「final look 渲染授权」、master「final look」、全项目「收尾审批」 | 前代已验证的节奏；文字分镜不送审 |
 
 ## 3. 质量增强能力引入清单（官方已有、前代未用，本次强制引入）
 
@@ -67,7 +67,7 @@ ZWhyperframes-Harness/
 ```
 （`templates/` 暂不设立：无品牌资产；字幕适配按「先官方后适配」验证后再决定是否需要分组数据模板。）
 
-**明确不包含**：队列/心跳/lease、worker 执行层、物理镜像、transcript 证据、Ed25519、任务图、自建 storyboard parser、自建 caption 渲染、自建转场、自建装配、品牌资产。
+**明确不包含**：队列/心跳/lease、worker 执行层、物理镜像、transcript 证据、Ed25519、任务图、自建 semantic storyboard parser（仅保留 `scripts/lib/storyboard.mjs` 的只读元数据 reader，官方 parser 仍是语义真源）、自建 caption 渲染、自建转场、自建装配、品牌资产。
 
 ## 5. 生产流程（官方 Step 0–6 + harness 适配 + 强制质量点）
 
@@ -75,7 +75,7 @@ ZWhyperframes-Harness/
 harness: new-video（锁稿冻结 → 分段计划 → 逐段官方 init）
 harness: 每段开始授权（用户，轻量记录）
 Step 0   意图层：pitch-round 内部采样门 → BRIEF.md（autonomous）
-Step 1   capture（资料归档）
+Step 1   brief（faceless 无 capture；资料归档由 harness 在 init 前完成）
 Step 2   官方 preset 选择 → build-frame → frame.md + caption skin
 Step 3   STORYBOARD.md / SCRIPT.md（锁稿逐字）+ 叙事复审
 Step 3.1 harness MiniMax TTS → 词级时间 → 官方 audio_meta.json；官方引擎 BGM

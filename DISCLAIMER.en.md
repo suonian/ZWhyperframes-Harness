@@ -10,7 +10,7 @@ This project (the **"Project"**) is an independent open-source project with **no
 
 ## Third-party content and copyright
 
-This project is a **production tool**. It does not host, distribute, or download any third-party content.
+This project is a **production tool**. It does not host or distribute any third-party content. `bootstrap.sh` fetches the official skills at the locked commit into a local `vendor/` (not committed, not shipped in the skill package); `npm install` downloads dependencies from the lockfile.
 
 When you use this project to generate videos, responsibility for the **copyright and licensing of the content, assets, scripts, audio, and visual material you use rests entirely with you**:
 
@@ -34,4 +34,4 @@ This project is provided "AS IS", **with no warranty of any kind, express or imp
 
 ## License
 
-This project is licensed under the [Apache License 2.0](LICENSE). HyperFrames is also Apache-2.0, copyright HeyGen; see [NOTICE](NOTICE).
+This project is licensed under the [Apache License 2.0](https://github.com/suonian/ZWhyperframes-Harness/blob/main/LICENSE). HyperFrames is also Apache-2.0, copyright HeyGen; see [NOTICE](https://github.com/suonian/ZWhyperframes-Harness/blob/main/NOTICE).
