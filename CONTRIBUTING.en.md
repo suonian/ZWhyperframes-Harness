@@ -62,6 +62,22 @@ Already-delivered videos are **no longer maintained and no longer supported**. D
 
 HyperFrames is pinned to `0.8.36`. Upgrading is not a version-number change but a **contract audit** task: official skill content changes with upstream commits, and the rules here quote it verbatim (this repo fetches the official `skills/` tree at the pinned commit, never upstream's live tree). Do a contract diff audit first, then verify the risk points separately, and only then change the pinned version.
 
+## Publishing
+
+This repo has two release lines sharing one version number:
+
+- **GitHub Release**: tag and publish, with the notes taken from the matching `CHANGELOG.md` section.
+- **SkillHub skill** (slug `zwhyperframes-harness`): `npm run publish-skill`.
+
+**The same version number must never point at different content** — whichever line goes first, bring the other to the same version; otherwise the other line ends up with one number meaning two things.
+
+Two measured constraints on the SkillHub side (evidence in the `[0.2.3]` section of `CHANGELOG.md`):
+
+- The publish request body has a real cap of roughly 476KB; past it the server drops the connection, and the client only sees a Broken pipe with nothing readable in it.
+- The server does **not** accept a gzip-compressed request body, so size must be met by trimming the published package's content manifest.
+
+Before publishing, run `npm run publish-skill -- --dry-run` to confirm the request body is within the limit and the file count satisfies protocol §8.3.
+
 ## License
 
 Submitting a contribution means you agree to license your changes under Apache-2.0. This project builds on HyperFrames (Apache-2.0, HeyGen, Inc.) and contains none of its source code; see [NOTICE](NOTICE).

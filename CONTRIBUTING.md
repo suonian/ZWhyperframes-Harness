@@ -58,6 +58,22 @@ source ./hf-env.sh   # 生产入口
 
 HyperFrames 锁 `0.8.36`。升级不是版本号的改动，而是**合同审计**任务：官方 skill 内容随上游 commit 一并变动，而本仓规则直接引用其原文（本仓按锁定 commit 取回官方 `skills/`，不拉上游实时产物）。请先做合同差异审计，再单独验证风险点，最后才改锁定版本。
 
+## 发布
+
+本仓有两条版本线，共享同一版本号：
+
+- **GitHub Release**：打 tag 并发布，说明取 `CHANGELOG.md` 对应节。
+- **SkillHub 技能**（slug `zwhyperframes-harness`）：`npm run publish-skill`。
+
+**同一版本号不得指向不同内容**——先发哪条，就把另一条也推到同一版本；否则会在另一条线上出现同号异内容。
+
+SkillHub 侧有两条实测约束（证据见 `CHANGELOG.md` 的 `[0.2.3]` 节）：
+
+- publish 请求体有约 476KB 的实际上限，超出即被服务端断开连接，客户端只看到没有可读信息的 Broken pipe。
+- 服务端**不接受** gzip 压缩的请求体，体积只能靠缩减发布包内容清单来满足。
+
+发布前先跑 `npm run publish-skill -- --dry-run`，确认请求体在限内且文件数符合协议 §8.3。
+
 ## 许可
 
 提交贡献即表示同意以 Apache-2.0 授权你的修改。本项目基于 HyperFrames（Apache-2.0, HeyGen, Inc.），不包含其源码，详见 [NOTICE](NOTICE)。
