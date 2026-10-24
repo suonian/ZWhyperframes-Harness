@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "locked_script_sha256": "ae87c5a3686c10a15694453180e94e9b11d97bd11f9f7b2f29b00305614db7c6",
+  "segments": [
+    {
+      "id": "01",
+      "dir": "01-开场",
+      "title": "开场与做法",
+      "lines": [1, 2],
+      "text_sha256": "21dd312021a9d1e4d8912954e3afb121cb429c93798320b0a3323447ecc29d27"
+    },
+    {
+      "id": "02",
+      "dir": "02-收束",
+      "title": "结果",
+      "lines": [3, 3],
+      "text_sha256": "b0e5b6caac66aa7dc264f74f8b3140d0b5451dd8becccd227aa042294e43ad58"
+    }
+  ]
+}

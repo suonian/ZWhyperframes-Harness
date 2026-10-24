@@ -10,6 +10,22 @@
 
 HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
 
+### 何时使用
+
+- 有锁定口播稿，要生产中文、无真人出镜的知识视频；
+- 要求同一套流程可复现，而不是每次自由发挥；
+- 需要锁稿/TTS/字幕/MP4/master 的哈希绑定与 fail-closed 检查；
+- 要排查 HyperFrames 生产中的门禁、TTS、字幕、分段或 master 问题。
+
+**不适合**：真人出镜/实拍剪辑、纯通用剪辑、只想用一句提示词生成素材。
+
+### 先看什么
+
+- 第一次安装：本 README「快速开始」→ `references/faq.md`
+- 想照抄完整流程：`references/walkthrough.md`
+- 规则语义：`docs/rules/`（唯一所有者）
+- 分发包说明：`README.package.md`
+
 ## 解决什么 · 提供什么 · 特点
 
 **解决什么问题。** 直接用 HyperFrames 生产视频，会稳定地出现三类问题——不是偶发，是每次都这样：
@@ -191,6 +207,7 @@ security add-generic-password -a minimax -s MINIMAX_API_KEY -w '你的 API Key'
 ```text
 AGENTS.md              智能体入口：定位、规则导航、硬边界
 docs/rules/            生产规则（视觉 / 字幕 / 分段 / 工作流，各为单一所有者）
+references/            分发包内的 FAQ 与端到端走查
 docs/architecture/     官方能力审计与跨会话交接
 docs/plans/            启动设计
 scripts/               管理脚本（单步、确定性、零 agent 调用）
@@ -219,6 +236,9 @@ SKILL.md               SkillHub 分发封装（只做路由，不承载规范）
 | `docs/rules/visual-production-rulebook.md` | 视觉质量底线（官方 worker 合同优先 + 项目要求） |
 | `docs/rules/captions-contract.md` | 字幕合同唯一所有者（要求不可变更） |
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
+| `references/faq.md` | 常见问题、错误索引与反模式（排障入口） |
+| `references/walkthrough.md` | 从资料包到 master 的端到端最小走查 |
+| `references/example-source.md` / `example-segment-plan.json` | 可直接复制的示例输入 |
 
 冲突裁决顺序：**用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同**（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 

@@ -11,6 +11,16 @@
 
 暂无。
 
+## [0.2.5] — 2026-10-24
+
+SkillHub 列表信息与上手体验补齐：明确触发/不适用场景，新增分发包内的 FAQ、错误索引、反模式清单与端到端走查；补齐安装矩阵、依赖准备、命令地图、证据链和中国大陆网络说明；优化展示名、摘要与标签。无生产行为变更。
+
+### 文档与分发
+- 新增 `references/faq.md`：按症状索引安装、TTS、字幕、门禁、master、网络与反模式；新增 `references/walkthrough.md`：从资料包到 master 的可照抄最小示例；新增 `references/example-source.md` / `example-segment-plan.json` 可直接复制的输入。
+- `README.package.md` 重写为包内完整上手页：何时使用/不使用、30 秒判断、安装矩阵、命令地图、证据链、中国大陆网络与文档索引。
+- `SKILL.md` 增加典型触发、FAQ/走查路由；frontmatter 增加 `metadata.display-name`，展示名、摘要与标签同步优化。
+- GitHub 仓库 README 增加「何时使用 / 先看什么」与 references 索引。
+
 ## [0.2.4] — 2026-10-24
 
 本版本完成 2026-10-24 审计闭环：门禁编排、审批冻结、分发包与文档一致性。
@@ -156,7 +166,8 @@ SkillHub 发布路径的实测适配：平台对 publish 请求体有约 476KB �
 ### 许可
 - Apache-2.0（与上游 HyperFrames 一致）。本项目不含 HF 源码，仅作外部依赖调用。
 
-[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...HEAD
+[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...v0.2.2

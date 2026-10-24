@@ -24,6 +24,8 @@
 | `docs/rules/visual-production-rulebook.md` | 视觉质量底线（官方 worker 合同优先 + 项目要求） |
 | `docs/rules/captions-contract.md` | 字幕合同唯一所有者（要求不可变更） |
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
+| `references/faq.md` | 常见问题、错误索引与反模式（排障入口） |
+| `references/walkthrough.md` | 从资料包到 master 的端到端最小走查 |
 
 冲突裁决顺序：用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 

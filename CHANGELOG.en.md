@@ -13,6 +13,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 Nothing yet.
 
+## [0.2.5] — 2026-10-24
+
+SkillHub listing and onboarding polish: explicit when-to-use / when-not-to-use guidance, an in-package FAQ with an error index and anti-patterns, an end-to-end walkthrough, an install matrix, dependency setup, a command map, the evidence chain, and China-mainland network guidance; display name, summary, and tags refined. No production behavior changes.
+
+### Documentation and distribution
+- Added `references/faq.md` (symptom-indexed install, TTS, captions, gates, master, network, anti-patterns), `references/walkthrough.md` (a copyable minimal example from source package to master), and the copyable `references/example-source.md` / `example-segment-plan.json` inputs.
+- Rewrote `README.package.md` as the package onboarding page: when/when not to use, 30-second triage, install matrix, command map, evidence chain, China-mainland network, and documentation index.
+- `SKILL.md` now routes to typical triggers and the FAQ/walkthrough; frontmatter adds `metadata.display-name` and refines the display name, summary, and tags.
+- Added "when to use / read first" and references to the GitHub READMEs.
+
 ## [0.2.4] — 2026-10-24
 
 This release closes the 2026-10-24 audit: gate orchestration, approval freezing, distribution, and documentation consistency.
@@ -158,7 +168,8 @@ First public release.
 ### License
 - Apache-2.0 (consistent with upstream HyperFrames). This project contains no HF source code and only calls it as an external dependency.
 
-[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...v0.2.2

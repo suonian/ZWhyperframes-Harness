@@ -10,6 +10,22 @@
 
 A harness engineering project for HyperFrames: rules constrain the official production flow, gates enforce that official capabilities are actually executed. Core official capabilities are never rebuilt.
 
+### When to use
+
+- You have a locked narration script and need a Chinese, faceless knowledge video;
+- You need the same flow to be reproducible instead of improvised every run;
+- You need SHA-256 binding and fail-closed checks across script / TTS / captions / MP4 / master;
+- You are debugging HyperFrames gates, TTS, captions, segmentation, or master assembly.
+
+**Not for**: talking-head or live-action editing, generic video editing, or one-prompt asset generation.
+
+### Read this first
+
+- First install: the Quick Start below, then `references/faq.md`
+- A full end-to-end example: `references/walkthrough.md`
+- Normative rules: `docs/rules/` (single owners)
+- Package-specific README: `README.package.md`
+
 ## What it solves · What it gives you · Characteristics
 
 **What problem it solves.** Producing videos with HyperFrames directly produces three classes of problem — consistently, not intermittently:
@@ -191,6 +207,7 @@ security add-generic-password -a minimax -s MINIMAX_API_KEY -w 'your API key'
 ```text
 AGENTS.md              Agent entry point: positioning, rule navigation, hard boundaries
 docs/rules/            Production rules (visual / captions / segmentation / workflow, each a single owner)
+references/            Package FAQ and end-to-end walkthrough
 docs/architecture/     Official capability audit and cross-session handoff
 docs/plans/            Launch design
 scripts/               Management scripts (single-step, deterministic, agent-call-free)
@@ -219,6 +236,9 @@ Video products **do not enter this repository**; by default they are written to 
 | `docs/rules/visual-production-rulebook.md` | Visual quality floor (official worker contract first + project requirements) |
 | `docs/rules/captions-contract.md` | Caption contract (requirements immutable) |
 | `docs/rules/segment-production-rules.md` | Locked-script freezing and segmentation |
+| `references/faq.md` | FAQ, error index, and anti-patterns (troubleshooting entry) |
+| `references/walkthrough.md` | End-to-end walkthrough from source package to master |
+| `references/example-source.md` / `example-segment-plan.json` | Copyable example inputs |
 
 Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF contracts** (with the official text at the locked commit under `vendor/skills/` as ground truth).
 
