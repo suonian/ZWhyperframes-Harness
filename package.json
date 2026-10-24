@@ -1,6 +1,6 @@
 {
   "name": "zwhyperframes-harness",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "license": "Apache-2.0",
   "description": "HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。",
@@ -9,7 +9,8 @@
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "bootstrap": "bash scripts/bootstrap.sh",
     "doctor": "bash scripts/doctor.sh",
-    "install-skill": "bash scripts/install-skill.sh"
+    "install-skill": "bash scripts/install-skill.sh",
+    "publish-skill": "node scripts/publish-skillhub.mjs"
   },
   "engines": {
     "node": ">=22"

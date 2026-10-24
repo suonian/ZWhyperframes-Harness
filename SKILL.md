@@ -1,7 +1,7 @@
 ---
 name: zwhyperframes-harness
 slug: zwhyperframes-harness
-version: 0.2.2
+version: 0.2.3
 displayName: HyperFrames Harness
 summary: HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
 description: 当需要用 HyperFrames 生产中文无真人出镜知识视频时使用本技能——用规则把官方流程钉死，用门禁把官方质量能力「名义上在用」变成「不跑就卡住」，并把「声称做过」变成「不通过就卡住」。核心能力全部来自 HyperFrames 官方，本技能一行不重写。
@@ -79,7 +79,7 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills（需联网）
 npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
-npm test             # 53 项测试，全部离线可跑
+npm test             # 55 项测试，全部离线可跑
 ```
 
 **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 10 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。

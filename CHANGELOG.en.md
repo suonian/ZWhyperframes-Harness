@@ -13,6 +13,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 Nothing yet.
 
+## [0.2.3] — 2026-10-24
+
+Measured adaptation of the SkillHub publishing path: the platform caps the publish request body at roughly 476KB and does not accept a gzip-compressed body. This release narrows the published package's content boundary accordingly, and adds a reproducible publish script with a fail-closed volume gate.
+
+> On the version number: the `v0.2.2` GitHub Release is already published and does not contain the publish script added below, so those changes land in `0.2.3` — the same version number never points at different content on the two release lines. `0.2.2` has been submitted to SkillHub (HTTP 201); the platform publishes it itself after review, as it did before.
+
+### Added
+- `scripts/publish-skillhub.mjs` (`npm run publish-skill`): this repo's SkillHub publishing path. It works from the output of `scripts/build-skill-package.mjs` (rather than acting on the repository root directly), and keeps its fields and file-collection rules aligned with the SkillHub CLI's `parse_skill_md_frontmatter` / `_collect_skill_files` / `_post_publish_multipart`. Credentials are read only from the local CLI's credential file (the `user` node of `~/.skillhub/credentials.json`) — never from the repo, the logs, or the environment. Supports `--root` / `--changelog` / `--dry-run`.
+- A volume gate on the publish request body: over the measured limit it fails closed with an explicit message and **sends no request**. Past the limit the server just drops the connection, and the client only sees a Broken pipe with nothing readable in it.
+- `tests/packaging.test.mjs` grows to 4 cases: "the request body over the limit fails closed and sends no request" and "a body within the limit passes the gate and completes a dry run". Both were sensitivity-checked by mutation (relaxing the limit to 10MB turned the over-limit case red on the spot).
+
+### Fixed
+- The published package's content boundary is now two layers — the platform admission allowlist plus a content manifest for the package — rather than filtering by extension alone. The package previously carried governance documents, change history, the English mirror, internal architecture notes and this repo's own gate test cases (68 files / 488KB), over the server's limit; it is now 45 files / 319KB.
+- The packaging script's exclusion list gained `.skillhub-pkg/` — that is the script's own output directory, and without the exclusion it swept the previous package in as well (measured: the file count rose from 45 to 135, tripping the platform limit outright).
+- The packaging manifest is now written **beside** the package directory (`<out>.manifest.json`): it is metadata about the package, not package content, and inside the package it made the package carry a self-referential file.
+- The publish script no longer crashes when `CHANGELOG.md` is missing — that file is only the source of the release notes, not a precondition for publishing.
+- The publish script's packaging output now goes to a system temp directory, leaving no build artifact in the workspace; `.gitignore` gained `.skillhub-pkg/` accordingly.
+
+### Platform measurements
+- **The SkillHub server caps the publish request body at roughly 476KB** (protocol §8.3 says ≤10MB — the documentation and the deployed service disagree, the same class of problem as this repo's earlier finding that `.jpg` is listed in the allowlist but rejected live). Measured: 475KB passes, 480KB is dropped.
+- **The server does not accept a `Content-Encoding: gzip` request body**: a multipart body with that header fails at form parsing with 400 "解析表单失败: multipart: NextPart: EOF". Size must therefore be met by trimming content, not by compressing. (Note: authorization fails before form parsing and returns 401, so a 401 **cannot** be read as evidence that the server decompresses — this repo initially misread that signal once.)
+
 ## [0.2.2] — 2026-10-23
 
 This repo is now distributed as a SkillHub skill; the three facts that actually decide whether it works — install into a discovery directory, bootstrap after install, no automatic index entry — are now documented instead of left for the user to infer.
