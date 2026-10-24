@@ -11,6 +11,15 @@
 
 暂无。
 
+## [0.2.6] — 2026-10-24
+
+补齐命令契约：把各脚本的参数、成功输出、失败含义、产物与返工顺序集中到分发包内的 `references/commands.md`，并在 `SKILL.md` / `AGENTS.md` / README 中建立入口。无生产行为变更。
+
+### 文档与分发
+- 新增 `references/commands.md`：`new-video`、`gate`、`state`、TTS/注入/字幕、`finalize-master` 的参数与退出含义，明确 0/1 退出码与 `[gate]`/`[state]` 前缀。
+- 命令契约入口加入 `SKILL.md` 的路由表、`AGENTS.md` 的规则导航、GitHub README 与包内 README。
+- 版本号在 `package.json` / `package-lock.json`（两处）/ `CITATION.cff` / `SKILL.md` 五处一致推进到 `0.2.6`。
+
 ## [0.2.5] — 2026-10-24
 
 SkillHub 列表信息与上手体验补齐：明确触发/不适用场景，新增分发包内的 FAQ、错误索引、反模式清单与端到端走查；补齐安装矩阵、依赖准备、命令地图、证据链和中国大陆网络说明；优化展示名、摘要与标签。无生产行为变更。
@@ -166,7 +175,8 @@ SkillHub 发布路径的实测适配：平台对 publish 请求体有约 476KB �
 ### 许可
 - Apache-2.0（与上游 HyperFrames 一致）。本项目不含 HF 源码，仅作外部依赖调用。
 
-[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...HEAD
+[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.2...v0.2.3

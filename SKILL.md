@@ -1,7 +1,7 @@
 ---
 name: zwhyperframes-harness
 slug: zwhyperframes-harness
-version: 0.2.5
+version: 0.2.6
 displayName: HyperFrames Harness — 中文知识视频生产门禁
 summary: 用 HyperFrames 生产中文无真人出镜知识视频的规则与门禁层：锁定稿、TTS/字幕哈希绑定、final-look 前置检查、master 审批；不重写官方能力。
 description: 当用户要用 HyperFrames 制作中文无真人出镜知识视频、要求锁定口播稿/字幕逐字一致/生产可复现，或需要排查 HyperFrames 生产门禁时使用；它把官方 Step 0–6 与质量能力变成 fail-closed 规则，不重写官方能力。
@@ -69,6 +69,7 @@ HyperFrames 的能力是齐的。问题不在缺功能，而在**生产由智能
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
 | `references/faq.md` | 常见问题、错误索引、反模式清单（排障先看这里） |
 | `references/walkthrough.md` | 从资料包到 master 的端到端最小走查 |
+| `references/commands.md` | 命令参数、成功输出、失败含义与返工顺序 |
 
 冲突裁决顺序：**用户当前指令 > `AGENTS.md` > `docs/rules/` > 官方 HF 合同**（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 

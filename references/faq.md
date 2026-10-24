@@ -22,6 +22,7 @@
 | `layout-guard` 报 28px 或“无法判定” | §4.3 |
 | `master final-look` / `close` 被拒绝 | §4.4 |
 | 中国大陆网络下 GitHub 取回慢 | §5.1 |
+| 不确定命令参数/成功输出 | `references/commands.md` |
 | 不确定哪些能力真的有门禁 | §6 |
 
 ## 1. 安装与自举

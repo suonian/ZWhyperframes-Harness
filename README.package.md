@@ -148,6 +148,7 @@ HARNESS_NO_PROXY=1 npm run bootstrap
 - `docs/rules/`：四份规范合同
 - `references/faq.md`：常见问题、错误索引、反模式
 - `references/walkthrough.md`：从资料包到 master 的端到端走查
+- `references/commands.md`：命令参数、成功输出与失败含义
 - `references/example-source.md` / `example-segment-plan.json`：可直接复制的示例输入
 - `scripts/`：管理脚本
 - `tools/minimax/`：MiniMax API 调用器

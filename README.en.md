@@ -238,6 +238,7 @@ Video products **do not enter this repository**; by default they are written to 
 | `docs/rules/segment-production-rules.md` | Locked-script freezing and segmentation |
 | `references/faq.md` | FAQ, error index, and anti-patterns (troubleshooting entry) |
 | `references/walkthrough.md` | End-to-end walkthrough from source package to master |
+| `references/commands.md` | Command arguments, success output, and failure meanings |
 | `references/example-source.md` / `example-segment-plan.json` | Copyable example inputs |
 
 Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF contracts** (with the official text at the locked commit under `vendor/skills/` as ground truth).

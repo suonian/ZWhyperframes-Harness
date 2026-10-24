@@ -238,6 +238,7 @@ SKILL.md               SkillHub 分发封装（只做路由，不承载规范）
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
 | `references/faq.md` | 常见问题、错误索引与反模式（排障入口） |
 | `references/walkthrough.md` | 从资料包到 master 的端到端最小走查 |
+| `references/commands.md` | 命令参数、成功输出与失败含义 |
 | `references/example-source.md` / `example-segment-plan.json` | 可直接复制的示例输入 |
 
 冲突裁决顺序：**用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同**（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
