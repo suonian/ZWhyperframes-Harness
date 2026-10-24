@@ -18,6 +18,7 @@
 ### 文档与分发
 - 新增 `references/commands.md`：`new-video`、`gate`、`state`、TTS/注入/字幕、`finalize-master` 的参数与退出含义，明确 0/1 退出码与 `[gate]`/`[state]` 前缀。
 - 命令契约入口加入 `SKILL.md` 的路由表、`AGENTS.md` 的规则导航、GitHub README 与包内 README。
+- `SKILL.md` / 包内 README 增加输入输出约束、稳定性与错误处理机制、设计取舍，明确不可变边界与恢复路径。
 - 版本号在 `package.json` / `package-lock.json`（两处）/ `CITATION.cff` / `SKILL.md` 五处一致推进到 `0.2.6`。
 
 ## [0.2.5] — 2026-10-24

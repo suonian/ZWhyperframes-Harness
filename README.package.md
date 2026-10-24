@@ -13,6 +13,15 @@ HyperFrames 官方能力很全——composition、分镜、子智能体、音频
 
 **不适合**：真人出镜/实拍剪辑、纯通用视频剪辑、只需要一句提示词出一段素材的场景。
 
+## 输入与输出约束
+
+| | 约束 |
+| --- | --- |
+| 输入 | 中文 UTF-8 锁定口播稿（`script:start/end` 唯一标记块）、资料包、项目路径；Node ≥22、ffmpeg/ffprobe、Python 3；MiniMax Key |
+| 输出 | 段 MP4、master candidate、`state.json` 与绑定/收据 JSON、字幕分组与 official captions HTML |
+| 不可变 | 授权后不改锁稿/段稿/TTS/字幕/master；变化必须重新派生并重新授权 |
+| 不负责 | 官方 composition/字幕渲染/check/render 实现、视觉素材生成、`vendor/` 修改 |
+
 **给智能体的最短触发提示**：
 
 ```text
@@ -104,6 +113,17 @@ source ./hf-env.sh    # 生产入口；必须在 bootstrap 之后
 - **责任边界**：官方能力由 HyperFrames 提供；本仓只读退出码/保留产物，不重写官方 composition、字幕渲染、check 或 render；管理件（锁稿/TTS/字幕/master/state）由本仓确定性脚本负责。
 - 详见 `docs/rules/production-workflow-rules.md` §3 的三层清单。
 
+## 稳定性与错误处理
+
+| 机制 | 实现 |
+| --- | --- |
+| 网络/取回 | bootstrap 的 git fetch 硬超时、LFS 指针检测、旧 vendor 回滚；失败不写 commit stamp |
+| 外部命令 | `runHf` 15 分钟；gate preflight 30 分钟；captions verify 10 分钟 |
+| 状态写入 | `writeJson` 临时文件 + rename；授权/绑定不会写半截 |
+| 证据链 | 锁稿/TTS/注入/字幕/MP4 的 SHA-256 绑定；漂移即拒绝 |
+| TOCTOU | finalize 后重新哈希；master 批准前校验 candidate |
+| 恢复 | 新建项目/段失败清理；旧 vendor 回滚；错误带 `[gate]`/`[state]` 前缀 |
+
 ## 证据链
 
 ```text
@@ -116,6 +136,14 @@ source ./hf-env.sh    # 生产入口；必须在 bootstrap 之后
 ```
 
 缺失的绑定只能重新派生；禁止事后补哈希。
+
+## 设计取舍
+
+- **不重写官方能力**：composition、字幕渲染、check、render 仍走 HyperFrames；本仓只加约束和证据链，避免 fork 上游。
+- **证据优先于声明**：每个关键产物都有 SHA-256 绑定；不能靠“我已经检查过”通过。
+- **fail-closed 而非自动修复**：证据漂移时拒绝继续，要求重新派生；不把未知状态猜成通过。
+- **锁定 commit 而不是 latest**：官方 skills 按 `v0.8.36` 取回，避免上游 main 漂移改变生产结果。
+- **单步确定性脚本**：脚本不做 agent 调用、不自动改规范；方便审计与重跑。
 
 ## 安全与隐私
 

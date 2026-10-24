@@ -20,6 +20,7 @@ Added the command contract: `references/commands.md` now centralizes each script
 ### Documentation and distribution
 - Added `references/commands.md`: argument and exit semantics for `new-video`, `gate`, `state`, TTS/injection/captions, and `finalize-master`; documents exit codes 0/1 and the `[gate]`/`[state]` prefixes.
 - Linked the command contract from the `SKILL.md` routing table, `AGENTS.md` rule navigation, the GitHub README, and the package README.
+- `SKILL.md` and the package README now state input/output constraints, stability and error-handling mechanisms, and design tradeoffs, making invariant and recovery boundaries explicit.
 - Version advanced to `0.2.6` in `package.json`, both `package-lock.json` version fields, `CITATION.cff`, and `SKILL.md`.
 
 ## [0.2.5] — 2026-10-24

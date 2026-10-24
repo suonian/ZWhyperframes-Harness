@@ -27,6 +27,15 @@ HyperFrames 的 harness 工程，用于生产中文无真人出镜知识类视�
 
 **不要用于**：真人出镜/实拍剪辑、纯通用视频剪辑、只需要一句提示词生成一段素材的场景；也不要用来重写官方 composition、字幕渲染、check 或 render。
 
+## 输入与输出约束
+
+| | 约束 |
+| --- | --- |
+| 输入 | 中文 UTF-8 锁定口播稿（`script:start/end` 唯一标记块）、资料包文件/目录、项目路径；Node ≥22、ffmpeg/ffprobe、Python 3；MiniMax Key（环境变量或 macOS Keychain） |
+| 输出 | 段 MP4、master candidate MP4、`state.json` 与各绑定/收据 JSON、字幕分组与 official captions HTML |
+| 不可变 | 锁稿/段稿/TTS/字幕/master 在授权后不得改字或换片；变化必须重新派生并重新授权 |
+| 不负责 | 官方 composition/字幕渲染/check/render 的实现、视觉素材生成、`vendor/` 官方内容修改 |
+
 ## 典型触发
 
 - “把这份锁定口播稿做成 3 分钟中文知识视频，要求每次结果一致。”
@@ -140,6 +149,17 @@ node scripts/new-video.mjs segment --project <产品项目目录> --plan <segmen
 分段计划（语义切分）由主智能体判断后写入 `segment-plan.json`；脚本只校验与执行。产品默认写入 `~/Documents/ZWhyperframes-products/`，不进入本包。
 
 **完整生产顺序以 `docs/rules/production-workflow-rules.md` §2 为准**（官方 Step 0–6 + harness 落点）。本文件不复制该顺序。
+
+## 稳定性与错误处理机制
+
+| 机制 | 实现 |
+| --- | --- |
+| 网络/取回超时与回滚 | bootstrap 的 git fetch 硬超时 + LFS 指针检测 + 旧 vendor 换回；失败不写 commit stamp |
+| 外部命令超时 | `runHf` 15 分钟；gate preflight 30 分钟；captions verify 10 分钟 |
+| 状态原子写 | `writeJson` 临时文件 + rename；授权/绑定不会写半截 |
+| 证据链 | 锁稿/TTS/注入/字幕/MP4 都做 SHA-256 绑定；漂移即拒绝 |
+| TOCTOU | finalize 生成 candidate 后重新哈希输入；master 批准前再校验 candidate |
+| 失败可恢复 | 新建项目/段失败清理半成品；旧 vendor 回滚；错误信息带 `[gate]`/`[state]` 前缀 |
 
 ## 关于强制力的真实覆盖
 
