@@ -32,6 +32,9 @@ SkillHub 发布路径的实测适配：平台对 publish 请求体有约 476KB �
 - 发布脚本在 `CHANGELOG.md` 缺失时不再崩溃——它只是发布说明的来源，不是发布的必要条件。
 - 发布脚本的打包产物改落系统临时目录，不在工作区留下构建物；`.gitignore` 相应补入 `.skillhub-pkg/`。
 - `scripts/bootstrap.sh` 的 fetch 与 checkout 加硬超时（默认 1800 秒，可用 `HF_SKILLS_FETCH_TIMEOUT` 覆盖）。此前上游无响应时，CI 作业会一直挂到 GitHub 的默认上限（6 小时）；现在超时后走下一条通路，最终明确报错退出。macOS 无 `timeout(1)`，用 perl 的 `alarm` 包装（exec 后 alarm 仍生效），HTTPS 另加 `http.lowSpeedLimit/lowSpeedTime` 判据以防「连上但传不动」的软挂死。
+- **sparse-checkout 改为 non-cone 模式并精确锚定**（`git sparse-checkout set --no-cone '/skills/'`）。cone 模式下 `sparse-checkout set skills` 匹配的是**所有层级**名为 `skills` 的目录（gitignore 语义），故上游的 `.agents/skills/` 也会被一并拉入；而那里的媒体文件由上游 `.gitattributes` 声明为 LFS，checkout 时要向 LFS 服务器取对象——该通路不可达时整个 bootstrap 会以「smudge 过滤器 lfs 失败」中断。实测本机装好的 0.2.2 技能包正是在这一步失败。改为精确锚定后，工作树只剩 `skills/`（21 个目录），`.agents/` 不再被拉入。
+- **新增 LFS 指针检测**：取回后若检出 LFS 指针文本即 fail-closed 并报错。指针不是内容——拿它当真实文件用，症状会出现在渲染阶段而不是取回阶段，极难归因。已核实锁定 commit 下 `skills/` 内零个 LFS 指针（其中 `media-use` 的 mp3 为真实文件，27KB / 11KB）。
+- 取回通路可由环境变量覆盖（`HF_SKILLS_REPO_URL` / `HF_SKILLS_REPO_SSH`），便于在 HTTPS 不可达而 SSH 可用的环境里让 SSH 先被尝试。
 
 ### 平台实测
 - **SkillHub 服务端对 publish 请求体有约 476KB 的实际上限**（协议文档 §8.3 写的是 ≤10MB，文档与线上部署不一致——与本仓此前发现的「.jpg 列入白名单但线上拒收」属同一类问题）。实测 475KB 可通过、480KB 被断开。

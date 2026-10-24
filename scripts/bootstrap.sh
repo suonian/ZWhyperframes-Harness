@@ -19,10 +19,12 @@ HF_EXPECTED_VERSION="0.8.36"
 #
 # 因此这里直接用 git 按 SHA 取回（GitHub 支持按可达 SHA fetch），再由本仓脚本
 # 从 vendor/skills/ 解析官方产物——这是唯一实测可复现的取回方式。
-HF_SKILLS_REPO_URL="https://github.com/heygen-com/hyperframes.git"
-HF_SKILLS_REPO_SSH="git@github.com:heygen-com/hyperframes.git"
+HF_SKILLS_REPO_URL="${HF_SKILLS_REPO_URL:-https://github.com/heygen-com/hyperframes.git}"
+HF_SKILLS_REPO_SSH="${HF_SKILLS_REPO_SSH:-git@github.com:heygen-com/hyperframes.git}"
 HF_SKILLS_COMMIT="f86aae655ae5aae7a9a2c124fa016f3bc30ebe52"   # == 上游 tag v0.8.36
 HF_SKILLS_TAG="v0.8.36"                                       # 同一 commit 的 tag 形态
+# 两条通路可由环境变量覆盖：在 HTTPS 不可达而 SSH 可用的环境里，
+# 令 HF_SKILLS_REPO_URL 指向 SSH 地址即可让 SSH 先被尝试。
 VENDOR_SKILLS="$HARNESS_ROOT/vendor/skills"
 
 # 本仓规则与脚本实际引用的官方产物（取回后逐项 fail-closed 校验）。
@@ -75,7 +77,16 @@ if [ "$SKILLS_READY" -ne 1 ]; then
   git -C "$TMP" init -q
   git -C "$TMP" remote add origin "$HF_SKILLS_REPO_URL"
   git -C "$TMP" config core.sparseCheckout true
-  git -C "$TMP" sparse-checkout set skills
+  # 必须用 non-cone 模式并锚定到根目录。
+  # cone 模式下 `sparse-checkout set skills` 匹配的是**所有层级**名为 skills 的目录
+  # （gitignore 语义），因此上游的 `.agents/skills/` 也会被一并拉入——而那里的媒体
+  # 文件由 `.gitattributes` 声明为 LFS，checkout 时要向 LFS 服务器取对象；
+  # 该通路不可达时整个 bootstrap 会以「smudge 过滤器 lfs 失败」中断。
+  # non-cone 的 `/skills/` 精确锚定到根下的 skills/，不触及 .agents/。
+  git -C "$TMP" sparse-checkout set --no-cone '/skills/'
+  # LFS 指针不落地：即使将来上游给 skills/ 加了 LFS 规则，也不该在这里等 LFS 下载。
+  # 指针会不会被误当成真实内容，由取回后的指针检测 fail-closed 拦截。
+  export GIT_LFS_SKIP_SMUDGE=1
 
   # 取回路径：外层换传输通路，内层换 ref 形态，四种组合逐一尝试。
   #   通路 HTTPS —— CI runner 上没有 SSH 密钥，但 HTTPS 直连可用；
@@ -133,6 +144,16 @@ if [ "$SKILLS_READY" -ne 1 ]; then
   fi
   if [ ! -d "$TMP/skills" ]; then
     echo "锁定 commit ${HF_SKILLS_COMMIT} 下不存在 skills/ 目录——上游结构已变，属合同审计信号。" >&2
+    exit 1
+  fi
+  # LFS 指针检测：GIT_LFS_SKIP_SMUDGE=1 会让 LFS 对象以「指针文本」形态落盘。
+  # 指针不是内容——拿它当真实文件用，症状会出现在渲染阶段而不是取回阶段，
+  # 极难归因。故此处 fail-closed：检出指针即报错，指明这是上游结构变化。
+  LFS_POINTERS="$(grep -rl --binary-files=text -m1 'git-lfs.github.com/spec' "$TMP/skills" 2>/dev/null | head -5 || true)"
+  if [ -n "$LFS_POINTERS" ]; then
+    echo "官方 skills 中检出 LFS 指针文件（取到的是指针而非内容）：" >&2
+    for p in $LFS_POINTERS; do echo "  · ${p#"$TMP/skills/"}" >&2; done
+    echo "按 AGENTS.md 的规则，上游结构已变，属**合同审计**信号。" >&2
     exit 1
   fi
   mkdir -p "$(dirname "$VENDOR_SKILLS")"
