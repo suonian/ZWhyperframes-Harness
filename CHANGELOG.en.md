@@ -33,6 +33,7 @@ Measured adaptation of the SkillHub publishing path: the platform caps the publi
 - The packaging manifest is now written **beside** the package directory (`<out>.manifest.json`): it is metadata about the package, not package content, and inside the package it made the package carry a self-referential file.
 - The publish script no longer crashes when `CHANGELOG.md` is missing — that file is only the source of the release notes, not a precondition for publishing.
 - The publish script's packaging output now goes to a system temp directory, leaving no build artifact in the workspace; `.gitignore` gained `.skillhub-pkg/` accordingly.
+- `scripts/bootstrap.sh` now applies a hard timeout (1800 s by default, overridable via `HF_SKILLS_FETCH_TIMEOUT`) to its fetch and checkout. Previously, an unresponsive upstream left the CI job hanging until GitHub's default limit of 6 hours; now a timeout moves on to the next transport and finally fails with an explicit error. macOS has no `timeout(1)`, so this uses a perl `alarm` wrapper (the alarm survives `exec`), and HTTPS additionally gets `http.lowSpeedLimit` / `http.lowSpeedTime` so a connection that opens but stops transferring is also caught.
 
 ### Platform measurements
 - **The SkillHub server caps the publish request body at roughly 476KB** (protocol §8.3 says ≤10MB — the documentation and the deployed service disagree, the same class of problem as this repo's earlier finding that `.jpg` is listed in the allowlist but rejected live). Measured: 475KB passes, 480KB is dropped.

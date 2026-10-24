@@ -31,6 +31,7 @@ SkillHub 发布路径的实测适配：平台对 publish 请求体有约 476KB �
 - 打包清单改写到**包目录的同级**（`<out>.manifest.json`）：清单是关于包的元数据而非包的内容，放进包里会让包多带一份自指的文件。
 - 发布脚本在 `CHANGELOG.md` 缺失时不再崩溃——它只是发布说明的来源，不是发布的必要条件。
 - 发布脚本的打包产物改落系统临时目录，不在工作区留下构建物；`.gitignore` 相应补入 `.skillhub-pkg/`。
+- `scripts/bootstrap.sh` 的 fetch 与 checkout 加硬超时（默认 1800 秒，可用 `HF_SKILLS_FETCH_TIMEOUT` 覆盖）。此前上游无响应时，CI 作业会一直挂到 GitHub 的默认上限（6 小时）；现在超时后走下一条通路，最终明确报错退出。macOS 无 `timeout(1)`，用 perl 的 `alarm` 包装（exec 后 alarm 仍生效），HTTPS 另加 `http.lowSpeedLimit/lowSpeedTime` 判据以防「连上但传不动」的软挂死。
 
 ### 平台实测
 - **SkillHub 服务端对 publish 请求体有约 476KB 的实际上限**（协议文档 §8.3 写的是 ≤10MB，文档与线上部署不一致——与本仓此前发现的「.jpg 列入白名单但线上拒收」属同一类问题）。实测 475KB 可通过、480KB 被断开。

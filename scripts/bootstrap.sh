@@ -87,13 +87,22 @@ if [ "$SKILLS_READY" -ne 1 ]; then
   #   需求无关，且在慢速链路上耗时不必要。
   # 每一次成功 fetch 都立刻用 rev-parse 校验取回的确实是锁定 commit——
   #   「fetch 返回 0」不等于「取回了锁定的那一个」。
+  #
+  # 每次 fetch 都有硬超时：上游无响应时，作业不能挂着等 CI 的默认上限
+  #   （6 小时）。超时后走下一条通路，最终报错退出。
+  #   macOS 没有 timeout(1)，用 perl 的 alarm 包装（exec 后 alarm 仍生效，
+  #   SIGALRM 默认动作即终止进程）。HTTPS 另加 lowSpeed 判据：
+  #   传输速率过低且持续 60 秒即中止，避免「连上了但传不动」的软挂死。
+  FETCH_TIMEOUT="${HF_SKILLS_FETCH_TIMEOUT:-1800}"
   FETCHED=0
   GOT_SHA=""
   for url in "$HF_SKILLS_REPO_URL" "$HF_SKILLS_REPO_SSH"; do
     git -C "$TMP" remote set-url origin "$url"
     for ref in "$HF_SKILLS_COMMIT" "refs/tags/${HF_SKILLS_TAG}"; do
       echo "[bootstrap] 尝试取回：${url} ${ref}"
-      if git -C "$TMP" fetch --depth 1 --filter=blob:none origin "$ref"; then
+      if perl -e 'alarm shift; exec @ARGV' "$FETCH_TIMEOUT" \
+           git -C "$TMP" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 \
+           fetch --depth 1 --filter=blob:none origin "$ref"; then
         CANDIDATE="$(git -C "$TMP" rev-parse FETCH_HEAD 2>/dev/null || true)"
         if [ "$CANDIDATE" = "$HF_SKILLS_COMMIT" ]; then
           FETCHED=1
@@ -112,7 +121,10 @@ if [ "$SKILLS_READY" -ne 1 ]; then
     exit 1
   fi
   echo "[bootstrap] 取回并校验通过：${GOT_SHA}"
-  git -C "$TMP" checkout -q FETCH_HEAD
+  # checkout 同样加硬超时：partial clone 的按需 blob 拉取发生在这一步，
+  #   上游连接异常时它会与 fetch 一样软挂死。
+  perl -e 'alarm shift; exec @ARGV' "$FETCH_TIMEOUT" \
+    git -C "$TMP" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 checkout -q FETCH_HEAD
   # 校验取回的确实是该 commit，而不是被远端改写
   GOT_SHA="$(git -C "$TMP" rev-parse HEAD)"
   if [ "${GOT_SHA}" != "${HF_SKILLS_COMMIT}" ]; then
