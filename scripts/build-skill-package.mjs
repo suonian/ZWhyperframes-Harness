@@ -54,7 +54,6 @@ const CONTENT_EXCLUDE_DIRS = new Set(["tests", "docs/architecture", "docs/plans"
 const CONTENT_EXCLUDE_FILES = new Set([
   "CHANGELOG.md", "CHANGELOG.en.md",
   "RELEASE-HANDBOOK.md",
-  "AUDIT-REPORT.md",
   "README.md", "README.en.md", "README.package.md",
   "CONTRIBUTING.md", "CONTRIBUTING.en.md",
   "SECURITY.md", "SECURITY.en.md",

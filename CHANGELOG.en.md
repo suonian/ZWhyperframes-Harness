@@ -11,15 +11,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.4] — 2026-10-24
+
+This release closes the 2026-10-24 audit: gate orchestration, approval freezing, distribution, and documentation consistency.
+
 ### Fixed (2026-10-24 audit closure)
 - **Gate orchestration**: added `gate.mjs preflight`; `state.mjs approve --kind final-look` now runs it and refuses to record approval on an empty scaffold / missing TTS / missing captions; the approval binds the SHA-256 of `.hyperframes/final-look-receipt.json`. `gate verify` is strict by default (`--allow-missing` for the early stage).
 - **Master evidence chain**: `master final-look` requires a candidate and binds its SHA-256; `finalize-master` refuses to re-run after master final-look/close; `set-mp4` refuses after master approval/close and clears the segment `final_look` when the cut changes; `close` writes `master.closed`.
-- **Distribution**: excludes `RELEASE-HANDBOOK.md` / `AUDIT-REPORT.md`; maps `README.package.md` to the package `README.md`, removing package-only dead links; `npm test` exits non-zero when `tests/` is absent; publish UA reads the `SKILL.md` version.
+- **Distribution**: excludes the local-only `RELEASE-HANDBOOK.md`; the audit report moved to `docs/architecture/` (that directory is not packaged); maps `README.package.md` to the package `README.md`, removing package-only dead links; `npm test` exits non-zero when `tests/` is absent; publish UA reads the `SKILL.md` version.
 - **TTS/injection**: `minimax-tts` verifies mp3/titles/manifest hashes before reuse; `inject-audio-meta` checks the binding text hash; `MINIMAX_PYTHON` is honored; `.json` subtitle URLs are stored as `<name>.titles`.
 - **Scaffold/plan**: `--source` is required; the locked script is extracted before creating the project directory; the segment plan validates `locked_script_sha256` and each `text_sha256`, and its hash is stored in state.
 - **Captions/storyboard**: `captions-zh` merges consecutive terminal punctuation, writes `caption-overrides.json`, and recomputes canvas size from STORYBOARD; `storyboard` no longer swallows frames on a `---` separator; `layout-guard` handles portrait `cqw` and `clamp/rem/vw`.
 - **Environment**: bootstrap requires 13 artifacts and peels annotated tags with `^{commit}`; `net-env` no longer lets npm's injected registry override the mirror; `hf()` refuses a version mismatch; `writeJson` writes atomically.
-- **Docs**: aligned capture / frame.md / animation-map / BRIEF / offline scope / Ed25519 / 30-char / packageManager conflicts; see the audit report.
+- **Docs**: aligned capture / frame.md / animation-map / BRIEF / offline scope / Ed25519 / 30-char / packageManager conflicts; see the [audit report](docs/architecture/audit-2026-10-24.md).
 
 ## [0.2.3] — 2026-10-24
 
@@ -152,7 +158,8 @@ First public release.
 ### License
 - Apache-2.0 (consistent with upstream HyperFrames). This project contains no HF source code and only calls it as an external dependency.
 
-[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...v0.2.2
 [0.2.0]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.1.0...v0.2.0

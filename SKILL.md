@@ -1,7 +1,7 @@
 ---
 name: zwhyperframes-harness
 slug: zwhyperframes-harness
-version: 0.2.3
+version: 0.2.4
 displayName: HyperFrames Harness
 summary: HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
 description: 当需要用 HyperFrames 生产中文无真人出镜知识视频时使用本技能——用规则把官方流程钉死，用门禁把官方质量能力「名义上在用」变成「不跑就卡住」，并把「声称做过」变成「不通过就卡住」。核心能力全部来自 HyperFrames 官方，本技能一行不重写。

@@ -9,15 +9,21 @@
 
 ## [未发布]
 
+暂无。
+
+## [0.2.4] — 2026-10-24
+
+本版本完成 2026-10-24 审计闭环：门禁编排、审批冻结、分发包与文档一致性。
+
 ### 修复（2026-10-24 审计闭环）
 - **门禁编排**：新增 `gate.mjs preflight`；`state.mjs approve --kind final-look` 先跑 preflight，拒绝在空脚手架/无 TTS/无字幕时写入授权；授权记录绑定 `.hyperframes/final-look-receipt.json` 的 SHA-256。`gate verify` 默认严格（缺绑定即失败），早期阶段显式 `--allow-missing`。
 - **master 证据链**：`master final-look` 必须已有 candidate 并绑定其 SHA-256；`finalize-master` 在 master final-look/close 后拒绝重跑；`set-mp4` 在 master 批准/收尾后拒绝，并在换片时清除段级 final_look；close 写入 `master.closed`。
-- **分发包**：排除 `RELEASE-HANDBOOK.md`、`AUDIT-REPORT.md`；用 `README.package.md` 映射为包内 `README.md`，修复包内死链；`npm test` 在 `tests/` 缺失时非零退出；发布 UA 从 `SKILL.md` 版本读取。
+- **分发包**：排除本地专用 `RELEASE-HANDBOOK.md`；审计报告移至 `docs/architecture/`（分发包不含该目录）；用 `README.package.md` 映射为包内 `README.md`，修复包内死链；`npm test` 在 `tests/` 缺失时非零退出；发布 UA 从 `SKILL.md` 版本读取。
 - **TTS/注入**：`minimax-tts` 复用前校验 mp3/titles/manifest 哈希；`inject-audio-meta` 校验 binding 文本哈希；`MINIMAX_PYTHON` 生效；字幕 URL 为 `.json` 时统一落为 `<name>.titles`。
 - **脚手架/计划**：`--source` 必填；锁稿提取先于目录创建；分段计划校验 `locked_script_sha256` 与每段 `text_sha256`，并把 plan 哈希写入 state。
 - **字幕/分镜**：`captions-zh` 合并连续终止标点、写 `caption-overrides.json`、从 STORYBOARD 复算画布尺寸；`storyboard` 修 `---` 分隔线吞帧；`layout-guard` 支持竖屏 `cqw`、`clamp/rem/vw`。
 - **环境**：bootstrap 必需产物 13 项、annotated tag 用 `^{commit}`；`net-env` 默认镜像不被 npm 注入覆盖；`hf()` 版本漂移即拒绝执行；`writeJson` 原子替换。
-- **文档**：对齐 capture/frame.md/animation-map/BRIEF/离线范围/Ed25519/30 字/packageManager 等冲突，详见审计报告。
+- **文档**：对齐 capture/frame.md/animation-map/BRIEF/离线范围/Ed25519/30 字/packageManager 等冲突，详见 [审计报告](docs/architecture/audit-2026-10-24.md)。
 
 ## [0.2.3] — 2026-10-24
 
@@ -150,7 +156,8 @@ SkillHub 发布路径的实测适配：平台对 publish 请求体有约 476KB �
 ### 许可
 - Apache-2.0（与上游 HyperFrames 一致）。本项目不含 HF 源码，仅作外部依赖调用。
 
-[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...HEAD
+[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.0...v0.2.2
 [0.2.0]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.1.0...v0.2.0
