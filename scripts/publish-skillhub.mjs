@@ -30,6 +30,7 @@ import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import https from "node:https";
+import { extractChangelog } from "./lib/changelog.mjs";
 
 const HARNESS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -115,14 +116,12 @@ const files = collect(PKG_DIR);
 if (!files.some((f) => f.rel.toLowerCase() === "skill.md")) throw new Error("包内缺少 SKILL.md");
 files.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 
-// ── changelog：参数给了路径就读文件，否则按参数文本；未给则取 CHANGELOG 的对应节 ──
+// ── changelog：参数给了路径就读文件，否则取 CHANGELOG 的对应节 ──────────
 if (changelog && existsSync(changelog)) changelog = readFileSync(changelog, "utf-8");
 if (!changelog) {
   const clPath = join(sourceRoot, "CHANGELOG.md");
   if (existsSync(clPath)) {
-    const cl = readFileSync(clPath, "utf-8");
-    const m = cl.match(new RegExp(`^## \\[${meta.version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\][^\\n]*\\n([\\s\\S]*?)(?=\\n## \\[|$)`, "m"));
-    changelog = m ? m[1].trim() : "";
+    changelog = extractChangelog(readFileSync(clPath, "utf-8"), meta.version);
   }
   // CHANGELOG 缺失时不失败——它只是发布说明的来源，不是发布的必要条件。
 }
@@ -138,6 +137,10 @@ const payload = {
   homepage: meta.homepage ?? "",
   changelog,
 };
+
+// ── changelog 提取 ───────────────────────────────────────────────────────
+// 按行扫描，不用多行正则——理由见 scripts/lib/changelog.mjs 的注释。
+// 该缺陷曾让本脚本上传的 changelog 恒为空（平台显示默认文案 "Initial release"）。
 
 // ── multipart 构造（字段与 CLI 的 _post_publish_multipart 一致） ──────────
 const boundary = `----skillhubBoundary${Date.now()}`;
@@ -169,6 +172,7 @@ if (body.length > MAX_BODY_BYTES) {
 }
 
 if (dryRun) {
+  console.log(`[publish] changelog ${changelog.length} 字符${changelog ? `：${changelog.slice(0, 80).replace(/\n/g, " ")}…` : "（空）"}`);
   console.log(`✓ Dry-run passed: ${meta.slug}@${meta.version}`);
   process.exit(0);
 }

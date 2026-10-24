@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-55%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-59%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
 
@@ -125,7 +125,7 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills
 npm run doctor       # 环境体检：CLI 版本 / skills / 浏览器 / ffmpeg / MiniMax 凭证
 source ./hf-env.sh   # 生产环境入口（提供 hf 函数、网络策略、跳过 init 的联网检查）
-npm test             # 55 项测试
+npm test             # 59 项测试
 ```
 
 > **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，并对本仓实际引用的 10 个官方产物逐项 fail-closed 校验；缺失即报错，不静默跳过。

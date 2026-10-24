@@ -21,6 +21,8 @@ SkillHub 发布路径的实测适配：平台对 publish 请求体有约 476KB �
 - `scripts/publish-skillhub.mjs`（`npm run publish-skill`）：本仓的 SkillHub 发布路径。它走 `scripts/build-skill-package.mjs` 的产物（而非直接作用于仓库根），字段与文件收集规则同 SkillHub CLI 的 `parse_skill_md_frontmatter` / `_collect_skill_files` / `_post_publish_multipart` 保持一致。凭据只从本机 CLI 的凭据文件读取（`~/.skillhub/credentials.json` 的 `user` 节点），不入仓、不入日志、不进环境变量。支持 `--root` / `--changelog` / `--dry-run`。
 - 发布请求体的体积闸门：超过实测上限即 fail-closed 并明确报错，**不发出请求**。超限时服务端只会静默断开连接，客户端侧看到的是没有可读信息的 Broken pipe。
 - `tests/packaging.test.mjs` 增至 4 项：新增「请求体超限时 fail-closed，不发出请求」与「体积在上限内时通过闸门并完成干跑」。均以变异测试验证敏感性（把上限放宽到 10MB，超限用例当场转红）。
+- `tests/changelog.test.mjs`（4 项）：changelog 提取的回归门禁，抽取到 `scripts/lib/changelog.mjs`。其中「结果恒不为空」一项针对的是一个**静默失效**的缺陷——原实现用多行正则 `(?=\n## \[|$)` 取节正文，而 multiline 模式下 `$` 会在任意行尾匹配，非贪婪捕获组因此恒为空：脚本照常成功、平台照常接收，只是 changelog 恒为空并显示为默认文案。已用变异测试确认四项在还原实现后全部转红。
+- **发布脚本的 changelog 提取改为按行扫描**（`scripts/lib/changelog.mjs`）。原多行正则实现恒返回空串，结果是 0.2.2 上传到平台的 changelog 为空，线上显示为平台默认文案 "Initial release"——0.2.0 的上传则正常显示了中文说明，可作对照。
 
 ### 修复
 - **发布包的内容边界**由「仅按扩展名过滤」改为「平台准入白名单 + 发布包内容清单」两层。此前包内含治理文档、变更历史、英文镜像、内部架构记录与本仓自身的门禁用例（68 个文件 / 488KB），超出服务端上限；现为 45 个文件 / 319KB。
