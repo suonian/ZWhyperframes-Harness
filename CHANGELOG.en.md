@@ -29,6 +29,7 @@ Measured adaptation of the SkillHub publishing path: the platform caps the publi
 ### Fixed
 - The published package's content boundary is now two layers — the platform admission allowlist plus a content manifest for the package — rather than filtering by extension alone. The package previously carried governance documents, change history, the English mirror, internal architecture notes and this repo's own gate test cases (68 files / 488KB), over the server's limit; it is now 45 files / 319KB.
 - The packaging script's exclusion list gained `.skillhub-pkg/` — that is the script's own output directory, and without the exclusion it swept the previous package in as well (measured: the file count rose from 45 to 135, tripping the platform limit outright).
+- The packaging script's exclusion list gained `.github/` — this repo's own CI definitions and issue templates are repository infrastructure, of no use to a skill consumer. The published package is now 39 files / 314KB.
 - The packaging manifest is now written **beside** the package directory (`<out>.manifest.json`): it is metadata about the package, not package content, and inside the package it made the package carry a self-referential file.
 - The publish script no longer crashes when `CHANGELOG.md` is missing — that file is only the source of the release notes, not a precondition for publishing.
 - The publish script's packaging output now goes to a system temp directory, leaving no build artifact in the workspace; `.gitignore` gained `.skillhub-pkg/` accordingly.
