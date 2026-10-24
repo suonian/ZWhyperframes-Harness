@@ -30,7 +30,8 @@ const ALLOWED_EXT = new Set([
 // vendor/ 是 bootstrap 按锁定 commit 取回的上游 skills/ 子树（.gitignore 内）——
 // 它是官方产物，不随本仓分发；不排除会把 800+ 个上游文件打进技能包。
 // .skillhub-pkg/ 是本脚本自己的产物目录，不排除会把它连同上一次的包一起扫进来。
-const EXCLUDE_DIRS = new Set([".git", ".idea", ".vscode", "node_modules", "vendor", ".skillhub-pkg", "__pycache__", ".astro", ".astron"]);
+// .github/ 是本仓自身的 CI 与 issue 模板，属仓库基础设施，对技能使用者无用。
+const EXCLUDE_DIRS = new Set([".git", ".github", ".idea", ".vscode", "node_modules", "vendor", ".skillhub-pkg", "__pycache__", ".astro", ".astron"]);
 const EXCLUDE_NAMES = new Set([".DS_Store", "Thumbs.db"]);
 
 // ── 发布包的内容清单 ─────────────────────────────────────────────────────
