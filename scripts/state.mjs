@@ -5,10 +5,10 @@
 //   approve --kind start|final-look    段落授权（actor=user）
 //   set-mp4 --mp4 <路径>               段渲染产物绑定（SHA-256 + ffprobe 时长）
 //   master --kind final-look|close     master 决策
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, copyFileSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { sha256File, readState, writeState, segmentEntry, resolveSegmentDir, nowIso, HARNESS_ROOT, isUserApproval } from "./lib/harness.mjs";
+import { sha256File, readState, writeState, segmentEntry, resolveSegmentDir, nowIso, HARNESS_ROOT, isUserApproval, MASTER_RENDERS_DIR, writeJson } from "./lib/harness.mjs";
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -39,6 +39,58 @@ function runFinalLookPreflight(projectRoot, segment) {
   return { path: receiptPath, sha256: sha256File(receiptPath) };
 }
 
+/** 渲染前复核（gate render-ready）。漂移即拒：宁可没有 MP4，不要一份来路不明的 MP4。 */
+function runRenderReady(projectRoot, segment) {
+  const gate = join(HARNESS_ROOT, "scripts", "gate.mjs");
+  const r = spawnSync(process.execPath, [gate, "render-ready", "--project", projectRoot, "--segment", String(segment)], {
+    encoding: "utf8",
+    timeout: 30 * 60 * 1000,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  if (r.status !== 0) {
+    throw new Error(`渲染前复核未通过，拒绝绑定 MP4：\n${r.stdout ?? ""}${r.stderr ?? ""}`);
+  }
+}
+
+
+/** 把已批准的 candidate 原样交付到 renders/final.mp4；只拷贝，不重新编码。 */
+function publishFinalRender(projectRoot, state) {
+  const candidate = state.master.candidate;
+  if (!candidate?.path || !existsSync(candidate.path)) throw new Error("master candidate 不存在，无法生成 final.mp4");
+  const dir = join(projectRoot, MASTER_RENDERS_DIR);
+  mkdirSync(dir, { recursive: true });
+  const finalPath = join(dir, "final.mp4");
+  const tmpPath = join(dir, `.final-${process.pid}-${Date.now()}.tmp`);
+  const manifestPath = join(dir, "final-render.json");
+  try {
+    copyFileSync(candidate.path, tmpPath);
+    const finalSha = sha256File(tmpPath);
+    if (finalSha !== candidate.sha256) throw new Error("final.mp4 拷贝后的哈希与 candidate 不一致");
+    renameSync(tmpPath, finalPath);
+    const manifest = {
+      version: 1,
+      project_id: state.project_id,
+      candidate: { path: candidate.path, sha256: candidate.sha256, duration_s: candidate.duration_s },
+      final: { path: finalPath, sha256: finalSha, duration_s: candidate.duration_s },
+      segments: candidate.segments,
+      harness: state.harness ?? null,
+      created_at: nowIso(),
+    };
+    writeJson(manifestPath, manifest);
+    return {
+      path: finalPath,
+      sha256: finalSha,
+      candidate_sha256: candidate.sha256,
+      duration_s: candidate.duration_s,
+      manifest_path: manifestPath,
+      created_at: manifest.created_at,
+    };
+  } catch (error) {
+    rmSync(tmpPath, { force: true });
+    throw error;
+  }
+}
+
 function runShow() {
   const projectRoot = resolve(get("project") ?? ".");
   const state = readState(projectRoot);
@@ -49,7 +101,7 @@ function runShow() {
     const mp4 = seg.mp4 ? `mp4(${seg.mp4.duration_s}s)` : "无mp4";
     console.log(`  段 ${seg.id} ${seg.dir} 状态=${seg.status} ${start} ${look} ${mp4}`);
   }
-  console.log(`  master: final-look=${state.master.approvals?.final_look ? "✓" : "✗"} close=${state.master.approvals?.close ? "✓" : "✗"} candidate=${state.master.candidate ? state.master.candidate.sha256.slice(0, 12) : "无"}`);
+  console.log(`  master: final-look=${state.master.approvals?.final_look ? "✓" : "✗"} close=${state.master.approvals?.close ? "✓" : "✗"} candidate=${state.master.candidate ? state.master.candidate.sha256.slice(0, 12) : "无"} final=${state.master.final_render ? state.master.final_render.sha256.slice(0, 12) : "无"}`);
 }
 
 function runApprove() {
@@ -84,6 +136,8 @@ function runApprove() {
   } else {
     const receipt = runFinalLookPreflight(projectRoot, segment);
     entry.approvals.final_look = approvalRecord("final-look", evidence, { gate_receipt: receipt });
+    // 重新送审通过后，旧的作废标记不再代表当前状态（留着会与有效 final_look 并存而误导读者）。
+    delete entry.approvals.final_look_revoked_at;
   }
   writeState(projectRoot, state);
   console.log(`段 ${entry.id} ${kind} 授权已记录`);
@@ -99,6 +153,12 @@ function runSetMp4() {
   if (state.master?.closed || state.master?.approvals?.close) throw new Error("项目已收尾，不能替换段 MP4");
   if (state.master?.approvals?.final_look) throw new Error("master final look 已确认，不能替换段 MP4；如需返工请显式重置 master 审批");
   if (!isUserApproval(entry.approvals?.start)) throw new Error(`段 ${entry.id} 尚未开始授权，不能绑定 MP4`);
+  // 渲染前复核：MP4 必须是「preflight 验证过、且此后未漂移」的那份产物渲染出来的。
+  // 官方顺序是「final-look 授权 → 渲染 → set-mp4」，而 preflight 只在授权那一刻跑一次；
+  // 中途被改写（官方 Studio preview 会重写 index.html 与 compositions/captions.html）
+  // 会让渲染用的字节 ≠ 验证过的字节。绑定是渲染后的第一道机器检查，漂移的片子
+  // 在这里就被挡住，不会流进 master 链条。
+  runRenderReady(projectRoot, segment);
   const mp4 = resolve(mp4Path);
   if (!existsSync(mp4)) throw new Error(`MP4 不存在：${mp4}`);
   const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", mp4], { encoding: "utf8", timeout: 10 * 60 * 1000 });
@@ -115,11 +175,16 @@ function runSetMp4() {
       throw new Error(`MP4 时长 ${duration.toFixed(2)}s 与 STORYBOARD 总时长 ${expected.toFixed(2)}s 不一致`);
     }
   }
-  if (entry.approvals?.final_look) {
+  const hash = sha256File(mp4);
+  // 旧 final-look 只在「本段已绑定过、且这次绑的不是同一片」时作废。
+  // 官方顺序是「final-look 授权 → 渲染 → set-mp4」，首次绑定正是那次授权的正常收尾；
+  // 若在此无条件作废，下一段的开始授权就永远拿不到前段 final-look，段与段之间直接死锁。
+  const replaced = Boolean(entry.mp4) && (entry.mp4.path !== mp4 || entry.mp4.sha256 !== hash);
+  if (replaced && entry.approvals?.final_look) {
     delete entry.approvals.final_look;
     entry.approvals.final_look_revoked_at = nowIso();
   }
-  entry.mp4 = { path: mp4, sha256: sha256File(mp4), duration_s: +duration.toFixed(3), recorded_at: nowIso() };
+  entry.mp4 = { path: mp4, sha256: hash, duration_s: +duration.toFixed(3), recorded_at: nowIso() };
   entry.status = "rendered";
   writeState(projectRoot, state);
   console.log(`段 ${entry.id} MP4 已绑定（${duration.toFixed(2)}s / ${entry.mp4.sha256.slice(0, 12)}…）`);
@@ -161,8 +226,11 @@ function runMaster() {
   }
   state.master.approvals = state.master.approvals ?? {};
   const candidate = state.master.candidate;
+  let finalRender = null;
+  if (kind === "close") finalRender = publishFinalRender(projectRoot, state);
   state.master.approvals[key] = approvalRecord(kind, evidence, candidate ? { candidate_sha256: candidate.sha256, candidate_path: candidate.path } : {});
   if (kind === "close") {
+    state.master.final_render = finalRender;
     state.master.closed = true;
     state.master.closed_at = nowIso();
     state.master.status = "closed";

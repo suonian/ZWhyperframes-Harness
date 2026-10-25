@@ -11,6 +11,36 @@
 
 暂无。
 
+## [0.2.7] — 2026-10-25
+
+最终交付与后续生产硬化：master 收尾必须把 candidate 原样交付到 `99-最终合成/renders/final.mp4`；字幕均衡切分改按中文词边界；harness 身份写入 state；preflight 增加 frame-check。
+
+### 新增
+- **`gate.mjs render-ready`：渲染那一刻的产物复核**（生产实测踩中，此前是纯纪律、无机器门禁）。`preflight` 只在**授权那一刻**跑一次，而渲染发生在授权**之后**；中间任何一次改写——官方 Studio preview 会在运行时重写 `compositions/captions.html` 与 `index.html`——都会让渲染用的字节 ≠ 验证过的字节，而当时没有任何检查会拦。`render-ready` 拿 final-look receipt 重算盘上产物，逐项比对**渲染真正读取的每一个字节**：帧集合、`index.html`、字幕、音频元数据，以及**逐帧读取的 `assets/voice/*.wav` 与 `assets/fonts/*.woff2`**——后两类文件不进任何单文件绑定，此前完全在门禁视野之外（换一个 wav 或改一个字体，preflight 察觉不到）。任何一项漂移即 fail-closed，并给出可执行的修复命令清单。零副作用、纯哈希复核。
+- receipt 升到 **v3**：绑定**四个**渲染真正读取的资产目录——`assets/voice/`、`assets/fonts/`、`assets/bgm/`、`assets/sfx/`（官方 `assemble-index.mjs` 会把 BGM/音效写进 `index.html` 的媒体表，此前完全在门禁视野之外：换一条配乐或音效，门禁一声不吭）。目录摘要同时从**扩展名白名单**改为「除 `.DS_Store` / `Thumbs.db` 等 OS 噪音外一律纳入」——白名单会漏掉未知扩展名（`.ogg` / `.aiff` / …），而渲染可能照样读它；那是漏检，不是稳健。v1 / v2 receipt 会被 `render-ready` 明确拒绝并要求重跑 preflight——这是实话，不是故障。
+
+### 变更
+- **`state.mjs set-mp4` 现在以 `gate render-ready` 为前置**：绑定是渲染后的第一道机器检查，**漂移的渲染进不了 master 链条**。同时要求本段存在**合法的 final-look 授权**（此前只要求「开始授权」即可绑定任意 MP4）——官方顺序本就是「final-look 授权 → 渲染 → set-mp4」，少一环就没有「授权的是哪一次渲染」这层语义。
+- `docs/rules/production-workflow-rules.md` 新增 §3.4「渲染输入完整性」：写明渲染前必须停掉 Studio preview、停了之后重跑字幕 → 装配 → 转场 → preflight → 重新授权 → 渲染 → `set-mp4`。
+- `docs/rules/production-workflow-rules.md` §4 派发纪律补三条：**编排者必须按跨段连续性规格复核 worker 的实现，不只信它的回报**；**跨帧共享的规格必须写成单一权威数值、不得同时出现两种表述**（实测事故：`border: 0.4cqw solid` 与括注「4px 墨黑描边」并存，而 `0.4cqw` 在 1920px 画布上是 7.68px——同一台表因此出现 4px 与 7.68px 两种描边；规格自相矛盾就是把选择丢给实现者）；**缩放版不等于同款**（缩小放置的道具必须按同一比例缩放几何，否则观众认不出是同一件道具，「同一台表 → 同一读数」的论证被掏空）。lint 与 check 只能证明「这一帧自洽」，证明不了「这一帧与上一段/下一帧说的是同一件事」——量表口径、角度基准、读数链条这些**把论点讲反**的入口，机器门禁看不见。派发上下文必须写死跨帧规格，编排者逐帧对照复核。
+
+### 修复
+- **`render-ready` 的目录型绑定不再把「本来就不存在」误判成漂移**（自查复盘发现）：目录绑定在「preflight 当时目录就不存在」时被记成 `null`，而复核把 `null` 一律当成漂移——于是「该段只用系统字体、没有 `assets/fonts/`」这类**完全合法的段**会被永久误伤，`set-mp4` 永远过不了。语义已改正为：**preflight 当时不存在 ⇒ 现在也不该存在**；只有**凭空多出**目录/文件才算漂移（那意味着渲染会多读一批没被验证过的字节）。新增一条回归用例钉住它（变异验证：撤掉修复当场变红）。
+- **官方 CLI 的浏览器下载缓存（`chrome/`）不再污染工作区与发布包**：`hyperframes browser ensure` 把 Chrome 下载缓存写在 `<cwd>/chrome/`。在仓库根跑过一次就会留下上百 MB 的压缩包——它既不在 `.gitignore`（一次 `git add -A` 就会把二进制提交进去），也只靠扩展名白名单才被排除在技能包之外。现在按**路径**排除（`build-skill-package.mjs` 的 `EXCLUDE_DIRS`），并补进 `.gitignore`。
+- **`set-mp4` 作废 final-look 的口径修正**（生产实测踩中，段与段之间会死锁）：`state.mjs set-mp4` 原先无条件删除本段 `final_look` 授权，而官方生产顺序是「final-look 授权 → 渲染 → `set-mp4`」——首次绑定正是那次授权的正常收尾，却被当成「换片」抹掉，导致下一段的开始授权永远拿不到前段确认（`前序段 NN 无 MP4 或 final look 授权`），流水线在第 1 段之后无法推进。现在只有「本段此前已绑定过 MP4，且这次绑的不是同一片（路径或 SHA-256 变了）」才作废旧授权；首次绑定与同一片重绑均保留授权。真正换片仍必须重新送审。
+
+### 文档与测试
+- **FAQ §4.5 的规则归属修正**：原文把 `line_unread` / `text_below_floor` 写成「官方 `check --strict` 报的码」。核对锁定版 0.8.36 的 `dist/commands/layout-audit.browser.js` 后确认——这两个码在该版里出现 **0 次**，属于更新版 CLI（0.8.188）或本仓自有门禁。现在按真实归属写清：可读窗口（0.5s + 0.3s/词）与 ≥28px 字号下限是**本项目/本仓的门槛**（其中字号下限由 `gate layout-guard` 机器强制），**不得**在报告里写成「官方 check 报了 X」。同时补上该版 layout 审计的**完整 11 码表与各自级别**（此前只记了 2 个）：error 级 `clipped_text` / `text_box_overflow` / `text_not_painted` / `text_occluded`，warning 级 `content_overlap` / `container_overflow` / `escaped_container` / `panel_out_of_canvas` / `connector_*`，info 级 `canvas_overflow`（`panel_out_of_canvas` 对面积 ≥ 画布 10% 的主体只算 info）。重点补写了 **`text_occluded` 的判定机制**（9×3 探针 + `elementsFromPoint`；短标签命中任一探针即 error；`data-layout-allow-overlap` **豁免不了它**）与正解（要盖住上一帧内容时，保留形状但去掉它的文字）——这是「一个硬块砸下来盖住上一帧」这类镜头必踩的坑，此前无人记录。
+- `references/commands.md` / `references/walkthrough.md` 写清 `set-mp4` 的精确作废口径；新增 `references/faq.md` §4.6（「前序段无 MP4 或 final look 授权」的排查表与处理方式）与 30 秒索引条目。
+- `tests/pipeline-e2e.test.mjs`：原用例注释写「换片清除旧 final-look」，实际绑的是同一个文件，并未覆盖换片；改为覆盖真实语义（同一片重绑保留授权 / 换片作废授权），并新增一条钉住「final-look 授权 → `set-mp4` → 下一段开始授权」这条死锁路径的回归用例。
+
+### 最终交付
+- `state.mjs master --kind close` 现在生成 `99-最终合成/renders/final.mp4` 与 `final-render.json`，并在 `state.master.final_render` 绑定 final/candidate 哈希、时长和 harness 身份；final 只做 candidate 的字节级拷贝，不重新编码。
+- 新增 `gate.mjs final-delivery`：校验 final 存在、与 candidate SHA-256 完全相同、时长一致、manifest 完整；缺 final 或漂移即 fail-closed。
+- `new-video.mjs init` 创建 `99-最终合成/renders/`，并把 harness 版本/commit/dirty 写入 `state.harness`；dirty 工作区会显式警告，避免再次出现无法归因的生产版本。
+- `captions-zh` 的超长语块均衡切分改为中文词边界，并保护引号/破折号/功能词；新增回归用例。
+- `gate preflight` 的官方 check 增加 `--frame-check`，把项目级安全边界纳入 preflight。
+
 ## [0.2.6] — 2026-10-24
 
 补齐命令契约：把各脚本的参数、成功输出、失败含义、产物与返工顺序集中到分发包内的 `references/commands.md`，并在 `SKILL.md` / `AGENTS.md` / README 中建立入口。无生产行为变更。
@@ -176,7 +206,8 @@ SkillHub 发布路径的实测适配：平台对 publish 请求体有约 476KB �
 ### 许可
 - Apache-2.0（与上游 HyperFrames 一致）。本项目不含 HF 源码，仅作外部依赖调用。
 
-[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.6...HEAD
+[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...v0.2.4

@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-68%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-75%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 A harness engineering project for HyperFrames: rules constrain the official production flow, gates enforce that official capabilities are actually executed. Core official capabilities are never rebuilt.
 
@@ -114,7 +114,7 @@ The "enforcement" above is not an adjective but a verifiable fact. The mechanism
 
 | Tier | Meaning | Coverage |
 | --- | --- | --- |
-| **3.1 Machine gates in this repo** | Critical paths fail closed | `preflight` / `verify` / `final-look` / `pitch-round` / `animation-map` / `check` / `mp4` / `next-segment` / `master-inputs` / `layout-guard` / `authorized` |
+| **3.1 Machine gates in this repo** | Critical paths fail closed | `preflight` / `render-ready` / `verify` / `final-look` / `pitch-round` / `animation-map` / `check` / `mp4` / `next-segment` / `master-inputs` / `final-delivery` / `layout-guard` / `authorized` |
 | **3.2 Official CLI commands** | Must genuinely be executed; the exit code is the evidence. **No machine gate in this repo** | Official `catalog` / `keyframes` / `compare` / `publish` / carve |
 | **3.3 Process / review evidence** | **No machine gate in this repo** | frame-comments disposition, recipe freeze, media-treatment |
 
@@ -141,7 +141,7 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # install locked dependencies + verify HF version + fetch official skills at the locked commit
 npm run doctor       # environment check: CLI version / skills / browser / ffmpeg / MiniMax credentials
 source ./hf-env.sh   # production entry point (provides the hf function, network policy, skips init's network check)
-npm test             # 68 tests
+npm test             # 75 tests
 ```
 
 > **Official skills are fetched at the locked commit, not from upstream's live tree.** `bootstrap.sh` uses git to fetch the official `skills/` tree at commit `f86aae6` (the `v0.8.36` release) into `vendor/skills/`, then fail-closed checks the 13 official artifacts this repo actually references — a missing one is an error, never a silent skip.
@@ -216,7 +216,7 @@ scripts/               Management scripts (single-step, deterministic, agent-cal
   minimax-tts.mjs      MiniMax speech + word-level timing
   inject-audio-meta.mjs  Word-level timing → official audio_meta.json
   captions-zh.mjs      Chinese caption grouping data (rendering still official)
-  gate.mjs             Gates (11 commands, see "Why you can trust it")
+  gate.mjs             Gates (13 commands, see "Why you can trust it")
   state.mjs            The only write entry point for state and approvals
   finalize-master.mjs  Master concatenation (thin ffmpeg concat)
   build-skill-package.mjs  Builds the SkillHub-uploadable skill package (platform admission rules + fail-closed checks)

@@ -13,6 +13,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 Nothing yet.
 
+## [0.2.7] — 2026-10-25
+
+Final-delivery and future-production hardening: master close now delivers a byte-identical `99-最终合成/renders/final.mp4`; caption balancing cuts on Chinese word boundaries; harness identity is recorded in state; preflight includes frame-check.
+
+### Added
+- **`gate.mjs render-ready` — artifact check at render time** (hit in production; until now this was discipline only, with no machine gate). `preflight` runs **once, at authorization time**, while rendering happens **after** it. Any rewrite in between — the official Studio preview rewrites `compositions/captions.html` and `index.html` while it runs — means the bytes being rendered are not the bytes that were validated, and nothing checked it. `render-ready` re-reads the final-look receipt and recomputes every artifact on disk, comparing **every byte the renderer actually reads**: the frame set, `index.html`, captions, audio metadata, plus the four asset directories `assets/voice/`, `assets/fonts/`, `assets/bgm/`, `assets/sfx/` — none of these appear in any per-file binding, so they were entirely outside the gate's view (swapping a wav, editing a font, or replacing the music track was undetectable). Any drift fails closed and prints the exact repair commands. Zero side effects, pure hash re-check.
+- Receipt bumped to **v3**: binds **four** asset directories the renderer actually reads — `assets/voice/`, `assets/fonts/`, `assets/bgm/`, `assets/sfx/` (the official `assemble-index.mjs` writes BGM and sound effects into the media table in `index.html`; swapping one was completely silent). Directory digests also moved from an **extension whitelist** to "include everything except OS noise such as `.DS_Store` / `Thumbs.db`" — a whitelist misses unknown extensions (`.ogg`, `.aiff`, …) that the renderer may well read; that is a detection gap, not robustness. v1 / v2 receipts are explicitly rejected by `render-ready` with an instruction to re-run preflight — that is the truth, not a malfunction.
+
+### Changed
+- **`state.mjs set-mp4` now requires `gate render-ready` to pass**: binding is the first machine check after rendering, so **a drifted render can no longer enter the master chain**. It also now requires a valid **final-look approval** for the segment (previously a bare start approval was enough to bind any MP4) — the official order is "final-look approval → render → set-mp4", and without that link there is no way to say *which* render was authorized.
+- `docs/rules/production-workflow-rules.md` gains §3.4 "render input integrity": Studio preview must be stopped before rendering, and afterwards captions → assembly → transitions → preflight → re-approval → render → `set-mp4` must be re-run.
+- `docs/rules/production-workflow-rules.md` §4 dispatch discipline gains three rules: **the orchestrator must review a worker's implementation against the cross-frame continuity spec, not just trust its report**; **a spec shared across frames must be written as a single authoritative value and must not carry two contradictory forms** (a measured incident: `border: 0.4cqw solid` sat next to the parenthetical "4px ink stroke", but `0.4cqw` is 7.68px on a 1920px canvas — one instrument ended up with both a 4px and a 7.68px stroke; a self-contradictory spec hands the choice to the implementer); **a scaled-down copy is not the same object** (a prop moved elsewhere at reduced size must scale its geometry by the same factor, or viewers will not recognize it as the same prop and the "same meter → same reading" argument collapses). Lint and check can only prove that a frame is self-consistent, not that it says the same thing as the frames around it — gauge baselines, angle conventions, and reading chains are exactly where a claim gets inverted, and no machine gate can see them. The dispatch context must pin the cross-frame spec; the orchestrator checks every frame against it.
+
+### Fixed
+- **`render-ready` no longer mistakes "did not exist in the first place" for drift** (found by a zero-trust self-review): a directory binding is recorded as `null` when the directory did not exist at preflight time, and the re-check treated every `null` as drift — so a perfectly legitimate segment that uses only system fonts and has no `assets/fonts/` would be permanently blocked and could never pass `set-mp4`. The semantics are now: **absent at preflight ⇒ must still be absent**; only a directory/file that *appears* out of nowhere counts as drift (that would mean the render reads bytes nobody verified). A regression case pins it (mutation-verified: removing the fix turns the case red on the spot).
+- **The official CLI's browser download cache (`chrome/`) no longer pollutes the worktree or the published package**: `hyperframes browser ensure` writes its Chrome download cache to `<cwd>/chrome/`. Running it once at the repository root leaves a hundred-megabyte archive behind — it was in neither `.gitignore` (one `git add -A` would commit the binary) nor the path-based package exclusions (it was excluded only incidentally by the extension whitelist). It is now excluded by path (`build-skill-package.mjs` `EXCLUDE_DIRS`) and added to `.gitignore`.
+
+### Final delivery
+- `state.mjs master --kind close` now writes `99-最终合成/renders/final.mp4` and `final-render.json`, binding final/candidate hashes, duration, and harness identity in `state.master.final_render`. The final is a byte-identical copy of the candidate, never a re-encode.
+- New `gate.mjs final-delivery`: verifies final exists, matches the candidate SHA-256 exactly, has the same duration, and has a complete manifest; missing final or drift fails closed.
+- `new-video.mjs init` creates `99-最终合成/renders/` and records harness version/commit/dirty in `state.harness`; a dirty worktree is called out explicitly so production versions remain attributable.
+- `captions-zh` balanced splitting now cuts on Chinese word boundaries and protects quotes / em dashes / function words; regression tests were added.
+- `gate preflight` now passes `--frame-check` to the official check, bringing project-level safe boundaries into preflight.
+
 ## [0.2.6] — 2026-10-24
 
 Added the command contract: `references/commands.md` now centralizes each script's arguments, success output, failure meanings, artifacts, and rework order, with entry points from `SKILL.md`, `AGENTS.md`, and the READMEs. No production behavior changes.
@@ -178,7 +202,8 @@ First public release.
 ### License
 - Apache-2.0 (consistent with upstream HyperFrames). This project contains no HF source code and only calls it as an external dependency.
 
-[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.3...v0.2.4

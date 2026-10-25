@@ -207,7 +207,21 @@ node scripts/state.mjs approve \
 
 ## 9. 渲染与 MP4 绑定
 
+**渲染前先停掉 Studio preview**：它会在你不知道的时候重写 `compositions/captions.html` 与 `index.html`。停了之后重跑一遍字幕、装配与转场，再让 preflight 重新派生 receipt：
+
 ```bash
+node scripts/captions-zh.mjs build --segment <段目录>
+node scripts/captions-zh.mjs verify --segment <段目录>
+node <vendor>/faceless-explainer/scripts/assemble-index.mjs --storyboard ./STORYBOARD.md --hyperframes .
+node <vendor>/faceless-explainer/scripts/transitions.mjs inject --storyboard ./STORYBOARD.md --hyperframes .
+node scripts/gate.mjs preflight --project <root> --segment 01
+```
+
+然后渲染，并**在渲染之后立刻复核**——这一步是 `set-mp4` 的前置，漂移的渲染进不了链条：
+
+```bash
+node scripts/gate.mjs render-ready --project <root> --segment 01
+
 # 在段目录内，用锁定 CLI 渲染
 hf render --quality high --output renders/video.mp4
 
@@ -220,7 +234,9 @@ node scripts/gate.mjs mp4 \
   --segment 01
 ```
 
-`set-mp4` 会记录 SHA-256、ffprobe 时长并按 STORYBOARD 总时长做合理性对照；换片会清除旧 final-look。
+`set-mp4` 会记录 SHA-256、ffprobe 时长并按 STORYBOARD 总时长做合理性对照；它**先**跑 `render-ready`——拿 final-look receipt 重算盘上的帧、`index.html`、字幕、语音切片与字体，任何一处漂移都拒绝绑定。
+
+**作废规则（精确口径）**：只有「本段此前已绑定过 MP4，且这次绑定的不是同一片（路径或 SHA-256 变了）」才会作废已有的 final-look 授权；首次绑定与同一片重绑都保留授权。原因是官方顺序就是「final-look 授权 → 渲染 → set-mp4」——首次绑定是那次授权的正常收尾，若在此无条件作废，下一段的开始授权就永远拿不到前段确认，段与段之间会直接死锁。真正换片（返工重渲）仍然作废旧授权，必须重新送审。
 
 ## 10. 下一段与 master
 
@@ -246,6 +262,9 @@ node scripts/state.mjs master \
 node scripts/state.mjs master \
   --project ~/Documents/ZWhyperframes-products/demo \
   --kind close --evidence "用户完成收尾审批"
+
+node scripts/gate.mjs final-delivery \
+  --project ~/Documents/ZWhyperframes-products/demo
 ```
 
 产物：
@@ -253,9 +272,11 @@ node scripts/state.mjs master \
 ```text
 99-最终合成/candidates/candidate-<时间>.mp4
 99-最终合成/candidates/concat-list.txt
+99-最终合成/renders/final.mp4
+99-最终合成/renders/final-render.json
 ```
 
-`finalize-master` 只做已确认段 MP4 的 thin concat；master 批准后 candidate 冻结，不能再换片或重跑 finalize。
+`finalize-master` 只做已确认段 MP4 的 thin concat；master 批准后 candidate 冻结，不能再换片或重跑 finalize。close 会把 candidate **原样拷贝**为 `renders/final.mp4`（不重编码），写入 manifest 并绑定 `master.final_render`；`gate final-delivery` 校验 final 与 candidate 的 SHA-256 完全一致。
 
 ## 11. 每步对应的证据
 
@@ -269,7 +290,7 @@ node scripts/state.mjs master \
 | `caption_groups.json` / `captions.html` | `captions-zh` | `captions-zh verify` / `preflight` |
 | `animation-map.json` | 官方 animation-map | `gate animation-map` / `preflight` |
 | `final-look-receipt.json` | `gate preflight` | `state approve final-look` / `gate final-look` |
-| `state.json` 的 MP4 绑定 | `state set-mp4` | `gate mp4` / `master-inputs` |
+| `state.json` 的 MP4 绑定 | `state set-mp4`（前置：`gate render-ready`） | `gate mp4` / `master-inputs` |
 | master candidate | `finalize-master` | `state master final-look/close` |
 
 ## 12. 常见分支

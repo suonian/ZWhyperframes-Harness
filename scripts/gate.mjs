@@ -2,6 +2,7 @@
 // gate.mjs — 轻量门禁（管理层，官方 check/lint 的包装与前置事实校验）
 //   verify              锁稿/TTS/注入绑定哈希同源（默认严格；--allow-missing 用于早期阶段）
 //   preflight           final look 前置：verify/captions/animation-map/layout/check，并写 receipt
+//   render-ready        渲染前复核：拿 final-look receipt 重算盘上产物，漂移 fail-closed
 //   authorized          段开始授权存在
 //   final-look          段 final look 授权存在（渲染授权）；**内含官方 check --strict，不可绕过**
 //   pitch-round         BRIEF.md 的 `## Intent` 胜出概念非空（官方采样门产物）
@@ -16,7 +17,8 @@ import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   sha256File, readState, segmentEntry, resolveSegmentDir, readJsonIfPresent, runHf, CONTROL_DIR,
-  INJECTION_BINDING_SCHEMA_VERSION, HARNESS_ROOT, writeJson, sha256Text, isUserApproval,
+  INJECTION_BINDING_SCHEMA_VERSION, HARNESS_ROOT, writeJson, isUserApproval,
+  receiptBindingHashes, framesDigest, RECEIPT_BINDINGS, receiptDirBindingDigests, RECEIPT_DIR_BINDINGS,
 } from "./lib/harness.mjs";
 import { readStoryboard } from "./lib/storyboard.mjs";
 import { validateMasterInputs } from "./lib/master-inputs.mjs";
@@ -135,29 +137,117 @@ function runCaptionsVerify(segmentDir) {
 
 function buildFinalLookReceipt({ entry, segmentDir }) {
   const framesDir = join(segmentDir, "compositions", "frames");
-  const frames = existsSync(framesDir)
-    ? readdirSync(framesDir).filter((f) => f.endsWith(".html")).sort()
-    : [];
-  const fileHash = (relative) => {
-    const path = join(segmentDir, relative);
-    return existsSync(path) ? sha256File(path) : null;
-  };
+  const frames = framesDigest(framesDir);
   return {
-    version: 1,
+    version: FINAL_LOOK_RECEIPT_VERSION,
     segment: String(entry.id),
     checks: ["frames", "index", "verify", "captions", "animation-map", "layout", "check"],
-    frame_count: frames.length,
-    frames_sha256: sha256Text(frames.map((f) => `${f}:${sha256File(join(framesDir, f))}`).join("\n")),
-    hashes: {
-      storyboard: fileHash("STORYBOARD.md"),
-      audio_meta: fileHash("audio_meta.json"),
-      injection_binding: fileHash("audio/injection-binding.json"),
-      caption_groups: fileHash("caption_groups.json"),
-      captions_html: fileHash("compositions/captions.html"),
-      animation_map: fileHash(".hyperframes/anim-map/animation-map.json"),
-      index: fileHash("index.html"),
-    },
+    frame_count: frames.count,
+    frames_sha256: frames.digest,
+    hashes: receiptBindingHashes(segmentDir),
+    dirs: receiptDirBindingDigests(segmentDir),
   };
+}
+
+// receipt 版本：绑定契约跟着它走。
+//   v1 — 只有 7 项单文件绑定 + 帧集合；语音/字体/BGM/音效全在门禁视野之外。
+//   v2 — 增加 `dirs`（语音/字体目录聚合）；但 BGM/音效仍未绑定，且目录摘要用扩展名白名单。
+//   v3 — 绑定语音/字体/**BGM/音效**四个目录，且目录摘要改为「除 OS 噪音外全部纳入」。
+export const FINAL_LOOK_RECEIPT_VERSION = 3;
+
+// ── render-ready：渲染那一刻的产物复核 ───────────────────────────────────
+// preflight 只在授权那一刻跑一次；渲染发生在授权**之后**。若中间有改写
+// （官方 Studio preview 会重写 compositions/captions.html 与 index.html），
+// 渲染用的字节就不再是 preflight 验证过的字节，而当时没有任何机器检查会拦。
+// 本命令零副作用、纯哈希复核：拿 receipt 当凭证，逐项重算盘上产物。
+function runRenderReady() {
+  const { entry, segmentDir } = requireSegment();
+  if (!isUserApproval(entry.approvals?.final_look)) {
+    fail(`段 ${entry.id} 缺少合法的用户「final look 渲染授权」，无法复核渲染输入`);
+  }
+  const receiptPath = join(segmentDir, ".hyperframes", "final-look-receipt.json");
+  if (!existsSync(receiptPath)) {
+    fail(`段 ${entry.id} 缺少 final-look receipt（${receiptPath}）；请先执行 gate preflight`);
+  }
+  const bound = entry.approvals.final_look.gate_receipt?.sha256;
+  if (!bound) {
+    fail(`段 ${entry.id} 的 final look 授权未绑定 gate receipt；旧授权请重新执行 state approve --kind final-look 派生`);
+  }
+  if (sha256File(receiptPath) !== bound) {
+    fail(`段 ${entry.id} 的 final-look receipt 与授权绑定不一致（产物已变化，请重新授权）`);
+  }
+  const receipt = readJsonIfPresent(receiptPath);
+  if (!receipt) fail(`段 ${entry.id} 的 final-look receipt 无法解析：${receiptPath}`);
+  if (Number(receipt.version ?? 1) < FINAL_LOOK_RECEIPT_VERSION) {
+    fail(
+      `段 ${entry.id} 的 final-look receipt 版本过旧（v${receipt.version ?? 1} 未绑定渲染真正读取的语音/字体/BGM/音效）；` +
+        "请重跑 gate preflight 重新派生 receipt，并重新取得 final look 授权",
+    );
+  }
+
+  const drift = [];
+  const current = receiptBindingHashes(segmentDir);
+  for (const [key, rel] of Object.entries(RECEIPT_BINDINGS)) {
+    const expected = receipt.hashes?.[key];
+    // 「preflight 当时就不存在」与「现在不存在」是同一状态，不算漂移。
+    // 只有「当时不存在、现在出现了」才是漂移（渲染多读了东西）。
+    if (expected === null) {
+      if (current[key] !== null) drift.push(`${rel}：preflight 时不存在，现在出现了`);
+      continue;
+    }
+    if (expected === undefined) {
+      drift.push(`${rel}：receipt 未记录该产物`);
+      continue;
+    }
+    if (current[key] === null) {
+      drift.push(`${rel}：文件缺失`);
+      continue;
+    }
+    if (current[key] !== expected) drift.push(`${rel}：内容已变化`);
+  }
+  const currentDirs = receiptDirBindingDigests(segmentDir);
+  for (const [key, rel] of Object.entries(RECEIPT_DIR_BINDINGS)) {
+    const expected = receipt.dirs?.[key];
+    // 同上：目录在 preflight 时就不存在（例如该段只用系统字体、没有 assets/fonts/），
+    // 不是缺陷，更不该因此判漂移——否则这类合法段永远过不了 set-mp4。
+    if (expected === null) {
+      if (currentDirs[key] !== null) drift.push(`${rel}/：preflight 时不存在，现在出现了`);
+      continue;
+    }
+    if (expected === undefined) {
+      drift.push(`${rel}/：receipt 未记录该目录`);
+      continue;
+    }
+    if (currentDirs[key] === null) {
+      drift.push(`${rel}/：目录缺失`);
+      continue;
+    }
+    if (currentDirs[key] !== expected) drift.push(`${rel}/：内容已变化`);
+  }
+  const frames = framesDigest(join(segmentDir, "compositions", "frames"));
+  if (frames.count !== receipt.frame_count) {
+    drift.push(`帧集合：数量 ${receipt.frame_count} → ${frames.count}`);
+  } else if (frames.digest !== receipt.frames_sha256) {
+    drift.push("帧集合：内容已变化");
+  }
+  if (drift.length) {
+    fail(
+      `段 ${entry.id} 渲染前复核未通过——盘上产物已不是 preflight 验证过的那份：\n` +
+        drift.map((d) => `  • ${d}`).join("\n") +
+        "\n最常见原因：官方 Studio preview 在授权后重写了 index.html / compositions/captions.html。" +
+        "\n请停掉 Studio preview 后依次重跑：" +
+        "\n  node scripts/captions-zh.mjs build|verify --segment <段目录>" +
+        "\n  node <vendor>/faceless-explainer/scripts/assemble-index.mjs --storyboard ./STORYBOARD.md --hyperframes ." +
+        "\n  node <vendor>/faceless-explainer/scripts/transitions.mjs inject|verify ..." +
+        "\n  node scripts/gate.mjs preflight --project <项目根> --segment " +
+        entry.id +
+        "\n然后重新取得 final look 授权。",
+    );
+  }
+  pass(
+    `段 ${entry.id} 渲染输入复核通过（receipt ${bound.slice(0, 12)}… 绑定的 ${Object.keys(RECEIPT_BINDINGS).length} 项产物 + ` +
+      `${Object.keys(RECEIPT_DIR_BINDINGS).length} 个目录 + ${frames.count} 帧均未漂移）`,
+  );
 }
 
 function runPreflight() {
@@ -252,9 +342,44 @@ function runAnimationMap() {
 function runCheck() {
   const { segmentDir } = requireSegment();
   // 同时把字幕带以下 17% 作为 keep-out 交给官方 layout 检查；视觉规则书 §2 的安全边界。
-  const r = runHf(["check", "--strict", "--timeout=30000", "--caption-zone=x0=0;y0=.83;x1=1;y1=1"], { cwd: segmentDir });
+  // frame-check：把项目级安全边界（上 100 / 左右 120 / 字幕带）带入官方 check。
+  // 有意出画的 travel 必须显式 data-layout-allow-overflow，不能靠 info 混过去。
+  const r = runHf(["check", "--strict", "--frame-check=severity=error;tol=4", "--timeout=30000", "--caption-zone=x0=0;y0=.83;x1=1;y1=1"], { cwd: segmentDir });
   if (r.status !== 0) fail(`官方 check --strict 未通过：\n${r.stdout}\n${r.stderr}`);
   pass("官方 check --strict 通过（含 lint + 字幕带 keep-out）");
+}
+
+
+// ── final-delivery：最终成片必须真正落在 renders/，且是 candidate 的字节级副本 ──
+// close 负责生成；本命令零副作用，只复核。缺 final、哈希漂移、manifest 不一致都 fail-closed。
+function runFinalDelivery() {
+  const projectRoot = resolve(get("project") ?? ".");
+  const state = readState(projectRoot);
+  if (!state.master?.closed) fail("项目尚未收尾（master.close 不存在），不能做最终交付检查");
+  const candidate = state.master.candidate;
+  const final = state.master.final_render;
+  if (!candidate?.path) fail("master 缺少 candidate，不能做最终交付检查");
+  if (!final?.path) fail("master 缺少 final_render；close 必须生成 renders/final.mp4");
+  if (!existsSync(candidate.path)) fail(`master candidate 不存在：${candidate.path}`);
+  if (!existsSync(final.path)) fail(`最终成片不存在：${final.path}（应在 99-最终合成/renders/final.mp4）`);
+  const candidateSha = sha256File(candidate.path);
+  const finalSha = sha256File(final.path);
+  if (candidateSha !== candidate.sha256) fail("master candidate 与状态绑定哈希漂移");
+  if (finalSha !== final.sha256) fail("renders/final.mp4 与状态绑定哈希漂移");
+  if (finalSha !== candidateSha) fail("renders/final.mp4 不是 candidate 的字节级副本（哈希不一致）");
+  if (final.candidate_sha256 !== candidateSha) fail("final_render.candidate_sha256 与 candidate 不一致");
+  if (final.duration_s !== candidate.duration_s) fail("final_render.duration_s 与 candidate 不一致");
+  const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", final.path], { encoding: "utf8", timeout: 10 * 60 * 1000 });
+  const duration = Number(probe.stdout.trim());
+  if (probe.status !== 0 || !Number.isFinite(duration) || duration <= 0) fail(`最终成片时长探测失败：${final.path}`);
+  if (Math.abs(duration - Number(candidate.duration_s)) > 0.2) fail(`最终成片时长 ${duration.toFixed(2)}s 与 candidate ${candidate.duration_s}s 不一致`);
+  const manifestPath = final.manifest_path ?? join(resolve(projectRoot), "99-最终合成", "renders", "final-render.json");
+  const manifest = readJsonIfPresent(manifestPath);
+  if (!manifest) fail(`缺少 final-render.json：${manifestPath}`);
+  if (manifest.project_id !== state.project_id) fail("final-render.json 的 project_id 与 state 不一致");
+  if (manifest.candidate?.sha256 !== candidateSha) fail("final-render.json 的 candidate 哈希不一致");
+  if (manifest.final?.sha256 !== finalSha) fail("final-render.json 的 final 哈希不一致");
+  pass(`最终成片已就位（${final.path}，${duration.toFixed(2)}s，哈希与 candidate 一致）`);
 }
 
 function runMp4() {
@@ -348,6 +473,7 @@ function runLayoutGuard() {
 try {
   if (command === "verify") runVerify();
   else if (command === "preflight") runPreflight();
+  else if (command === "render-ready") runRenderReady();
   else if (command === "layout-guard") runLayoutGuard();
   else if (command === "authorized") runAuthorized();
   else if (command === "final-look") runFinalLook();
@@ -357,9 +483,10 @@ try {
   else if (command === "mp4") runMp4();
   else if (command === "next-segment") runNextSegment();
   else if (command === "master-inputs") runMasterInputs();
+  else if (command === "final-delivery") runFinalDelivery();
   else {
     console.error(
-      "用法: gate.mjs verify|preflight|authorized|final-look|pitch-round|animation-map|check|mp4|next-segment|master-inputs|layout-guard\n" +
+      "用法: gate.mjs verify|preflight|render-ready|authorized|final-look|pitch-round|animation-map|check|mp4|next-segment|master-inputs|final-delivery|layout-guard\n" +
       "      --project <项目根> [--segment <NN>] [--out <animation-map 输出目录>]",
     );
     process.exit(2);

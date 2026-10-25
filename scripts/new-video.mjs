@@ -6,8 +6,8 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, cpSync, statSync, rmSync } from "node:fs";
 import { join, resolve, relative, isAbsolute, basename } from "node:path";
 import {
-  PRODUCTS_ROOT_DEFAULT, CONTROL_DIR, MASTER_DIR, STATE_VERSION,
-  sha256File, sha256Text, writeJson, readState, writeState, runHf, assertHfVersion, nowIso,
+  PRODUCTS_ROOT_DEFAULT, CONTROL_DIR, MASTER_DIR, MASTER_RENDERS_DIR, STATE_VERSION,
+  sha256File, sha256Text, writeJson, readState, writeState, runHf, assertHfVersion, nowIso, harnessIdentity,
 } from "./lib/harness.mjs";
 
 const args = process.argv.slice(2);
@@ -112,6 +112,9 @@ function runInit() {
   const scriptPath = join(controlDir, "锁定口播稿.md");
   writeFileSync(scriptPath, lockedScript);
   mkdirSync(join(projectDir, MASTER_DIR, "candidates"), { recursive: true });
+  mkdirSync(join(projectDir, MASTER_RENDERS_DIR), { recursive: true });
+  const harness = harnessIdentity();
+  if (harness.dirty) console.warn("[new-video] 警告：harness 工作区有未提交改动；该项目的生产版本不可复现。");
   writeJson(join(controlDir, "state.json"), {
     version: STATE_VERSION,
     project_id: basename(projectDir),
@@ -122,7 +125,8 @@ function runInit() {
       line_count: lockedScript.split("\n").length - 1,
     },
     segments: [],
-    master: { approvals: {}, candidate: null },
+    master: { approvals: {}, candidate: null, final_render: null },
+    harness,
     created_at: nowIso(),
   });
   } catch (error) {

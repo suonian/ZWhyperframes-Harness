@@ -88,6 +88,27 @@ test("打包在 vendor/ 存在时仍满足平台上限（≤100 文件）", () =
   }
 });
 
+test("打包排除 chrome/：官方 CLI 的浏览器下载缓存不得进入技能包", () => {
+  const root = makeFixture();
+  const out = join(root, "out");
+  try {
+    // hyperframes browser ensure 把 Chrome 下载缓存写在 <cwd>/chrome/。
+    // 这里用一个**扩展名在平台白名单内**的文件，验证排除靠的是路径而不是扩展名兜底——
+    // 否则未来白名单一放宽，本机上百 MB 的浏览器就会跟着进包。
+    mkdirSync(join(root, "chrome"), { recursive: true });
+    writeFileSync(join(root, "chrome", "158.0.0.0-chrome-mac-arm64.zip"), "binary-ish");
+    writeFileSync(join(root, "chrome", "build.json"), "{}\n");
+    execFileSync("node", [BUILDER, "--root", root, "--out", out], { stdio: "pipe" });
+    const rel = walk(out).map((f) => relative(out, f).split("\\").join("/"));
+    assert.ok(
+      rel.every((p) => !p.startsWith("chrome/")),
+      `产物中混入了 chrome/：\n${rel.filter((p) => p.startsWith("chrome/")).join("\n")}`,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("发布：请求体超过服务端实测上限时 fail-closed，不发出请求", () => {
   const root = makeFixture();
   try {

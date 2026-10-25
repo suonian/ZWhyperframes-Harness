@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { sha256File } from "../scripts/lib/harness.mjs";
+import { sha256File, receiptBindingHashes, receiptDirBindingDigests, framesDigest } from "../scripts/lib/harness.mjs";
 import { tmp } from "./lib/tmp.mjs";
 
 const SCRIPTS = resolve(import.meta.dirname, "..", "scripts");
@@ -63,12 +63,60 @@ function makeTinyMp4(path, seconds = 1) {
 
 // 该用例只验证 state/finalize 的状态机；final-look 的完整 preflight 由专门用例覆盖。
 // 这里直接写入 approval，避免为一个状态机测试构造整套帧/音频/字幕 fixture。
-function setFinalLookApproval(statePath, segmentId) {
+//
+// 但 set-mp4 现在**要求**渲染输入复核通过（gate render-ready），所以 approval 必须
+// 绑定一份真实的 receipt——否则那段渲染根本不该被绑定。这不是绕过，是把生产的
+// 「final-look 授权 → 渲染 → set-mp4」顺序在测试里也钉死。
+function makeRenderReadySegment(segmentDir, { frames = ["01-frame.html"], withFonts = true, withBgm = false, withSfx = false } = {}) {
+  mkdirSync(join(segmentDir, "compositions", "frames"), { recursive: true });
+  mkdirSync(join(segmentDir, "audio"), { recursive: true });
+  mkdirSync(join(segmentDir, ".hyperframes", "anim-map"), { recursive: true });
+  mkdirSync(join(segmentDir, "assets", "voice"), { recursive: true });
+  if (withFonts) mkdirSync(join(segmentDir, "assets", "fonts"), { recursive: true });
+  if (withBgm) mkdirSync(join(segmentDir, "assets", "bgm"), { recursive: true });
+  if (withSfx) mkdirSync(join(segmentDir, "assets", "sfx"), { recursive: true });
+  for (const f of frames) writeFileSync(join(segmentDir, "compositions", "frames", f), `<template>${f}</template>`);
+  writeFileSync(join(segmentDir, "STORYBOARD.md"), "---\ntitle: t\nduration: 1s\n---\n\n## Frame 1 — x\n\n- duration: 1s\n");
+  writeFileSync(join(segmentDir, "audio_meta.json"), JSON.stringify({ bgm: null, voices: [] }));
+  writeFileSync(join(segmentDir, "audio", "injection-binding.json"), "{}");
+  writeFileSync(join(segmentDir, "caption_groups.json"), JSON.stringify({ groups: [] }));
+  writeFileSync(join(segmentDir, "compositions", "captions.html"), "<div></div>");
+  writeFileSync(join(segmentDir, ".hyperframes", "anim-map", "animation-map.json"), "{}");
+  writeFileSync(join(segmentDir, "index.html"), "<html></html>");
+  // 渲染真正读取的语音切片与字体——receipt 必须钉住它们。
+  writeFileSync(join(segmentDir, "assets", "voice", "01.wav"), "RIFFfake");
+  if (withFonts) writeFileSync(join(segmentDir, "assets", "fonts", "f.woff2"), "fakefont");
+  // 官方 assemble-index.mjs 会把 assets/bgm/ 与 assets/sfx/ 写进 index.html 的媒体表。
+  if (withBgm) writeFileSync(join(segmentDir, "assets", "bgm", "bed.mp3"), "ID3fakebgm");
+  if (withSfx) writeFileSync(join(segmentDir, "assets", "sfx", "whoosh.mp3"), "ID3fakesfx");
+  const receipt = {
+    version: 3,
+    segment: "01",
+    checks: ["frames", "index", "verify", "captions", "animation-map", "layout", "check"],
+    frame_count: frames.length,
+    frames_sha256: framesDigest(join(segmentDir, "compositions", "frames")).digest,
+    hashes: receiptBindingHashes(segmentDir),
+    dirs: receiptDirBindingDigests(segmentDir),
+  };
+  const receiptPath = join(segmentDir, ".hyperframes", "final-look-receipt.json");
+  writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+  return receiptPath;
+}
+
+function setFinalLookApproval(statePath, segmentId, segmentDir) {
+  const receiptPath = makeRenderReadySegment(segmentDir);
   const state = JSON.parse(readFileSync(statePath, "utf8"));
   const segment = state.segments.find((s) => String(s.id) === String(segmentId));
   segment.approvals = segment.approvals ?? {};
-  segment.approvals.final_look = { actor: "user", kind: "final-look", at: "t", evidence: "x" };
+  segment.approvals.final_look = {
+    actor: "user",
+    kind: "final-look",
+    at: "t",
+    evidence: "x",
+    gate_receipt: { path: receiptPath, sha256: sha256File(receiptPath) },
+  };
   writeFileSync(statePath, JSON.stringify(state, null, 2));
+  return receiptPath;
 }
 
 test("new-video init：锁稿提取 + 状态初始化", () => {
@@ -84,6 +132,7 @@ test("new-video init：锁稿提取 + 状态初始化", () => {
   assert.match(script, /第一行口播/u);
   assert.doesNotMatch(script, /与口播无关/u);
   assert.ok(existsSync(join(project, "99-最终合成", "candidates")));
+  assert.ok(existsSync(join(project, "99-最终合成", "renders")), "init 必须创建 master renders 目录");
 });
 
 test("new-video init：无标记资料包 fail-closed", () => {
@@ -240,6 +289,141 @@ test("离线底线：黑洞代理下 init + 段脚手架仍可完成（生产中
   assert.doesNotMatch(output, /Failed to clone|github\.com/iu, "段脚手架不应访问 GitHub");
 });
 
+// ── 渲染输入复核（gate render-ready）────────────────────────────────────
+// 守的洞：preflight 只在授权那一刻跑一次，渲染发生在授权**之后**。官方 Studio
+// preview 会重写 index.html 与 compositions/captions.html，渲染器还逐帧读取
+// assets/voice/*.wav 与 assets/fonts/*.woff2——这些都不在任何单文件绑定里。
+// 变异验证：改一个字节，门禁必须当场变红；改回来必须复绿。
+function makeRenderReadyProject({ withFonts = true, withBgm = false, withSfx = false } = {}) {
+  const root = TMP();
+  const project = join(root, "demo");
+  const source = join(root, "package.md");
+  writeFileSync(source, PACKAGE);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  const statePath = join(project, "00-项目总控", "state.json");
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  state.segments = [
+    { id: "01", dir: "01-a", lines: [1, 2], status: "authorized", approvals: { start: { actor: "user", at: "t" } }, mp4: null, user_script_sha256: "x" },
+  ];
+  writeFileSync(statePath, JSON.stringify(state, null, 2));
+  const segDir = join(project, "01-a");
+  const receiptPath = makeRenderReadySegment(segDir, { withFonts, withBgm, withSfx });
+  const withApproval = JSON.parse(readFileSync(statePath, "utf8"));
+  withApproval.segments[0].approvals.final_look = {
+    actor: "user",
+    kind: "final-look",
+    at: "t",
+    evidence: "x",
+    gate_receipt: { path: receiptPath, sha256: sha256File(receiptPath) },
+  };
+  writeFileSync(statePath, JSON.stringify(withApproval, null, 2));
+  return { project, statePath, segDir };
+}
+
+test("gate render-ready：渲染输入漂移必须 fail-closed（变异验证）", () => {
+  const { project, segDir } = makeRenderReadyProject();
+  const ready = run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]);
+  assert.equal(ready.status, 0, ready.stderr);
+
+  // 逐项变异：每一处被改写都必须当场变红，且报错点名该产物；复原后必须复绿。
+  const mutations = [
+    ["index.html（Studio preview 会重写它）", join(segDir, "index.html"), "<html>被 Studio 重写</html>", /index\.html/u],
+    ["compositions/captions.html", join(segDir, "compositions", "captions.html"), "<div>被重写</div>", /captions\.html/u],
+    ["帧文件", join(segDir, "compositions", "frames", "01-frame.html"), "<template>被改</template>", /帧集合/u],
+    ["语音切片（渲染逐帧读取）", join(segDir, "assets", "voice", "01.wav"), "RIFFtampered", /assets\/voice/u],
+    ["字体", join(segDir, "assets", "fonts", "f.woff2"), "tampered", /assets\/fonts/u],
+  ];
+  for (const [label, path, content, pattern] of mutations) {
+    const original = readFileSync(path, "utf8");
+    writeFileSync(path, content);
+    const r = run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]);
+    assert.equal(r.status, 1, `${label} 漂移后必须 fail-closed`);
+    assert.match(r.stderr, pattern, `${label} 的报错必须点名该产物`);
+    writeFileSync(path, original);
+    assert.equal(run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]).status, 0, `${label} 复原后必须复绿`);
+  }
+
+  // 缺 receipt：没有任何 preflight 证据，就不能声称渲染输入已被验证过。
+  const receiptPath = join(segDir, ".hyperframes", "final-look-receipt.json");
+  const receipt = readFileSync(receiptPath, "utf8");
+  rmSync(receiptPath);
+  const missing = run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /receipt/u);
+  writeFileSync(receiptPath, receipt);
+  assert.equal(run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]).status, 0);
+});
+
+// 守的洞：目录型绑定在「preflight 当时目录就不存在」时被记成 null。若复核把 null
+// 一律当成漂移，像「该段只用系统字体、没有 assets/fonts/」这种合法段会被永久误伤，
+// 永远过不了 set-mp4。正确的语义是：**当时不存在 ⇒ 现在也不该存在**，
+// 凭空出现才是漂移。
+// 变异验证：把 gate.mjs 的修复撤掉，这条用例必须当场变红。
+test("gate render-ready：preflight 时不存在的目录不算漂移（合法路径不得被误伤）", () => {
+  const { project, segDir } = makeRenderReadyProject({ withFonts: false });
+  const receipt = JSON.parse(readFileSync(join(segDir, ".hyperframes", "final-look-receipt.json"), "utf8"));
+  assert.equal(receipt.dirs.fonts, null, "该段没有本地字体时，receipt 必须把该目录记为 null");
+
+  const ok = run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]);
+  assert.equal(ok.status, 0, `目录本来就不存在，不得判成漂移：${ok.stderr}`);
+
+  // 变异：preflight 之后凭空多出一个字体目录 → 必须判漂移（渲染会多读一批字节）。
+  mkdirSync(join(segDir, "assets", "fonts"), { recursive: true });
+  writeFileSync(join(segDir, "assets", "fonts", "late.woff2"), "late");
+  const late = run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]);
+  assert.equal(late.status, 1, "preflight 之后凭空出现的字体目录必须被拦下");
+  assert.match(late.stderr, /assets\/fonts/u, "报错必须点名该目录");
+  rmSync(join(segDir, "assets", "fonts"), { recursive: true, force: true });
+  assert.equal(run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]).status, 0, "复原后必须复绿");
+});
+
+// 守的洞：官方 assemble-index.mjs 会把 `assets/bgm/x.mp3` 与 `assets/sfx/x.mp3`
+// 写进 index.html 的媒体表，渲染逐帧读取它们。这两个目录若不在绑定表内，
+// 换掉配乐/音效就是**完全无声的**——画面字节没变，门禁全绿，声音却变了。
+// 变异验证：撤掉 bgm/sfx 绑定，这条用例必须当场变红。
+test("gate render-ready：BGM 与音效目录必须在绑定内（换配乐不能悄悄过门禁）", () => {
+  const { project, segDir } = makeRenderReadyProject({ withBgm: true, withSfx: true });
+  const receipt = JSON.parse(readFileSync(join(segDir, ".hyperframes", "final-look-receipt.json"), "utf8"));
+  assert.ok(receipt.dirs.bgm, "receipt 必须记录 BGM 目录的聚合摘要");
+  assert.ok(receipt.dirs.sfx, "receipt 必须记录音效目录的聚合摘要");
+
+  const ok = run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]);
+  assert.equal(ok.status, 0, ok.stderr);
+
+  for (const [label, path, pattern] of [
+    ["配乐", join(segDir, "assets", "bgm", "bed.mp3"), /assets\/bgm/u],
+    ["音效", join(segDir, "assets", "sfx", "whoosh.mp3"), /assets\/sfx/u],
+  ]) {
+    const original = readFileSync(path);
+    writeFileSync(path, "ID3tampered");
+    const r = run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]);
+    assert.equal(r.status, 1, `${label} 被换掉必须 fail-closed`);
+    assert.match(r.stderr, pattern, `${label} 的报错必须点名该目录`);
+    writeFileSync(path, original);
+    assert.equal(run("gate.mjs", ["render-ready", "--project", project, "--segment", "01"]).status, 0, `${label} 复原后必须复绿`);
+  }
+});
+
+test("state set-mp4：产物漂移时必须拒绝绑定（漂移的渲染进不了链条）", () => {
+  const { project, statePath, segDir } = makeRenderReadyProject();
+  const mp4 = join(segDir, "renders", "video.mp4");
+  mkdirSync(join(segDir, "renders"), { recursive: true });
+  makeTinyMp4(mp4, 1.2);
+  assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4]).status, 0);
+
+  // 渲染后产物被改写（Studio preview 重写 index.html 是生产实测过的真实场景）：
+  // 再绑一片 MP4 时必须被挡住——漂移的渲染不许流进 master 链条。
+  writeFileSync(join(segDir, "index.html"), "<html>渲染后被 Studio 重写</html>");
+  const mp4b = join(segDir, "renders", "video-v2.mp4");
+  makeTinyMp4(mp4b, 1.2);
+  const r = run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4b]);
+  assert.equal(r.status, 1, "漂移后必须拒绝绑定");
+  assert.match(r.stderr, /渲染前复核未通过/u);
+  // 拒绝后状态未被改写：仍绑定着原来那一片。
+  const after = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(after.segments[0].mp4.sha256, sha256File(mp4));
+});
+
 test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开始授权自动确认前段）", () => {
   const root = TMP();
   const project = join(root, "demo");
@@ -257,21 +441,35 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   mkdirSync(join(project, "01-a"), { recursive: true });
   mkdirSync(join(project, "02-b"), { recursive: true });
   const mp4a = join(project, "01-a", "renders", "video.mp4");
+  const mp4a2 = join(project, "01-a", "renders", "video-v2.mp4");
   const mp4b = join(project, "02-b", "renders", "video.mp4");
   mkdirSync(join(project, "01-a", "renders"), { recursive: true });
   mkdirSync(join(project, "02-b", "renders"), { recursive: true });
   makeTinyMp4(mp4a, 1.2);
+  makeTinyMp4(mp4a2, 1.6);
   makeTinyMp4(mp4b, 0.8);
 
   // 段 01 无 MP4/final-look 时，段 02 开始授权必须被拒（前段未完成）。
   assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "start", "--evidence", "x"]).status, 1);
 
+  // 官方顺序是「final-look 授权 → 渲染 → set-mp4」；set-mp4 现在要求渲染输入复核通过，
+  // 所以必须先有绑定 receipt 的 final-look 授权。
+  setFinalLookApproval(statePath, "01", join(project, "01-a"));
   assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4a]).status, 0);
-  setFinalLookApproval(statePath, "01");
-  // 换片必须清除旧 final-look，不能把同一授权复用到不同 cut。
+  // 同一片重新绑定（路径与哈希都没变）必须保留 final-look：
+  // 官方顺序是「final-look 授权 → 渲染 → set-mp4」，在这里无条件作废会让段与段之间死锁。
   assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4a]).status, 0);
+  assert.notEqual(JSON.parse(readFileSync(statePath, "utf8")).segments[0].approvals.final_look, undefined);
+  // 换片（同一段换一版 cut）必须作废旧 final-look，不能把同一授权复用到不同 cut。
+  assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4a2]).status, 0);
   assert.equal(JSON.parse(readFileSync(statePath, "utf8")).segments[0].approvals.final_look, undefined);
-  setFinalLookApproval(statePath, "01");
+  // 换片后旧授权已作废：没有合法 final-look 授权时不得再绑定（授权不得复用到另一版 cut）。
+  assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4a]).status, 1);
+  // 换回第一版（返工后重新送审 → 重新渲染 → 绑定）。
+  setFinalLookApproval(statePath, "01", join(project, "01-a"));
+  assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4a]).status, 0);
+  // 换回第一版本身又是一次换片 → 授权再次作废；段间交接前必须重新送审。
+  setFinalLookApproval(statePath, "01", join(project, "01-a"));
 
   // 前段 MP4 哈希被篡改时，下一段开始授权必须被拒绝（不能只看 mp4 真值）。
   const tampered = JSON.parse(readFileSync(statePath, "utf8"));
@@ -288,8 +486,8 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   assert.equal(mid.segments[0].status, "accepted");
   assert.equal(mid.segments[1].status, "authorized");
 
+  setFinalLookApproval(statePath, "02", join(project, "02-b"));
   assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "02", "--mp4", mp4b]).status, 0);
-  setFinalLookApproval(statePath, "02");
   // 末段仍为 rendered（尚未给 master 确认）时，即可生成 master 候选（用户先看候选再批）。
   assert.equal(run("gate.mjs", ["master-inputs", "--project", project]).status, 0);
   const bad = JSON.parse(readFileSync(statePath, "utf8"));
@@ -331,9 +529,19 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   changedInput.segments[0].mp4.sha256 = sha256File(mp4a);
   writeFileSync(statePath, JSON.stringify(changedInput, null, 2));
   assert.equal(run("state.mjs", ["master", "--project", project, "--kind", "close", "--evidence", "x"]).status, 0);
+  const closed = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.ok(closed.master.final_render?.path, "close 必须生成 final_render");
+  assert.ok(existsSync(closed.master.final_render.path), "final.mp4 必须落在 renders/");
+  assert.equal(closed.master.final_render.sha256, closed.master.candidate.sha256);
+  assert.equal(closed.master.final_render.sha256, sha256File(closed.master.final_render.path));
+  assert.ok(existsSync(closed.master.final_render.manifest_path), "final-render.json 必须生成");
+  assert.equal(run("gate.mjs", ["final-delivery", "--project", project]).status, 0);
   // 收尾后项目冻结：换片 / 重新 finalize 都必须失败。
   assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4b]).status, 1);
   assert.equal(run("finalize-master.mjs", ["--project", project]).status, 1);
+  // final 被篡改时交付门禁必须拒绝。
+  writeFileSync(closed.master.final_render.path, "tampered", { flag: "a" });
+  assert.equal(run("gate.mjs", ["final-delivery", "--project", project]).status, 1);
 
   assert.equal(run("gate.mjs", ["authorized", "--project", project, "--segment", "01"]).status, 0);
   const noApproval = JSON.parse(readFileSync(statePath, "utf8"));
@@ -343,6 +551,43 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   noApproval.segments[1].approvals.start = null;
   writeFileSync(statePath, JSON.stringify(noApproval, null, 2));
   assert.equal(run("gate.mjs", ["authorized", "--project", project, "--segment", "02"]).status, 1);
+});
+
+// 回归：官方生产顺序是「final-look 授权 → 渲染 → set-mp4 → 下一段开始授权」。
+// 若 set-mp4 在首次绑定时就作废本段 final-look，下一段的开始授权永远拿不到前段确认，
+// 流水线在第 1 段之后直接死锁（生产实测踩中）。
+test("回归：final-look 授权 → set-mp4 绑定后，final-look 必须仍在，下一段才能开始", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const source = join(root, "package.md");
+  writeFileSync(source, PACKAGE);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+
+  const statePath = join(project, "00-项目总控", "state.json");
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  state.segments = [
+    { id: "01", dir: "01-a", lines: [1, 2], status: "authorized", approvals: { start: { actor: "user", at: "t" } }, mp4: null, user_script_sha256: "x" },
+    { id: "02", dir: "02-b", lines: [3, 3], status: "planned", approvals: {}, mp4: null, user_script_sha256: "y" },
+  ];
+  writeFileSync(statePath, JSON.stringify(state, null, 2));
+  mkdirSync(join(project, "01-a", "renders"), { recursive: true });
+  const mp4a = join(project, "01-a", "renders", "video.mp4");
+  makeTinyMp4(mp4a, 1.2);
+
+  // 1) 用户已授权渲染（final look），2) 渲染完成后绑定 MP4。
+  setFinalLookApproval(statePath, "01", join(project, "01-a"));
+  assert.equal(run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4a]).status, 0);
+
+  // 绑定不得抹掉那次授权。
+  const bound = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.notEqual(bound.segments[0].approvals.final_look, undefined, "set-mp4 抹掉了本段 final-look 授权");
+  assert.equal(bound.segments[0].status, "rendered");
+
+  // 3) 下一段开始授权必须通过（机械确认段 01）。
+  assert.equal(run("state.mjs", ["approve", "--project", project, "--segment", "02", "--kind", "start", "--evidence", "x"]).status, 0);
+  const next = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(next.segments[0].status, "accepted");
+  assert.equal(next.segments[1].status, "authorized");
 });
 
 test("state approve final-look：preflight 未通过时拒绝写入授权", () => {

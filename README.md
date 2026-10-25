@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-68%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-75%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
 
@@ -114,7 +114,7 @@ HyperFrames 的能力是齐的——composition、分镜、子智能体合同、
 
 | 层 | 含义 | 覆盖 |
 | --- | --- | --- |
-| **3.1 本仓机器门禁** | 关键路径 fail-closed | `preflight` / `verify` / `final-look` / `pitch-round` / `animation-map` / `check` / `mp4` / `next-segment` / `master-inputs` / `layout-guard` / `authorized` |
+| **3.1 本仓机器门禁** | 关键路径 fail-closed | `preflight` / `render-ready` / `verify` / `final-look` / `pitch-round` / `animation-map` / `check` / `mp4` / `next-segment` / `master-inputs` / `final-delivery` / `layout-guard` / `authorized` |
 | **3.2 官方 CLI 命令** | 须真实执行，退出码即证据；**本仓无机器门禁** | 官方 `catalog` / `keyframes` / `compare` / `publish` / carve |
 | **3.3 流程 / 复审证据** | **本仓无机器门禁** | frame-comments 处置、recipe freeze、media-treatment |
 
@@ -141,7 +141,7 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills
 npm run doctor       # 环境体检：CLI 版本 / skills / 浏览器 / ffmpeg / MiniMax 凭证
 source ./hf-env.sh   # 生产环境入口（提供 hf 函数、网络策略、跳过 init 的联网检查）
-npm test             # 68 项测试
+npm test             # 75 项测试
 ```
 
 > **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，并对本仓实际引用的 13 个官方产物逐项 fail-closed 校验；缺失即报错，不静默跳过。
@@ -216,7 +216,7 @@ scripts/               管理脚本（单步、确定性、零 agent 调用）
   minimax-tts.mjs      MiniMax 语音 + 词级时间
   inject-audio-meta.mjs  词级时间 → 官方 audio_meta.json
   captions-zh.mjs      中文字幕分组数据（渲染仍走官方）
-  gate.mjs             门禁（11 个命令，见「凭什么可信」）
+  gate.mjs             门禁（13 个命令，见「凭什么可信」）
   state.mjs            状态与授权记录的唯一写入入口
   finalize-master.mjs  master 拼接（thin ffmpeg concat）
   build-skill-package.mjs  打包为 SkillHub 可上传的技能包（按平台准入规则过滤 + fail-closed 校验）

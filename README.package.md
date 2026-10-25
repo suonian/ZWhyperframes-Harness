@@ -103,12 +103,13 @@ source ./hf-env.sh    # 生产入口；必须在 bootstrap 之后
 | 字幕分组 | `node scripts/captions-zh.mjs build|verify --segment <段目录>` |
 | TTS 注入 | `node scripts/minimax-tts.mjs` + `node scripts/inject-audio-meta.mjs --segment <段目录>` |
 | master 拼接 | `node scripts/finalize-master.mjs --project <root>` |
+| 最终交付 | `node scripts/state.mjs master --kind close ...` → `99-最终合成/renders/final.mp4` + `node scripts/gate.mjs final-delivery --project <root>` |
 | 环境体检 | `npm run doctor` |
 | 发布预检 | `npm run publish-skill -- --dry-run`（维护者） |
 
 ## 它强制什么、不强制什么
 
-- **有机器门禁**：final-look preflight（锁稿/TTS/注入/字幕/animation-map/28px 布局/官方 check）、`verify`、`mp4`、`master-inputs`、段/ master 授权状态。
+- **有机器门禁**：final-look preflight（锁稿/TTS/注入/字幕/animation-map/28px 布局/官方 check）、渲染前复核 `render-ready`（帧/index/字幕/语音/字体/BGM/音效逐字节比对）、`verify`、`mp4`、`master-inputs`、段/ master 授权状态。
 - **没有机器门禁**：官方 frame preset 的审美选择、catalog 语义检索、carve、keyframes、compare、publish、preview 评论、recipe freeze、media-treatment。它们由流程与复审保证执行，规则文档明确披露，不假装 fail-closed。
 - **责任边界**：官方能力由 HyperFrames 提供；本仓只读退出码/保留产物，不重写官方 composition、字幕渲染、check 或 render；管理件（锁稿/TTS/字幕/master/state）由本仓确定性脚本负责。
 - 详见 `docs/rules/production-workflow-rules.md` §3 的三层清单。

@@ -31,7 +31,10 @@ const ALLOWED_EXT = new Set([
 // 它是官方产物，不随本仓分发；不排除会把 800+ 个上游文件打进技能包。
 // .skillhub-pkg/ 是本脚本自己的产物目录，不排除会把它连同上一次的包一起扫进来。
 // .github/ 是本仓自身的 CI 与 issue 模板，属仓库基础设施，对技能使用者无用。
-const EXCLUDE_DIRS = new Set([".git", ".github", ".idea", ".vscode", "node_modules", "vendor", ".skillhub-pkg", "__pycache__", ".astro", ".astron"]);
+// chrome/ 是官方 CLI（hyperframes browser ensure）的浏览器下载缓存，落在 <cwd>/chrome/；
+// 在本仓根跑过一次就会留下上百 MB 的压缩包。按**路径**排除，不靠扩展名白名单兜底——
+// 白名单只是平台准入条件，不是「我们想发什么」的判断。
+const EXCLUDE_DIRS = new Set([".git", ".github", ".idea", ".vscode", "node_modules", "vendor", ".skillhub-pkg", "__pycache__", ".astro", ".astron", "chrome"]);
 const EXCLUDE_NAMES = new Set([".DS_Store", "Thumbs.db"]);
 
 // ── 发布包的内容清单 ─────────────────────────────────────────────────────

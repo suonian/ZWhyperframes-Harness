@@ -21,6 +21,10 @@ const MAX_LINE = 22;
 const BOUNDARY = new Set(["。", "！", "？", "，", "、", "；", "："]);
 const CLOSERS = new Set(["」", "』", "”", "’", "）", ")", "】", "》", "」", "］"]);
 const ASCII_WORD = /[A-Za-z0-9]/u;
+const ZH_WORD = new Intl.Segmenter("zh", { granularity: "word" });
+// 均衡切分时尽量不把功能词甩到行首/行尾；这是可读性约束，不是合同标点豁免。
+const BAD_START = new Set(["的", "地", "得", "去", "来", "成", "自", "我", "们", "就", "都", "也", "还", "但", "而", "其", "之", "把", "被", "让", "使", "对", "为", "每", "上", "钱"]);
+const BAD_END = new Set([...BAD_START, "在", "和", "与", "及", "或"]);
 const TAIL_PAD = 0.12;
 const r3 = (x) => Number(x.toFixed(3));
 
@@ -61,24 +65,50 @@ export function splitClauses(text) {
 }
 
 // ── 长语块均衡切分（不拆英文/数字词） ─────────────────────────────────────────
+function wordBoundaries(chars) {
+  const out = new Set([0, chars.length]);
+  let offset = 0;
+  for (const part of ZH_WORD.segment(chars.join(""))) {
+    offset += [...part.segment].length;
+    out.add(offset);
+  }
+  return out;
+}
+
+function balancedCut(chars, max) {
+  const target = Math.round(chars.length / Math.ceil(chars.length / max));
+  const insideAscii = (idx) => idx > 0 && idx < chars.length && ASCII_WORD.test(chars[idx - 1]) && ASCII_WORD.test(chars[idx]);
+  const candidates = [...wordBoundaries(chars)]
+    .filter((n) => n > 0 && n < chars.length && n <= max && !insideAscii(n));
+  const score = (n) => {
+    const startBad = BAD_START.has(chars[n]);
+    const endBad = BAD_END.has(chars[n - 1]);
+    return Math.abs(n - target) + (startBad ? 1000 : 0) + (endBad ? 1000 : 0);
+  };
+  if (candidates.length) {
+    let cut = candidates.sort((a, b) => score(a) - score(b) || b - a)[0];
+    // 收尾引号/括号/破折号跟随前一段；不要切在开引号后面。
+    while (cut < chars.length && ["”", "’", "」", "』", "）", ")", "】", "》", "—", "–"].includes(chars[cut]) && cut + 1 <= max) cut += 1;
+    if (["“", "‘", "「", "『", "（", "(", "【", "《"].includes(chars[cut - 1])) {
+      const after = candidates.find((n) => n > cut);
+      if (after && after <= max) cut = after;
+    }
+    return cut;
+  }
+  // 超长且没有词边界可切（例如一个长英文标识）：保留现有 fallback，绝不无限循环。
+  let cut = Math.min(max, chars.length - 1);
+  while (insideAscii(cut) && cut < chars.length - 1) cut += 1;
+  return cut > 0 ? cut : 1;
+}
+
 function balancedChunks(text, max) {
   const chunks = [];
-  let rest = [...text];
+  const rest = [...text];
   while (rest.length > max) {
-    const pieces = Math.ceil(rest.length / max);
-    let cut = Math.round(rest.length / pieces);
-    // 不拆 Latin 词：向两侧找到最近的词边界（不在 ASCII 词内部切）
-    const inside = (idx) => idx > 0 && idx < rest.length && ASCII_WORD.test(rest[idx - 1]) && ASCII_WORD.test(rest[idx]);
-    let probe = cut;
-    while (inside(probe) && probe < rest.length) probe += 1;
-    if (!inside(probe) && probe > 0) cut = probe;
-    else {
-      probe = cut;
-      while (inside(probe) && probe > 0) probe -= 1;
-      cut = probe > 0 ? probe : cut;
-    }
+    const cut = balancedCut(rest, max);
+    if (cut <= 0 || cut >= rest.length) break;
     chunks.push(rest.slice(0, cut).join(""));
-    rest = rest.slice(cut);
+    rest.splice(0, cut);
   }
   if (rest.length) chunks.push(rest.join(""));
   return chunks;

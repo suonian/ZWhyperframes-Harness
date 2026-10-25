@@ -58,6 +58,34 @@ test("行计划：≤22 一段一行；超长均衡切分且不拆英文词", ()
   }
 });
 
+test("均衡切分：不拆中文词、引号、破折号与功能词", () => {
+  const cases = [
+    "反而八十个人都是冲着“吃垮自助餐”来的超级算力消耗者。",
+    "在机房里一天烧掉的显卡和电力成本就能达到几十甚至上百块钱。",
+    "它未来会以什么样的方式进入我们每一个普通人的日常生活？",
+    "玩的都是同一个套路——在商业上叫“健身房模式”。",
+    "还顺便补贴了剩下两成天天去洗澡练胸的重度撸铁狂人。",
+    "后台却吃掉了厂商几百块钱的真实电费和芯片折旧。",
+    "互联网最擅长的“免费烧钱”和“几十块钱包月无限用”，",
+  ];
+  for (const text of cases) {
+    const lines = planLines(splitClauses(text));
+    assert.equal(lines.map((l) => l.text).join(""), text, `逐字覆盖：${text}`);
+    for (const line of lines) {
+      assert.ok([...line.text].length <= 22, `行 ≤22：${line.text}`);
+      assert.ok(!/[自成才我]\s*$/u.test(line.text), `不以拆词单字结尾：${line.text}`);
+      assert.ok(!/^[么们本是]/u.test(line.text), `不以拆词单字开头：${line.text}`);
+    }
+  }
+  const quoted = planLines(splitClauses("互联网最擅长的“免费烧钱”和“几十块钱包月无限用”，"));
+  assert.equal(quoted[0].text, "互联网最擅长的“免费烧钱”", "开/闭引号必须同侧");
+  assert.equal(quoted[1].text, "和“几十块钱包月无限用”，");
+  const dash = planLines(splitClauses("玩的都是同一个套路——在商业上叫“健身房模式”。"));
+  assert.ok(dash[0].text.endsWith("——"), "破折号不能被拆到两行");
+  const word = planLines(splitClauses("反而八十个人都是冲着“吃垮自助餐”来的超级算力消耗者。"));
+  assert.ok(word[0].text.includes("自助餐”"), "不能把「自助餐」拆开");
+});
+
 test("字符对齐：TTS 折叠（缺 token、大小写、标点独立 token）容忍", () => {
   const lock = "AI 落地，找 bug。";
   const tokens = [
