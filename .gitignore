@@ -22,6 +22,9 @@ chrome/
 logs/
 *.log
 
+# 桌面运行时本地产物（画布素材、会话缓存）
+.mavis/
+
 # Python 产物
 __pycache__/
 *.py[cod]

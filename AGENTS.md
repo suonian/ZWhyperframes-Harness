@@ -27,6 +27,7 @@
 | `references/faq.md` | 常见问题、错误索引与反模式（排障入口） |
 | `references/walkthrough.md` | 从资料包到 master 的端到端最小走查 |
 | `references/commands.md` | 命令契约：参数、成功输出、失败含义 |
+| `presets/creative-mode-zh/` | **中文无真人出镜知识视频专用的 creative-mode zh 适配 preset**（`FRAME.md` + `caption-skin.html`）。官方 `creative-mode` preset 是英文版：色板为暖奶油 `#EFE9D9`、字体 Archivo Black / JetBrains Mono、字幕是带描边卡片 + 逐词黄色高亮块——中文场景下会出现「字幕带背景」「中文掉字体」「与上一段调色板不一致」。**中文段一律用本 preset，不得直接用官方 `creative-mode`。** 用法见 `references/commands.md` §4.1 |
 
 冲突裁决顺序：用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 

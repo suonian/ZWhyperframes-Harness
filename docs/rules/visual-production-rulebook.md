@@ -15,6 +15,7 @@
 ## 2. 项目级视觉底线（前代已验证要求，无品牌部分）
 
 - **画布安全边界（四周，用户确认）**：底部约 17% 为字幕带（内容 ≤ 0.83×H）；同时上边 ≥ 100px、左/右 ≥ 120px 为安全边距——任何元素（含硬阴影外沿）不得触及或越过画布四边。安全边界是「整体对齐」纪律的一部分：所有帧共享同一组边距线。
+- **媒体元素（`<img>`/`<canvas>`/`<video>`/`<svg>`）的矩形必须整体落在画布内（官方 Layout 门禁硬判据）**：官方 `check --strict` 的 Layout 审计取媒体元素的**原始 `getBoundingClientRect()`** 与画布根比较，**祖先 `overflow:hidden` 不会修正该矩形**（只有文字有裁切修正）；溢出 ≥ 120px（`FRAME_BREACH_FLOOR_PX = 120`）即报 `frame_out_of_frame` = **error**，直接阻断该段的 final look 前置门禁。`data-layout-allow-overflow` 标记**对媒体元素无效**（只对文字与 `container_overflow` 路径生效）。⇒ 「整张原图 + 负偏移放进裁切容器」的常规摆法会让 `<img>` 元素越界；**正解是把插画预裁成内容 bbox**（PIL 裁成 `-crop.jpg` 另存，原图保留），再令 `<img>` 的 `left/top` = 内容落点、`width/height` = 目标显示尺寸——**视觉零变化**（只去掉原图四周空白边），且顺带消除 `container_overflow`。`container_overflow`（子元素超出裁切容器）恒为 warning，可用 `data-layout-allow-overflow` 豁免。
 - **最小字号（用户确认）**：屏幕可见文字不得小于 28px（1920×1080 基准，含注脚/来源小字）；关键词 ≥ 40px；展示级（大词/大数字）≥ 80px。本仓 `gate.mjs layout-guard` 静态检查 28px；官方 `check` 另做 layout/WCAG。
 - **首帧规则**：0–2 秒必须有可辨认的价值、冲突、结果或真实证据；禁纯色等待、孤立标题淡入
 - **一页一个叙事职责**：删除字幕后仍能看出主体及其变化；动效改变理解而不只是改变位置

@@ -95,6 +95,27 @@ node scripts/captions-zh.mjs build --segment <segment-dir>
 node scripts/captions-zh.mjs verify --segment <segment-dir>
 ```
 
+### 4.1 `build-frame.mjs`（官方 Step 2）与中文 preset
+
+官方 Step 2 生成 `frame.md`（设计真源）与 `.hyperframes/caption-skin.html`（字幕皮肤）：
+
+```bash
+cd <segment-dir> && node <harness>/vendor/skills/faceless-explainer/scripts/build-frame.mjs \
+  --preset creative-mode-zh --preset-dir <harness>/presets --hyperframes .
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--preset` | preset 名。**中文段一律用 `creative-mode-zh`**，不要用官方 `creative-mode` |
+| `--preset-dir` | preset 根目录绝对路径。官方 preset 在 `vendor/skills/hyperframes-creative/frame-presets`（锁定 commit，**只读，不得修改**）；本仓中文 preset 在 `presets/` |
+| `--hyperframes` | 段目录 |
+
+**为什么必须用 `creative-mode-zh`**：官方 `creative-mode` 是英文版 preset——暖奶油底 `#EFE9D9`、Archivo Black / JetBrains Mono 字体、字幕是「奶油卡片 + 4px 描边 + 橙色硬阴影 + 逐词黄色高亮块」。中文场景直接用它会同时踩三个坑：字幕带背景（中文知识视频要求纯墨黑文字无背景）、中文在 Archivo Black 里掉字形、段与段之间调色板不一致。`presets/creative-mode-zh/` 是本仓的 zh 适配版（色板 `#F7F7F5` / `#F97316` / `#FACC15` / `#2F6BFF` / `#12B76A` / `#F5539E`，字体 Noto Sans SC + Space Grotesk + Inter，字幕为无盒子纯墨黑文字）。
+
+**同一项目的所有段必须用同一个 preset**——`frame.md` 是 `captions-zh.mjs` 注入 `:root` token 的唯一来源，换 preset 会让字幕底色/字体与画面脱节。
+
+改 preset 后必须重跑：`captions-zh build` → `captions-zh verify` → `assemble-index.mjs` → `transitions.mjs inject` → `gate preflight`。
+
 | 命令 | 成功产物 | 失败含义 |
 | --- | --- | --- |
 | `minimax-tts` | `audio/narration.mp3` + `.titles` + `.manifest.json` + `tts-binding.json` | 缺段稿/Key/网络/引擎失败；已有产物绑定一致则复用 |

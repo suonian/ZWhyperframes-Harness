@@ -112,7 +112,7 @@ node scripts/state.mjs approve \
 
 1. 写 `BRIEF.md`（init 之后；`## Intent` 必须有 pitch-round 胜出概念）；
 2. Step 1 是 brief，faceless 没有 capture；
-3. Step 2 用官方 `build-frame.mjs --preset` 生成 `frame.md` + caption skin。
+3. Step 2 用官方 `build-frame.mjs --preset` 生成 `frame.md` + caption skin。**中文段用 `--preset creative-mode-zh --preset-dir <harness>/presets`**（官方 `creative-mode` 是英文版，字幕带背景、中文掉字体；命令见 `references/commands.md` §4.1）。同一项目的所有段用同一个 preset。
 
 ```bash
 node scripts/gate.mjs pitch-round --project ~/Documents/ZWhyperframes-products/demo --segment 01
