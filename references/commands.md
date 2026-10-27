@@ -123,6 +123,27 @@ cd <segment-dir> && node <harness>/vendor/skills/faceless-explainer/scripts/buil
 | `captions-zh build` | `caption_groups.json`、`caption-overrides.json`、`compositions/captions.html` | 段稿/STORYBOARD/frame.md 缺或不可解析 |
 | `captions-zh verify` | 无写入，退出 0 | 分组/HTML/画布与输入不一致 |
 
+## 4.2 本地预筛脚本（`frame-guard.mjs` / `css-selector-audit.mjs`）
+
+官方 `hf lint` / `hf check --strict` 有两类**盲区**，本仓补两个只读预筛脚本，在官方门禁之前把问题拦下来。两者都**纯读**，不改任何文件；官方门禁仍是唯一权威。
+
+```bash
+node <harness>/scripts/frame-guard.mjs <segment-dir> [--frame NN]
+node <harness>/scripts/css-selector-audit.mjs <segment-dir>/compositions/frames
+```
+
+| 脚本 | 补的盲区 | 失败含义 |
+| --- | --- | --- |
+| `frame-guard.mjs` | 官方 lint 的部分规则 + 本项目硬底线：`font-size` < 28px / `var()`·`calc()`·`inherit`、系统 CJK 字体名、`transition` / `@keyframes` / 无限循环、字号与色板对比度、`gsap_repeated_fromto_without_baseline`、`overlapping_gsap_tweens`、compId 绑定、帧结构行数 > 300 | 该帧有会阻断 `hf lint --strict` 或 `hf check --strict` 的问题 |
+| `css-selector-audit.mjs` | **官方门禁完全不校验「CSS 选择器 ↔ DOM 元素是否匹配」**：段 01 的帧 02 因此整帧主体样式静默失效（CSS 写 class、DOM 只有 id），而官方 lint 0/0、字号与对比度全绿——三道门全绿、交付出去却是一张空画面 | CSS/脚本里引用了 DOM 中不存在的 id/class |
+
+**用法**：新建段时把这两个脚本复制到段目录的 `.hyperframes/` 下给 worker 用（worker 只跑它们，不跑 `hf`），编排者在整段交付后对全部帧统一跑一遍。
+
+**两条已知实现约束**（改动这两个脚本时必须保持）：
+
+1. **参数解析要字符串感知**：`tl.fromTo("#a, #b, #c", {...}, {...}, t)` 的选择器里有逗号，按普通逗号切分会把参数错位，导致 `duration` / `immediateRender` 检测全部失真。
+2. **逗号分组选择器要按单个选择器计数**：官方 lint 统计的是「**单个**选择器」上的 fromTo 条数；分组后各组互相看不见，会漏报。
+
 ## 5. Master 与最终交付
 
 ```bash
