@@ -19,20 +19,43 @@ function works(cmd) {
   return !r.error && r.status === 0;
 }
 
+/**
+ * 在 PATH 上找出候选命令的**绝对路径**列表（找不到返回空数组）。
+ *
+ * 为什么必须绝对路径：调用方会**整体替换 PATH** 来构造「某个解释器不存在」
+ * 的前置条件（见 net-env 用例）。而 spawnSync 解析可执行文件名时用的是
+ * **子进程的 PATH**——只给裸命令名（"bash"）的话，PATH 一被换掉就是 ENOENT，
+ * 表现为 `status=null` / `stdout=undefined`，失败信息完全指不到真因
+ * （看起来像「脚本崩了」，实际是「根本没启动」）。
+ */
+function absoluteOnPath(cmd) {
+  const whichBin =
+    process.platform === "win32"
+      ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "where.exe")
+      : "which";
+  const r = spawnSync(whichBin, [cmd], { encoding: "utf8", timeout: 20_000, windowsHide: true });
+  if (r.error || r.status !== 0) return [];
+  return (r.stdout ?? "")
+    .split(/\r?\n/u)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 /** 找一个可用的 bash；找不到返回 null（调用方据此 fail loudly，而不是静默跳过）。 */
 export function findBash() {
   if (process.platform !== "win32") {
     for (const p of ["/bin/bash", "/usr/bin/bash"]) if (existsSync(p)) return p;
   }
-  // PATH 上的 bash：WSL 存根会以非 0 退出，这里自动排除它。
-  if (works("bash")) return "bash";
+  // PATH 上的 bash：取**绝对路径**而不是裸命令名（理由见 absoluteOnPath）。
+  // WSL 存根（C:\Windows\System32\bash.exe）存在但一运行就失败，
+  // works() 会把它自动排除。
+  for (const p of absoluteOnPath("bash")) if (works(p)) return p;
   // Git for Windows：优先从 git.exe 自身位置反推（装在非默认盘时也能找到），
   // 再退回标准安装位置。
   const candidates = [];
-  const which = process.platform === "win32" ? "where" : "which";
-  const found = spawnSync(which, ["git"], { encoding: "utf8", timeout: 20_000, windowsHide: true });
-  const gitPath = (found.stdout ?? "").split(/\r?\n/u).map((s) => s.trim()).filter(Boolean)[0];
-  if (gitPath) candidates.push(join(dirname(dirname(gitPath)), "bin", "bash.exe"));
+  for (const gitPath of absoluteOnPath("git")) {
+    candidates.push(join(dirname(dirname(gitPath)), "bin", "bash.exe"));
+  }
   for (const base of [process.env.ProgramFiles, process.env["ProgramFiles(x86)"], process.env.LOCALAPPDATA]) {
     if (base) candidates.push(join(base, "Git", "bin", "bash.exe"));
   }
@@ -42,9 +65,9 @@ export function findBash() {
 
 /** 找一个可用的 zsh；找不到返回 null（跨 shell 一致性用例据此 skip）。 */
 export function findZsh() {
-  if (works("zsh")) return "zsh";
   if (process.platform !== "win32") {
     for (const p of ["/bin/zsh", "/usr/bin/zsh"]) if (existsSync(p)) return p;
   }
+  for (const p of absoluteOnPath("zsh")) if (works(p)) return p;
   return null;
 }

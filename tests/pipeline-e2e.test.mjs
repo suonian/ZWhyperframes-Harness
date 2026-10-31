@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, cpSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -176,9 +176,37 @@ test("new-video init：目录资料包——整体归档 + 显式标记锁稿提
   const r = run("new-video.mjs", ["init", "--project", project, "--source", sourceDir, "--allow-outside-products-root"]);
   assert.equal(r.status, 0, r.stderr || r.stdout);
   assert.equal(readFileSync(join(project, "00-项目总控", "锁定口播稿.md"), "utf8"), "目录包第一行口播。\n目录包第二行口播。\n");
-  assert.ok(existsSync(join(project, "00-项目总控", "资料包", "原稿.md")));
-  assert.ok(existsSync(join(project, "00-项目总控", "资料包", "证据", "说明.md")));
-  assert.ok(existsSync(join(project, "00-项目总控", "资料包", "00-锁定口播稿.md")));
+
+  // 归档缺失时，光说「文件不存在」无法定位——到底是 fs.cpSync 在本平台没拷进去，
+  // 还是 new-video.mjs 的用法有问题？两者修法完全不同，不能靠猜。
+  // 这里同环境同结构直接探一次 cpSync，把结论写进失败信息。
+  const probeRoot = TMP();
+  const probeSrc = join(probeRoot, "package");
+  const probeDest = join(probeRoot, "dest");
+  mkdirSync(join(probeSrc, "证据"), { recursive: true });
+  writeFileSync(join(probeSrc, "原稿.md"), "x");
+  writeFileSync(join(probeSrc, "证据", "说明.md"), "y");
+  mkdirSync(probeDest, { recursive: true });
+  let probeResult;
+  try {
+    cpSync(probeSrc, probeDest, { recursive: true });
+    probeResult = JSON.stringify(readdirSync(probeDest, { recursive: true }).map(String).sort());
+  } catch (error) {
+    probeResult = `THREW: ${error.message}`;
+  }
+
+  const archiveDir = join(project, "00-项目总控", "资料包");
+  const controlDir = join(project, "00-项目总控");
+  const archived = existsSync(controlDir)
+    ? JSON.stringify(readdirSync(controlDir, { recursive: true }).map(String).sort())
+    : "<00-项目总控 目录不存在>";
+  const detail =
+    `项目总控实际内容=${archived}；同结构 cpSync 探针=${probeResult}；` +
+    `init stdout=${r.stdout}；init stderr=${r.stderr}`;
+
+  assert.ok(existsSync(join(archiveDir, "原稿.md")), `归档缺 原稿.md。${detail}`);
+  assert.ok(existsSync(join(archiveDir, "证据", "说明.md")), `归档缺 证据/说明.md。${detail}`);
+  assert.ok(existsSync(join(archiveDir, "00-锁定口播稿.md")), `归档缺 00-锁定口播稿.md。${detail}`);
 });
 
 test("new-video init：目录资料包无显式标记 fail-closed", () => {
