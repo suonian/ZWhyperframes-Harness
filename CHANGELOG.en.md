@@ -20,7 +20,8 @@ Real Windows / Git Bash path compatibility fixes, plus a Windows CI smoke job.
 ### Fixed
 - `runHf()` no longer runs `node_modules/.bin/hyperframes` (a shell/cmd shim on Windows that `node` cannot execute); it resolves the real `.mjs` entry from `hyperframes/package.json` `bin.hyperframes`.
 - `hf-env.sh` / `bootstrap.sh` / `doctor.sh` now call `node_modules/hyperframes/bin/hyperframes.mjs` directly instead of relying on POSIX shims.
-- `tests/net-env.test.mjs` uses Git Bash's `bash` on Windows and preserves `SystemRoot` / `COMSPEC` / `PATHEXT` / `TEMP`; zsh cases still skip when unavailable.
+- `new-video.mjs` now explicitly copies directory **contents**, avoiding the platform difference in `cpSync(srcDir, existingDest)` (Windows previously nested another `资料包/` level).
+- `tests/net-env.test.mjs` resolves Git Bash's absolute path on Windows and preserves `SystemRoot` / `COMSPEC` / `PATHEXT` / `TEMP`; zsh cases still skip when unavailable.
 - Added a `windows-latest` / Git Bash / Node 22 CI smoke job without bootstrap, covering Node tests, shell syntax, and Windows paths; official-skill tests skip when absent.
 
 ### Docs and validation

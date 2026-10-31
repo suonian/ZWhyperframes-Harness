@@ -105,7 +105,11 @@ function runInit() {
   try {
   mkdirSync(join(controlDir, "资料包"), { recursive: true });
   if (statSync(source).isDirectory()) {
-    cpSync(source, join(controlDir, "资料包"), { recursive: true });
+    // 明确复制目录“内容”，不要依赖 cpSync(srcDir, existingDest) 的平台差异；
+    // Windows 上直接把 srcDir 复制到已存在的 资料包/ 会多套一层。
+    for (const entry of readdirSync(source)) {
+      cpSync(join(source, entry), join(controlDir, "资料包", entry), { recursive: true });
+    }
   } else {
     copyFileSync(source, join(controlDir, "资料包", basename(source)));
   }
