@@ -6,8 +6,8 @@ HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FAILED=0
 check() { if [ "$1" -ne 0 ]; then echo "[doctor] ✗ $2"; FAILED=1; else echo "[doctor] ✓ $2"; fi; }
 
-HF="node $HARNESS_ROOT/node_modules/.bin/hyperframes"
-[ -x "$HARNESS_ROOT/node_modules/.bin/hyperframes" ]; check $? "HF CLI 已安装"
+HF="node $HARNESS_ROOT/node_modules/hyperframes/bin/hyperframes.mjs"
+[ -f "$HARNESS_ROOT/node_modules/hyperframes/bin/hyperframes.mjs" ]; check $? "HF CLI 已安装"
 V="$($HF --version 2>/dev/null || true)"
 [ "$V" = "0.8.36" ]; check $? "HF CLI 版本 = 0.8.36（实际 ${V:-无}）"
 

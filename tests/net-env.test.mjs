@@ -18,8 +18,8 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = "./scripts/net-env.sh";
-const BASH = "/bin/bash";
-const ZSH = "/bin/zsh";
+const BASH = process.env.BASH || (process.platform === "win32" ? "bash" : "/bin/bash");
+const ZSH = process.env.ZSH || (process.platform === "win32" ? "zsh" : "/bin/zsh");
 
 /** 在干净环境里 source net-env.sh 并回显指定变量；用绝对路径调 shell，避免 PATH 干扰。 */
 function sourceWith(body, env = {}, { pre = "", shell = BASH } = {}) {
@@ -31,7 +31,14 @@ function sourceWith(body, env = {}, { pre = "", shell = BASH } = {}) {
       encoding: "utf8",
       timeout: 20_000,
       // 刻意不继承 NO_PROXY/no_proxy：macOS 默认就带，会掩盖「未设置」这一路。
-      env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env },
+      env: {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        ...(process.platform === "win32"
+          ? { SystemRoot: process.env.SystemRoot, COMSPEC: process.env.COMSPEC, PATHEXT: process.env.PATHEXT, TEMP: process.env.TEMP, TMP: process.env.TMP }
+          : {}),
+        ...env,
+      },
     },
   );
   assert.equal(r.status, 0, `source 失败：\n${r.stderr}`);

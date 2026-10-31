@@ -34,9 +34,18 @@ export function harnessIdentity() {
   };
 }
 
+/** 解析 HyperFrames 真正的 Node 入口；不要用 .bin/ 里的 shell 包装（Windows 上是 cmd/sh）。 */
+function resolveHfBin() {
+  const pkgPath = join(HARNESS_ROOT, "node_modules", "hyperframes", "package.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  const rel = typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.hyperframes;
+  if (!rel) throw new Error("hyperframes package.json 未声明 bin.hyperframes");
+  return join(HARNESS_ROOT, "node_modules", "hyperframes", rel);
+}
+
 /** 运行 harness 本地锁定的 HyperFrames CLI（唯一入口，禁止全局 hyperframes）。 */
 export function runHf(args, { cwd, env = {} } = {}) {
-  const bin = join(HARNESS_ROOT, "node_modules", ".bin", "hyperframes");
+  const bin = resolveHfBin();
   const result = spawnSync("node", [bin, ...args], {
     cwd,
     encoding: "utf8",

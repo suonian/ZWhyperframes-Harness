@@ -11,6 +11,22 @@
 
 暂无。
 
+## [0.2.9] — 2026-10-31
+
+Windows / Git Bash 路径的真实兼容性修复，并增加 Windows CI smoke。
+
+### 修复
+- `runHf()` 不再执行 `node_modules/.bin/hyperframes`（Windows 上是 shell/cmd 包装，`node` 直接执行会失败），改为从 `hyperframes/package.json` 的 `bin.hyperframes` 解析真实 `.mjs` 入口。
+- `hf-env.sh` / `bootstrap.sh` / `doctor.sh` 同样改为直接调用 `node_modules/hyperframes/bin/hyperframes.mjs`，不再依赖 POSIX shim。
+- `tests/net-env.test.mjs` 在 Windows 上使用 Git Bash 的 `bash`，并且不剥掉 `SystemRoot` / `COMSPEC` / `PATHEXT` / `TEMP`；zsh 用例仍按环境跳过。
+- 新增 `windows-latest` / Git Bash / Node 22 的 CI smoke：不跑 bootstrap，验证 Node 测试、shell 语法与 Windows 路径；官方 skill 用例按缺失跳过。
+
+### 文档与验证
+- README CI 徽章更新为 5 jobs；Windows 支持边界仍为 **WSL2 / Git Bash**，原生 cmd/PowerShell 不支持。
+- 本地 `npm test` 78/78 通过；SkillHub 包 50 文件 / 440.3KB / 请求体 450.4KB，仍低于 460KB。
+
+## [0.2.8] — 2026-10-31
+
 ## [0.2.8] — 2026-10-31
 
 中文 preset、Windows 支持边界与分发包边界修正。不兼容已交付项目，只对后续生产生效。
@@ -223,7 +239,8 @@ SkillHub 发布路径的实测适配：平台对 publish 请求体有约 476KB �
 ### 许可
 - Apache-2.0（与上游 HyperFrames 一致）。本项目不含 HF 源码，仅作外部依赖调用。
 
-[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.8...HEAD
+[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.9...HEAD
+[0.2.9]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...v0.2.6

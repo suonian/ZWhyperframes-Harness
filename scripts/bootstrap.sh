@@ -55,7 +55,7 @@ echo "[bootstrap] 安装锁定依赖（hyperframes@${HF_EXPECTED_VERSION}）…"
 npm install --prefix "$HARNESS_ROOT"
 
 echo "[bootstrap] 校验 HF CLI 版本…"
-ACTUAL="$(node "$HARNESS_ROOT/node_modules/.bin/hyperframes" --version 2>/dev/null || true)"
+ACTUAL="$(node "$HARNESS_ROOT/node_modules/hyperframes/bin/hyperframes.mjs" --version 2>/dev/null || true)"
 if [ "${ACTUAL}" != "${HF_EXPECTED_VERSION}" ]; then
   echo "HF CLI 版本不匹配：期望 ${HF_EXPECTED_VERSION}，实际 ${ACTUAL:-未找到}" >&2
   exit 1

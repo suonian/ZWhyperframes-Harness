@@ -7,6 +7,38 @@ on:
   workflow_dispatch:
 
 jobs:
+  windows-smoke:
+    name: Windows / Git Bash / Node 22
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Install ffmpeg (Windows)
+        run: choco install ffmpeg -y
+      - name: Verify ffmpeg
+        run: |
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+      - name: Install dependencies
+        run: npm ci
+      # 不跑 bootstrap：Windows smoke 验证 Node/测试/Git Bash 边界，官方 skill 用例按缺失跳过。
+      - name: Test (no official skills)
+        run: npm test
+      - name: Shell syntax check
+        run: |
+          bash -n hf-env.sh
+          bash -n scripts/net-env.sh
+          bash -n scripts/bootstrap.sh
+          bash -n scripts/doctor.sh
+          bash -n scripts/install-skill.sh
+      - name: Python syntax check
+        run: python -m py_compile tools/minimax/scripts/*.py
+
   test:
     name: Node ${{ matrix.node }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

@@ -18,7 +18,7 @@ export HYPERFRAMES_SKIP_SKILLS="${HYPERFRAMES_SKIP_SKILLS:-1}"
 
 hf() {
   local actual
-  actual="$(node "$HARNESS_ROOT/node_modules/.bin/hyperframes" --version 2>/dev/null)" || {
+  actual="$(node "$HARNESS_ROOT/node_modules/hyperframes/bin/hyperframes.mjs" --version 2>/dev/null)" || {
     echo "[hf-env] HF CLI 缺失；先运行 ./scripts/bootstrap.sh" >&2
     return 1
   }
@@ -26,7 +26,7 @@ hf() {
     echo "[hf-env] HF CLI 版本漂移（期望 ${HF_EXPECTED_VERSION}，实际 ${actual}）；拒绝执行，先重新 bootstrap" >&2
     return 1
   fi
-  node "$HARNESS_ROOT/node_modules/.bin/hyperframes" "$@"
+  node "$HARNESS_ROOT/node_modules/hyperframes/bin/hyperframes.mjs" "$@"
 }
 
 HF_ACTUAL="$(hf --version 2>/dev/null || true)"

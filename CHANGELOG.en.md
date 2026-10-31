@@ -13,6 +13,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 Nothing yet.
 
+## [0.2.9] — 2026-10-31
+
+Real Windows / Git Bash path compatibility fixes, plus a Windows CI smoke job.
+
+### Fixed
+- `runHf()` no longer runs `node_modules/.bin/hyperframes` (a shell/cmd shim on Windows that `node` cannot execute); it resolves the real `.mjs` entry from `hyperframes/package.json` `bin.hyperframes`.
+- `hf-env.sh` / `bootstrap.sh` / `doctor.sh` now call `node_modules/hyperframes/bin/hyperframes.mjs` directly instead of relying on POSIX shims.
+- `tests/net-env.test.mjs` uses Git Bash's `bash` on Windows and preserves `SystemRoot` / `COMSPEC` / `PATHEXT` / `TEMP`; zsh cases still skip when unavailable.
+- Added a `windows-latest` / Git Bash / Node 22 CI smoke job without bootstrap, covering Node tests, shell syntax, and Windows paths; official-skill tests skip when absent.
+
+### Docs and validation
+- README CI badge is now 5 jobs; Windows support is still explicitly **WSL2 / Git Bash**, not native cmd/PowerShell.
+- Local `npm test` 78/78 passes; SkillHub package is 50 files / 440.3KB / request body 450.4KB, below the 460KB limit.
+
+## [0.2.8] — 2026-10-31
+
 ## [0.2.8] — 2026-10-31
 
 Chinese preset, Windows support boundary, and distribution-boundary fixes. No compatibility is promised for already delivered projects.
@@ -219,7 +235,8 @@ First public release.
 ### License
 - Apache-2.0 (consistent with upstream HyperFrames). This project contains no HF source code and only calls it as an external dependency.
 
-[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.8...HEAD
+[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.9...HEAD
+[0.2.9]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...v0.2.6
