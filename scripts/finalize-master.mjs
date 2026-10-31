@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { spawnSync } from "node:child_process";
-import { sha256File, readState, writeState, MASTER_DIR, nowIso } from "./lib/harness.mjs";
+import { sha256File, readState, writeState, MASTER_DIR, nowIso, probeDurationSeconds } from "./lib/harness.mjs";
 import { validateMasterInputs } from "./lib/master-inputs.mjs";
 
 const args = process.argv.slice(2);
@@ -42,10 +42,11 @@ for (const input of inputSnapshot) {
     throw new Error(`段 ${input.id} 的 MP4 在 concat 期间发生变化，candidate 作废；请重跑 finalize-master`);
   }
 }
-const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", candidatePath], { encoding: "utf8", timeout: 10 * 60 * 1000 });
-const duration = Number(probe.stdout.trim());
+const probed = probeDurationSeconds(candidatePath);
+if (!probed.ok) throw new Error(`candidate 时长探测失败：${probed.reason}`);
+const duration = probed.seconds;
 const expected = state.segments.reduce((a, s) => a + s.mp4.duration_s, 0);
-if (!Number.isFinite(expected) || !Number.isFinite(duration) || Math.abs(duration - expected) > 1.0) {
+if (!Number.isFinite(expected) || Math.abs(duration - expected) > 1.0) {
   throw new Error(`candidate 时长异常：${duration}s（期望约 ${expected.toFixed(2)}s）`);
 }
 state.master.candidate = { path: candidatePath, sha256: sha256File(candidatePath), duration_s: +duration.toFixed(3), segments: state.segments.map((s) => s.id), inputs: inputSnapshot, concat_list_sha256: sha256File(listPath), created_at: nowIso() };

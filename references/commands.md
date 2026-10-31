@@ -1,6 +1,6 @@
 # 命令契约（参数、成功输出、失败含义）
 
-> 目的：让调用方可预期地使用脚本，而不是靠读源码猜参数。所有命令**成功退出 0，失败退出 1**；失败信息写到 stderr，成功摘要写到 stdout。
+> 目的：让调用方可预期地使用脚本，而不是靠读源码猜参数。所有命令**成功退出 0**；失败退出 1（校验失败）或 2（用法错误：未知子命令、缺必填参数）。失败信息写到 stderr，成功摘要写到 stdout。
 
 ## 0. 通用约定
 
@@ -9,8 +9,8 @@
 | 工作目录 | `--project`/`--segment` 接受绝对路径或相对当前目录的路径；不给时按各命令默认值 |
 | 时间戳 | 由脚本 `nowIso()` 生成 ISO-8601；不是用户输入 |
 | 哈希 | SHA-256（小写 hex）；绑定文件里存的是文件内容哈希 |
-| 退出码 | `0` 成功；`1` 校验失败/缺少前置/外部命令失败 |
-| 前缀 | `[gate]` 门禁、`[state]` 状态、`[new-video]` 脚手架、`[bootstrap]`/`[doctor]` 环境 |
+| 退出码 | `0` 成功；`1` 校验失败 / 缺少前置 / 外部命令失败；`2` 用法错误（未知子命令、缺必填参数） |
+| 输出前缀 | 门禁与状态脚本以 `[gate]` / `[state]` 开头；脚手架与状态脚本的正文另有各自标注。**前缀不是稳定契约**，判定成败请看退出码 |
 | 授权 | 只能由 `state.mjs approve/master` 写入；`actor` 固定 `user`，必须有非空 `evidence` |
 
 ## 1. `new-video.mjs`
@@ -25,7 +25,7 @@ node scripts/new-video.mjs init --project <dir> --source <file-or-dir> [--produc
 | --- | --- | --- |
 | `--project` | 是 | 目标项目目录；必须位于产品根目录内，非空目录拒绝覆盖 |
 | `--source` | 是 | 资料包文件或目录；必须含唯一 `script:start` / `script:end` 标记块 |
-| `--products-root` | 否 | 默认 `~/Documents/ZWhyperframes-products` |
+| `--products-root` | 否 | 默认 `~/Documents/ZWhyperframes-products`（Windows 走「文档」Known Folder，OneDrive 重定向时自动跟随真实路径） |
 
 成功：写 `00-项目总控/锁定口播稿.md`、资料包副本与 `state.json`，并创建 `99-最终合成/renders/`；`state.harness` 记录版本、commit 与 dirty。stdout 打印下一步。
 失败：缺 `--source`、目录越界/非空、标记缺失/重复、创建过程失败（新建目录会清理）。
@@ -51,21 +51,44 @@ node scripts/gate.mjs <command> --project <root> --segment <NN> [command-specifi
 | --- | --- | --- | --- |
 | `verify` | `--allow-missing`（仅早期） | 锁稿/段稿/manifest/TTS/注入绑定同源 | 缺 `user_script.txt`、哈希漂移、TTS 未生成、旧 injection schema |
 | `authorized` | — | 段「开始授权」存在 | 未批准、授权形状非法 |
-| `preflight` | — | 帧/index/audio_meta/注入/字幕/animation-map/布局/官方 check 全部通过；写 `.hyperframes/final-look-receipt.json` | 缺产物、28px、check 失败 |
+| `preflight` | — | 帧/index/audio_meta/注入/字幕/animation-map/布局/**视觉基线**/motion sidecar/官方 check 全部通过；写 `.hyperframes/final-look-receipt.json` | 缺产物、28px、色板越界、音色漂移、sidecar 无法生成、check 失败 |
 | `render-ready` | — | 拿 final-look receipt 重算盘上产物：7 项单文件 + 语音/字体/BGM/音效四个目录 + 帧集合**均未漂移** | receipt 缺失/过旧、任一产物被改写、无合法 final-look 授权 |
 | `final-look` | — | 已有合法 final-look 授权且 receipt 哈希一致 | 未授权、receipt 变化、preflight 失败 |
 | `pitch-round` | `--segment` 可选 | `BRIEF.md` 的 `## Intent` 非空 | 缺 BRIEF / Intent 空 |
-| `animation-map` | `--out <dir>` 可选 | 指定目录的 `animation-map.json` 存在、可解析、非空 | 文件缺失/`{}`/数组 |
-| `check` | — | 官方 `check --strict` + 字幕 keep-out 通过 | 官方 lint/布局失败 |
-| `mp4` | — | 段 MP4 存在、非空、哈希与 state 一致、时长与 STORYBOARD 差 <1s | 未 set-mp4、哈希漂移、时长不符 |
+| `animation-map` | `--out <dir>` 可选；`--generate` 可选 | `animation-map.json` 存在，且**内容**通过断言（死区 ≥1s / 退化补间 / 不可见补间 → 阻断；offscreen / 节奏类 flag → 告警） | 文件缺失 / 不可解析 / 命中阻断级判据 |
+| `motion-spec` | — | 从帧 HTML 的 `data-motion-role="hero"` 声明 + index.html 装配时间轴生成官方 `index.motion.json` | 帧未声明主体 / 声明了多个主体 / 主体 id 跨帧重复 / 帧 src 缺失 |
+| `check` | — | 官方 `check --strict --json` 通过，**并逐条归因**（元素 / 时间点 / 源文件 / 修法）；且官方 motion 阶段**确实运行过** | 官方 lint/布局/motion 失败；信封无法解析；`motion.enabled=false`（sidecar 缺失 → 运动校验零覆盖，判失败） |
+| `quality` | `--mp4 <路径>` 可选（不给则用已绑定的 MP4） | 成片像素级质检通过：首帧可辨认（非背景像素 ≥0.5%、唯一色 ≥3）、每个 Scene 区间内画面有变化（末帧末段除外） | 首帧纯色等待 / 首帧无主体 / Scene 区间内画面完全静止 / 像素分析失败 |
+| `mp4` | — | 段 MP4 存在、非空、哈希与 state 一致、时长与 STORYBOARD 差 <1s、**成片内容门禁通过**（有视频轨 + 有音频轨 + 音频非静音 + 无持续 ≥1s 的全黑区间） | 未 set-mp4、哈希漂移、时长不符、**黑屏/无声片** |
 | `next-segment` | — | 前序段全部 `accepted` | 前序未接受 |
 | `master-inputs` | — | 前序 accepted + 末段 rendered/final-look + MP4 哈希一致 | 段状态不全 |
 | `final-delivery` | — | close 后 `renders/final.mp4` 存在，SHA-256 与 candidate 完全相同，`final-render.json` 一致 | 缺 final、哈希漂移、manifest 缺失 |
 | `layout-guard` | — | 帧内可见字号 ≥28px（或可换算下界） | 小字号/`var()`/`calc()` 无法静态判定 |
+| `baseline` | — | 视觉基线一致：帧内颜色不越出 `frame.md` 的 `colors:` 声明（按 RGB 比，透明度变化不算第二个色）、帧内字号达标（官方 chrome 令牌豁免）、`frame.md` 承载性 px 令牌 ≥28px、段内 TTS manifest 的 `voice_profile` 与真源一致 | 缺 `frame.md` / 缺 manifest / 越界色 / 承载性 px 令牌过低 / 音色漂移 |
 
 `preflight` 和 `final-look` 都会重新运行 check；`state approve --kind final-look` 内部调用 `preflight`，不要先写授权再补检查。
 
-`render-ready` 是**渲染那一刻**的复核（零副作用、纯哈希）：`preflight` 只在授权那一刻跑一次，而渲染发生在授权之后，中间任何一次改写——官方 Studio preview 会重写 `index.html` 与 `compositions/captions.html`——都会让渲染用的字节 ≠ 验证过的字节。receipt v3 起还绑定了渲染真正读取的四个资产目录：`assets/voice/`、`assets/fonts/`、`assets/bgm/`、`assets/sfx/`（官方 `assemble-index.mjs` 会把 BGM/音效写进 `index.html` 的媒体表）。`state set-mp4` 内部会调用它：漂移的渲染进不了链条。
+`render-ready` 是**渲染那一刻**的复核（零副作用、纯哈希）：`preflight` 只在授权那一刻跑一次，中间任何改写（官方 Studio preview 会重写 `index.html` 与 `compositions/captions.html`）都会让渲染字节 ≠ 验证字节。receipt v3 起还绑定渲染真正读取的四个资产目录（`assets/voice/`、`fonts/`、`bgm/`、`sfx/`）。`state set-mp4` 内部调用它：漂移的渲染进不了链条。
+
+### 2.1 官方 animation-map：怎么跑、依赖从哪来
+
+`animation-map.json` 由**官方**脚本 `vendor/skills/hyperframes-animation/scripts/animation-map.mjs` 产出，本仓只负责调用与断言内容。两种用法：
+
+```bash
+# A. 产物已在盘（官方流程已跑过）→ 直接断言内容
+node scripts/gate.mjs animation-map --project <root> --segment <NN>
+
+# B. 产物不存在 → --generate 先调用官方脚本生成，再断言内容
+node scripts/gate.mjs animation-map --project <root> --segment <NN> --generate
+```
+
+`--out <dir>` 指定输出目录（官方脚本的 `--out` 语义：相对 cwd 解析，本仓传绝对路径）。
+
+**官方脚本自带依赖解析，本仓把它钉死**（`scripts/lib/official-deps.mjs`）：官方脚本要 `@hyperframes/producer` 与 `@hyperframes/core`（**不在** hyperframes CLI 包里），缺包时装到 tmp 跑完即删（每跑一次重下 ~100MB），版本推不出来时**默认 `@latest`**（实测上游 latest 已是 0.8.223，与锁定的 0.8.36 差 187 个补丁版，且**静默**）。
+
+因此 `scripts/bootstrap.sh` 按锁定版本装进**仓库** `node_modules`（不进 `package.json`、不动锁文件、不执行生命周期脚本——puppeteer 因此不会下载第二份 Chromium），传递依赖逐个钉版本（producer 声明 `^0.8.36`，范围会飘）；`hf-env.sh` 导出 `HYPERFRAMES_SKILL_PKG_VERSION=0.8.36`，官方 loader 从此**没有 `@latest` 退路**。单独核对：`node scripts/lib/official-deps.mjs`（缺包或版本漂移即 exit 1）。
+
+> 完整取证（官方 loader 的版本推断机制为何对本仓必然落空）见仓库 `docs/architecture/faq-full.md` §4.2。
 
 ## 3. `state.mjs`
 
@@ -80,7 +103,7 @@ node scripts/state.mjs master --project <root> --kind final-look|close --evidenc
 | --- | --- | --- |
 | `approve start` | 段存在；非首段还要求上一段 final-look + MP4 哈希一致 | 写 start 授权；上一段置为 accepted |
 | `approve final-look` | start 合法 + preflight 通过 | 写 final-look 授权 + `gate_receipt` 哈希 |
-| `set-mp4` | 段已 authorized；**有合法 final-look 授权**；`gate render-ready` 通过（渲染输入未漂移）；MP4 存在 | 写 MP4 路径/SHA-256/时长；**仅当本段已绑定过且这次绑的不是同一片**（路径或哈希变了）才作废旧 final-look |
+| `set-mp4` | 段已 authorized；**有合法 final-look 授权**；`gate render-ready` 通过（渲染输入未漂移）；MP4 存在；**成片内容门禁通过**（有视频轨 + 有音频轨 + 音频非静音 + 无持续 ≥1s 的全黑区间） | 写 MP4 路径/SHA-256/时长；**仅当本段已绑定过且这次绑的不是同一片**（路径或哈希变了）才作废旧 final-look |
 | `master final-look` | candidate 存在且哈希一致；末段 final-look 合法 | 写 master final-look；`master.status=approved` |
 | `master close` | master final-look + candidate 输入快照全部一致 | 生成 `99-最终合成/renders/final.mp4` + `final-render.json`，绑定 `master.final_render`，再写 close / `master.closed=true` |
 
@@ -95,9 +118,18 @@ node scripts/captions-zh.mjs build --segment <segment-dir>
 node scripts/captions-zh.mjs verify --segment <segment-dir>
 ```
 
-### 4.1 `build-frame.mjs`（官方 Step 2）与中文 preset
+### 4.1 `build-frame.mjs`（官方 Step 2）与预设选择
 
 官方 Step 2 生成 `frame.md`（设计真源）与 `.hyperframes/caption-skin.html`（字幕皮肤）：
+
+```bash
+cd <segment-dir> && node <harness>/vendor/skills/faceless-explainer/scripts/build-frame.mjs \
+  --preset capsule --hyperframes .
+```
+
+**默认基线：官方 `capsule` preset + `Noto Sans SC`**（口径唯一所有者是 `docs/rules/visual-baseline.md` §2；官方 13 套 preset 全部合法，指名哪套用哪套）。
+
+本仓另带一个**可选**的中文 preset `creative-mode-zh`（官方 `creative-mode` 的 zh 适配版），显式指名才用：
 
 ```bash
 cd <segment-dir> && node <harness>/vendor/skills/faceless-explainer/scripts/build-frame.mjs \
@@ -106,11 +138,11 @@ cd <segment-dir> && node <harness>/vendor/skills/faceless-explainer/scripts/buil
 
 | 参数 | 说明 |
 | --- | --- |
-| `--preset` | preset 名。**中文段一律用 `creative-mode-zh`**，不要用官方 `creative-mode` |
-| `--preset-dir` | preset 根目录绝对路径。官方 preset 在 `vendor/skills/hyperframes-creative/frame-presets`（锁定 commit，**只读，不得修改**）；本仓中文 preset 在 `presets/` |
+| `--preset` | preset 名。默认 `capsule`；**不要直接用官方英文 `creative-mode`**——它的字幕是「奶油卡片 + 描边 + 逐词黄色高亮块」，与中文字幕合同（单行、无背景、仅当前行高亮）冲突 |
+| `--preset-dir` | preset 根目录绝对路径。官方 preset 在 `vendor/skills/hyperframes-creative/frame-presets`（锁定 commit，**只读，不得修改**）；本仓可选 preset 在 `presets/` |
 | `--hyperframes` | 段目录 |
 
-**为什么必须用 `creative-mode-zh`**：官方 `creative-mode` 是英文版 preset——暖奶油底 `#EFE9D9`、Archivo Black / JetBrains Mono 字体、字幕是「奶油卡片 + 4px 描边 + 橙色硬阴影 + 逐词黄色高亮块」。中文场景直接用它会同时踩三个坑：字幕带背景（中文知识视频要求纯墨黑文字无背景）、中文在 Archivo Black 里掉字形、段与段之间调色板不一致。`presets/creative-mode-zh/` 是本仓的 zh 适配版（色板 `#F7F7F5` / `#F97316` / `#FACC15` / `#2F6BFF` / `#12B76A` / `#F5539E`，字体 Noto Sans SC + Space Grotesk + Inter，字幕为无盒子纯墨黑文字）。
+**什么时候选 `creative-mode-zh`**：官方 `creative-mode` 是英文版预设——暖奶油底 `#EFE9D9`、Archivo Black / JetBrains Mono 字体、字幕是「奶油卡片 + 4px 描边 + 橙色硬阴影 + 逐词黄色高亮块」。中文场景直用它会在字幕形态与字形上翻车。`presets/creative-mode-zh/` 是本仓的 zh 适配版（色板 `#F7F7F5` / `#F97316` / `#FACC15` / `#2F6BFF` / `#12B76A` / `#F5539E`，字体 Noto Sans SC + Space Grotesk + Inter，字幕为无盒子纯墨黑文字）。**它是可选件，不是默认**——默认仍走 `capsule`+`Noto Sans SC`。
 
 **同一项目的所有段必须用同一个 preset**——`frame.md` 是 `captions-zh.mjs` 注入 `:root` token 的唯一来源，换 preset 会让字幕底色/字体与画面脱节。
 
@@ -167,6 +199,6 @@ node scripts/finalize-master.mjs --project <root>
 
 ## 6. 排障入口
 
-- 先看 `references/faq.md` 的 30 秒索引；
-- 命令失败时保留 stdout/stderr 与 `state.json`，不要手工改哈希；
-- 需要重跑时按 `TTS → inject → captions → preflight → final-look → set-mp4 → master` 的顺序派生。
+先看 `references/faq.md`；命令失败时保留 stdout/stderr 与 `state.json`，不要手工改哈希；需要重跑时按 `TTS → inject → captions → preflight → final-look → set-mp4 → master` 的顺序派生。
+
+> **分发与发布**（`build-skill-package.mjs` / `publish-skillhub.mjs` / `npm run publish-skill`）是**仓库侧工具，不在本分发包内**——消费者装上技能是为了跑 harness 干活，不是为了再打包、再发布一次。其命令契约与体积口径见 GitHub 仓库的 `docs/architecture/distribution-contract.md`。

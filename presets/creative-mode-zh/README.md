@@ -1,4 +1,6 @@
-# creative-mode-zh —— 中文无真人出镜知识视频专用 preset
+# creative-mode-zh —— 中文可选 preset（非默认）
+
+> **定位：可选件。** 本项目默认视觉基线是**官方 `capsule` + `Noto Sans SC`**（唯一所有者：`docs/rules/visual-baseline.md` §2）。本 preset 只在**显式指名**时使用；官方 13 套 preset 与本 preset 全部合法，本仓不做 allow-list 阻断。
 
 官方 `creative-mode` preset 的**中文适配版**。用法：
 

@@ -4,7 +4,7 @@
 //   verify --segment <dir>   确定性复算，与在盘 caption_groups.json / captions.html 逐字比对（不一致 fail-closed）
 // 合同：docs/rules/captions-contract.md（文本逐字取自锁定稿；词级时间只用于显示时间与高亮进度；
 // 渲染永远是官方 skin/运行时，本脚本只供分组数据）。
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { requireOfficialSkill } from "./lib/official-skills.mjs";
@@ -391,7 +391,13 @@ async function runVerify(segmentDir) {
 const isMainModule = (() => {
   if (!process.argv[1]) return false;
   try {
-    return resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+    // 两边都取 realpath 再比：Windows 的文件系统**不区分大小写**，
+    // `node scripts\CAPTIONS-ZH.MJS` 的 argv[1] 与 import.meta.url 大小写不同，
+    // 纯字符串比较会判 false → 脚本静默什么都不做（exit 0、零输出、产物不生成），
+    // 错误现场离根因极远。realpath 归一掉大小写与路径形态差异。
+    const invoked = realpathSync(process.argv[1]);
+    const self = realpathSync(fileURLToPath(import.meta.url));
+    return invoked === self;
   } catch {
     return false;
   }

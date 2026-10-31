@@ -18,6 +18,8 @@ npm run doctor       # environment check
 source ./hf-env.sh   # production entry point
 ```
 
+> **Pick the shell by script kind on Windows.** `*.mjs` runs directly in PowerShell (`node scripts/xxx.mjs ...`); `hf-env.sh` / `scripts/bootstrap.sh` / `scripts/doctor.sh` / `scripts/net-env.sh` are bash scripts and need **Git Bash**. The repo does support Windows (`.gitattributes` pinning LF, CLI entry resolution, Python interpreter resolution, junction symlinks, a Windows CI matrix), but the actual `GitHub Actions windows-latest` environment still has to be confirmed on CI.
+
 ## Required before submitting
 
 **Run `npm test` after modifying rules, scripts, or schemas.** The test suite runs fully offline and must not fail or hang because of network problems.
@@ -25,9 +27,9 @@ source ./hf-env.sh   # production entry point
 Also make sure:
 
 - Scripts stay **single-step, idempotent, deterministic, and agent-call-free** — sub-agent dispatch happens only inside the main agent conversation
-- Shell scripts pass `bash -n`; Python scripts pass `python3 -m py_compile`
+- Shell scripts pass `bash -n` (Git Bash on Windows); Python scripts pass `python3 -m py_compile` (`python3` is often missing on Windows — use `python`, or the interpreter resolved by `scripts/platform-compat.sh`'s `resolve_python`)
 - New gates are registered in `scripts/gate.mjs` and written into the mandatory quality-capability list in §3 of `docs/rules/production-workflow-rules.md`
-- No new secret shapes are introduced: API keys come only from environment variables or the macOS Keychain, and **never enter the repository or the logs**
+- No new secret shapes are introduced: API keys come only from environment variables or the macOS Keychain (**the Keychain is macOS-only**; Windows and Linux have the environment variable as their only channel), and **never enter the repository or the logs**
 
 > The files under `docs/rules/` are currently maintained in **Chinese only**, and Chinese is authoritative for their normative requirements. See [Documentation index](#rule-documents) below.
 

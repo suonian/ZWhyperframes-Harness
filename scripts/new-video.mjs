@@ -3,7 +3,7 @@
 //   init    资料归档 + 锁定稿提取冻结 + 项目状态初始化（拒绝非空目录）
 //   segment 按分段计划对单段执行官方 hyperframes init + 段骨架
 // 分段计划（语义切分）由主智能体判断后写入 segment-plan.json；本脚本只校验与执行。
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, statSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, cpSync, statSync, rmSync } from "node:fs";
 import { join, resolve, relative, isAbsolute, basename } from "node:path";
 import {
   PRODUCTS_ROOT_DEFAULT, CONTROL_DIR, MASTER_DIR, MASTER_RENDERS_DIR, STATE_VERSION,
@@ -83,17 +83,6 @@ function extractLockedScript(source) {
   throw new Error(`资料包目录中未找到锁定口播（需在某个 .md/.txt 文件中使用 <命名空间>:script:start/end 标记）：${source}`);
 }
 
-// 显式递归复制：不使用 fs.cpSync 的原生实现，避免 Windows 上目录/中文路径的
-// 平台差异与原生崩溃；只负责资料包归档这一件事。
-function copyTree(src, dest) {
-  if (statSync(src).isDirectory()) {
-    mkdirSync(dest, { recursive: true });
-    for (const entry of readdirSync(src)) copyTree(join(src, entry), join(dest, entry));
-  } else {
-    copyFileSync(src, dest);
-  }
-}
-
 // ── init ─────────────────────────────────────────────────────────────────────
 function runInit() {
   const projectDir = resolve(get("project") ?? ".");
@@ -103,7 +92,11 @@ function runInit() {
   const productsRoot = resolve(get("products-root") ?? PRODUCTS_ROOT_DEFAULT);
   if (!existsSync(source)) throw new Error(`来源不存在：${source}`);
   const rel = relative(productsRoot, projectDir);
-  if ((rel === "" || rel.startsWith("..")) && !has("allow-outside-products-root")) {
+  // relative() 在**跨盘**时返回绝对路径（Windows 的 C:\ 与 D:\ 没有公共前缀），
+  // 此时 rel.startsWith("..") 为 false —— 只看 ".." 会让守卫被绕过，
+  // 项目目录可以写到产品根之外。所以绝对路径也要判为「越界」。
+  const outsideProductsRoot = rel === "" || rel.startsWith("..") || isAbsolute(rel);
+  if (outsideProductsRoot && !has("allow-outside-products-root")) {
     throw new Error(`项目必须位于产品根目录内：${productsRoot}`);
   }
   if (existsSync(projectDir) && readdirSync(projectDir).length > 0) {
@@ -116,9 +109,13 @@ function runInit() {
   try {
   mkdirSync(join(controlDir, "资料包"), { recursive: true });
   if (statSync(source).isDirectory()) {
-    for (const entry of readdirSync(source)) {
-      copyTree(join(source, entry), join(controlDir, "资料包", entry));
-    }
+    // 带 filter：强制 fs.cpSync 走纯 JS 递归路径，绕开平台相关的 C++ 快路径。
+    // 实测 Node 22 + Windows 上，C++ 快路径把内容拷进**含非 ASCII 的目标目录**
+    // 时会静默拷空（目录建出来、源文件一个不落、不抛错）；本仓归档目标
+    // 「00-项目总控/资料包」全中文，于是资料包永远是空的。Node 24 与
+    // ubuntu/macOS 全绿，只有 Node 22 + Windows 红。
+    // 完整取证见 docs/architecture/windows-cross-platform-audit-2026-10-31.md。
+    cpSync(source, join(controlDir, "资料包"), { recursive: true, filter: () => true });
   } else {
     copyFileSync(source, join(controlDir, "资料包", basename(source)));
   }
@@ -160,7 +157,10 @@ function validateSegmentPlan(state, plan, projectDir) {
   if (!plan.locked_script_sha256 || plan.locked_script_sha256 !== sha256File(lockedPath)) {
     throw new Error("segment-plan.json 的 locked_script_sha256 缺失或与当前锁稿不一致");
   }
-  const lockedLines = readFileSync(lockedPath, "utf8").split("\n");
+  // 锁稿可能带 CRLF（Windows 编辑器保存的 .md）：按 "\n" 切行会残留 "\r"，
+  // 段正文哈希与计划里的 text_sha256 对不上，报「段正文不一致」——实际是行尾差异。
+  // 统一按 /\r?\n/ 切行，与提取锁稿时的归一化口径一致。
+  const lockedLines = readFileSync(lockedPath, "utf8").split(/\r?\n/u);
   let cursor = 1;
   for (const seg of plan.segments) {
     const [start, end] = seg.lines;

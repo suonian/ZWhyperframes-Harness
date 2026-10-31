@@ -38,15 +38,19 @@ tools/minimax/docs/STANDALONE_API_GUIDE.md
 不得把 API Key 写入任何仓库文件。脚本读取顺序：
 
 1. 优先读取环境变量 `MINIMAX_API_KEY`。
-2. 如果环境变量不存在，读取本机 macOS Keychain 条目：
+2. 如果环境变量不存在，**且在 macOS 上**，读取本机 Keychain 条目：
    - account: `minimax`
    - service: `MINIMAX_API_KEY`
+
+> Keychain 是 macOS 专有机制。Windows / Linux 没有等价物，**环境变量是唯一通道**。
 
 临时环境变量示例：
 
 ```bash
 export MINIMAX_API_KEY="你的 API Key"
 ```
+
+Windows PowerShell：`$env:MINIMAX_API_KEY="..."`（当前会话）；持久化用 `[Environment]::SetEnvironmentVariable("MINIMAX_API_KEY","...","User")`。
 
 生产脚本默认调用国内接口：
 

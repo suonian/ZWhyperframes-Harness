@@ -18,6 +18,8 @@ npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产入口
 ```
 
+> **Windows 上按脚本类型选 shell。** `*.mjs` 在 PowerShell 里直接 `node scripts/xxx.mjs ...`；`hf-env.sh` / `scripts/bootstrap.sh` / `scripts/doctor.sh` / `scripts/net-env.sh` 是 bash 脚本，用 **Git Bash** 跑。仓库已支持 Windows（`.gitattributes` 固定 LF、CLI 入口解析、Python 解释器解析、junction 软链、CI Windows 矩阵），但 `GitHub Actions windows-latest` 的实际环境仍需在 CI 上验证。
+
 ## 提交前必做
 
 **修改规则、脚本或 schema 后必须运行 `npm test`。** 测试全程离线可跑，不应因网络问题失败或挂起。
@@ -25,9 +27,9 @@ source ./hf-env.sh   # 生产入口
 同时确保：
 
 - 脚本保持**单步、幂等、确定性、零 agent 调用**——子智能体派发只发生在主智能体对话内
-- shell 脚本通过 `bash -n`；Python 脚本通过 `python3 -m py_compile`
+- shell 脚本通过 `bash -n`（Windows 用 Git Bash）；Python 脚本通过 `python3 -m py_compile`（Windows 上 `python3` 常缺失，用 `python`，或用 `scripts/platform-compat.sh` 的 `resolve_python` 解析出的解释器）
 - 新的门禁在 `scripts/gate.mjs` 里注册，并写进 `docs/rules/production-workflow-rules.md` §3 强制质量能力清单
-- 不引入新的密钥形态：API Key 只来自环境变量或 macOS Keychain，**不入仓、不入日志**
+- 不引入新的密钥形态：API Key 只来自环境变量或 macOS Keychain（**Keychain 仅 macOS**，Windows / Linux 只有环境变量一条路），**不入仓、不入日志**
 
 ## 设计纪律（不可妥协）
 

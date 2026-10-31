@@ -26,9 +26,33 @@ HARNESS_NO_PROXY="${HARNESS_NO_PROXY-0}"
 # 需要自定义时显式设 HARNESS_NPM_REGISTRY。
 export npm_config_registry="${HARNESS_NPM_REGISTRY:-https://registry.npmmirror.com}"
 
+# 找一个**真能运行**的 Python 解释器。
+#
+# 为什么不能只看 `command -v python3`：Windows 上 python3 可能解析到 Microsoft Store
+# 存根（执行即以非零退出、不输出任何东西）。只用存在性判断，会把这个存根当成可用
+# 解释器，于是探针永远返回「不可达」→ 代理被静默关掉 → GitHub 取回在直连下挂掉，
+# 而日志里看不出原因。必须实际跑一次最小导入才算数。
+#
+# 允许用 MINIMAX_PYTHON 显式指定解释器（路径含空格也可以）；
+# HARNESS_PYTHON 作为历史别名保留。两者与 scripts/platform-compat.sh 同口径。
+HARNESS_PY=""
+resolve_python() {
+  HARNESS_PY=""
+  local c
+  for c in "${MINIMAX_PYTHON:-}" "${HARNESS_PYTHON:-}" python3 python; do
+    [ -n "$c" ] || continue
+    if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import socket' >/dev/null 2>&1; then
+      HARNESS_PY="$c"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # 带硬超时的端口探测；不可用时返回 2（表示「无法判断」）。
 probe_proxy() {
-  python3 - "$1" <<'PY' 2>/dev/null
+  [ -n "$HARNESS_PY" ] || return 2
+  "$HARNESS_PY" - "$1" <<'PY' 2>/dev/null
 import socket, sys
 host, _, port = sys.argv[1].partition(":")
 try:
@@ -48,8 +72,8 @@ if [ "$HARNESS_NO_PROXY" = "1" ]; then
   disable_proxy "HARNESS_NO_PROXY=1"
 elif [ -z "${HARNESS_PROXY+set}" ]; then
   # 未设置 → 自动探测默认代理：可达才启用。
-  if ! command -v python3 >/dev/null 2>&1; then
-    # 探测依赖 python3（本项目已是硬依赖，但全局加载时未必满足）。
+  if ! resolve_python; then
+    # 探测依赖一个能真正运行的 Python（本项目已是硬依赖，但全局加载时未必满足）。
     # 静默失败会被误判成「代理不可达」，所以必须显式提示而不是悄悄直连。
     disable_proxy "无 python3，无法探测 ${HARNESS_PROXY_DEFAULT#*://}（需代理请设 HARNESS_PROXY=<地址>）"
   elif probe_proxy "${HARNESS_PROXY_DEFAULT#*://}"; then

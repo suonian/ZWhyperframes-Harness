@@ -15,6 +15,26 @@ import urllib.error
 import urllib.request
 
 
+# Windows 管道下 stdout/stderr 默认 GBK（cp936）：Node 侧按 utf8 解码会得到乱码，
+# 且非 GBK 字符（emoji、扩展 B 区汉字）会直接 UnicodeEncodeError 崩掉。
+# 统一强制 UTF-8 输出（调用方也可通过 PYTHONIOENCODING/PYTHONUTF8 设置，这里兜底）。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (ValueError, OSError):
+            pass
+
+
+def write_json_file(path: pathlib.Path, payload: object) -> None:
+    """写 JSON 产物：固定 UTF-8 + LF。
+
+    Windows 的 write_text 默认把 \\n 写成 \\r\\n，于是同一份内容在两个平台落盘字节不同
+    → 哈希不同 → 跨机复现与预存哈希都失配。这里直接写字节，锁死行尾。
+    """
+    path.write_bytes(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
+
+
 DEFAULT_BASE_URL = "https://api.minimaxi.com"
 KEYCHAIN_ACCOUNT = "minimax"
 # Keychain 服务名可用 MINIMAX_KEYCHAIN_SERVICE 覆盖；默认与同名环境变量对齐。
@@ -178,7 +198,11 @@ def main() -> int:
 
     api_key = get_api_key()
     if not api_key:
-        print("缺少 MINIMAX_API_KEY，且未在本机 Keychain 找到 MiniMax 密钥。", file=sys.stderr)
+        print(
+            "缺少 MINIMAX_API_KEY，且未在本机 Keychain 找到 MiniMax 密钥。"
+            "（Keychain 只有 macOS 有；其它系统请设置环境变量 MINIMAX_API_KEY）",
+            file=sys.stderr,
+        )
         return 2
 
     out_dir = pathlib.Path(args.out_dir)
@@ -202,19 +226,15 @@ def main() -> int:
         return 1
 
     response_path = out_dir / f"{args.name}.response.json"
-    response_path.write_text(
-        json.dumps(
-            {
-                "id": response.get("id"),
-                "metadata": response.get("metadata"),
-                "base_resp": base_resp,
-                "image_count": len(local_files),
-                "remote_payload_omitted": True,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
+    write_json_file(
+        response_path,
+        {
+            "id": response.get("id"),
+            "metadata": response.get("metadata"),
+            "base_resp": base_resp,
+            "image_count": len(local_files),
+            "remote_payload_omitted": True,
+        },
     )
 
     manifest = {
@@ -234,7 +254,7 @@ def main() -> int:
         },
     }
     manifest_path = out_dir / f"{args.name}.manifest.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_file(manifest_path, manifest)
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
     return 0
 

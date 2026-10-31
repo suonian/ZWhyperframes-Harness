@@ -39,6 +39,15 @@ coverage/
 .nyc_output/
 .cache/
 .skillhub-pkg/
+# 打包清单：写在包目录**同级**（仓库根），是关于包的元数据，不是包的内容。
+# 不忽略的话，一次 git add -A 就会把它提交进仓库。
+.skillhub-pkg.manifest.json
+
+# 项目级技能安装目录（MiniMax Code 的原生工作区 skill 根：<repo>/.minimax/skills/）。
+# 它是 install-skill.sh 的安装目标，不是仓库内容：里面是分发包的副本 + 各自的
+# bootstrap 产物（node_modules/ 与 vendor/ 已由上面的通配规则覆盖）。
+# 不忽略的话，一次 git add -A 就会把整份技能副本提交进仓库。
+.minimax/
 
 # 编辑器与系统
 .DS_Store
