@@ -177,22 +177,33 @@ test("new-video init：目录资料包——整体归档 + 显式标记锁稿提
   assert.equal(r.status, 0, r.stderr || r.stdout);
   assert.equal(readFileSync(join(project, "00-项目总控", "锁定口播稿.md"), "utf8"), "目录包第一行口播。\n目录包第二行口播。\n");
 
-  // 归档缺失时，光说「文件不存在」无法定位——到底是 fs.cpSync 在本平台没拷进去，
-  // 还是 new-video.mjs 的用法有问题？两者修法完全不同，不能靠猜。
-  // 这里同环境同结构直接探一次 cpSync，把结论写进失败信息。
+  // 归档目标目录是「00-项目总控/资料包」——**全中文**。
+  // 实测 Node 22 + Windows 上，fs.cpSync 的 C++ 快路径把内容拷进含非 ASCII 的
+  // 目标目录时会静默拷空（目录建出来、源文件一个不落、不抛错）。带 filter 时
+  // fs.cpSync 改走纯 JS 路径（逐文件 copyFileSync），该路径在本平台正常。
+  //
+  // 这里同环境同结构探**两个变体**：生产用的「带 filter」必须拷进去（断言），
+  // 「裸 cpSync」的结果一并记进失败信息——一旦有人把生产改回裸 cpSync，
+  // 本用例立刻红，而不是等到资料包空了才发现。
   const probeRoot = TMP();
   const probeSrc = join(probeRoot, "package");
-  const probeDest = join(probeRoot, "dest");
   mkdirSync(join(probeSrc, "证据"), { recursive: true });
   writeFileSync(join(probeSrc, "原稿.md"), "x");
   writeFileSync(join(probeSrc, "证据", "说明.md"), "y");
-  mkdirSync(probeDest, { recursive: true });
-  let probeResult;
-  try {
-    cpSync(probeSrc, probeDest, { recursive: true });
-    probeResult = JSON.stringify(readdirSync(probeDest, { recursive: true }).map(String).sort());
-  } catch (error) {
-    probeResult = `THREW: ${error.message}`;
+
+  const variantTrees = {};
+  for (const [label, destName, opts] of [
+    ["裸 cpSync", "目标-裸", { recursive: true }],
+    ["带 filter（生产用）", "目标-带filter", { recursive: true, filter: () => true }],
+  ]) {
+    const dest = join(probeRoot, destName);
+    mkdirSync(dest, { recursive: true });
+    try {
+      cpSync(probeSrc, dest, opts);
+      variantTrees[label] = readdirSync(dest, { recursive: true }).map(String).sort();
+    } catch (error) {
+      variantTrees[label] = `THREW: ${error.message}`;
+    }
   }
 
   const archiveDir = join(project, "00-项目总控", "资料包");
@@ -201,9 +212,14 @@ test("new-video init：目录资料包——整体归档 + 显式标记锁稿提
     ? JSON.stringify(readdirSync(controlDir, { recursive: true }).map(String).sort())
     : "<00-项目总控 目录不存在>";
   const detail =
-    `项目总控实际内容=${archived}；同结构 cpSync 探针=${probeResult}；` +
+    `项目总控实际内容=${archived}；cpSync 变体探针=${JSON.stringify(variantTrees)}；` +
     `init stdout=${r.stdout}；init stderr=${r.stderr}`;
 
+  assert.deepEqual(
+    variantTrees["带 filter（生产用）"],
+    ["原稿.md", "证据", join("证据", "说明.md")].sort(),
+    `fs.cpSync 带 filter 拷到含非 ASCII 的目标目录失败：${JSON.stringify(variantTrees)}`,
+  );
   assert.ok(existsSync(join(archiveDir, "原稿.md")), `归档缺 原稿.md。${detail}`);
   assert.ok(existsSync(join(archiveDir, "证据", "说明.md")), `归档缺 证据/说明.md。${detail}`);
   assert.ok(existsSync(join(archiveDir, "00-锁定口播稿.md")), `归档缺 00-锁定口播稿.md。${detail}`);

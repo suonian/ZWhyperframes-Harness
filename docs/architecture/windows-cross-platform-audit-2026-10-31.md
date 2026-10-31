@@ -191,11 +191,29 @@
 
 ## 6. 未验证项（明确标注，不写进结论）
 
-### 6.1 GitHub Actions `windows-latest` runner
+### 6.1 GitHub Actions `windows-latest` runner —— **已实跑，抓到并修掉 2 处真实缺陷**（本节已关闭，保留在 §6 仅便于追溯）
 
-`test-windows` job 已写好，YAML 解析正常（双 job：`test` / `test-windows`；矩阵 Node 22/24；`shell: bash`）。但 runner 的实际 **PATH / bash / `python3` 解析结果**只能等 CI 实跑确认。
+`test-windows` job 已实跑：矩阵 **Node 22/24 × windows/ubuntu/macos 共 6 个 job**。第一轮 ubuntu/macOS 四绿、**Windows 两个红**——抓到的两处缺陷**本机 128/128 全绿也测不出来**，正是本仓此前标注为「未验证」的项。
 
-> 风险提示：GitHub 的 windows runner 上 `python3` **不存在**（只有 `python`）。仓库的 `resolve_python()` 会自动回退，理论上没问题；但这是**推断**，不是实测。
+#### 缺陷一：`findBash()` 返回裸命令名 → 替换 PATH 后 ENOENT
+
+- **现象**：`tests/net-env.test.mjs` 的「无 python3 时显式说明原因」用例失败，断言信息是 `source 失败：undefined` / `null !== 0`。
+- **根因**：`findBash()` 在 Windows 上先试 `works("bash")`——**本机** PATH 上的 `bash` 是 WSL 存根（跑不通），于是回退到 Git Bash 的**绝对路径**，所以本机一直是对的；**runner** 上 Git Bash 在 PATH 上，`works("bash")` 成功 → 返回**裸名** `"bash"`。而 `spawnSync` 解析可执行文件名用的是**子进程的 PATH**——该用例为构造「无 python3」把 PATH 整体换成空沙箱，于是 ENOENT，表现为 `status=null` / `stdout=undefined`。
+- **为什么难查**：失败信息完全指不到真因（看着像「脚本崩了」，实际是「根本没启动」）。
+- **修法**：`findBash()` / `findZsh()` 一律返回**绝对路径**（`where`/`which` 解析后逐个实跑校验），并对所有命中的 `git` 路径反推 Git Bash。
+
+#### 缺陷二：`fs.cpSync` 拷到含非 ASCII 的目标目录时静默拷空（**Node 22 + Windows**）
+
+- **现象**：`new-video init` 的目录资料包归档失败——`00-项目总控/资料包/` **目录被建出来但里面一个文件都没有**（`原稿.md`、`证据/说明.md`、`00-锁定口播稿.md` 全丢），而锁稿提取正常、init 退出码 0。
+- **判别证据**（先加诊断再修，不靠猜）：
+  - 同进程、同环境、同结构的 `fs.cpSync` 探针 → **正常**（拷进去 3 个文件）；
+  - 生产那次的**目标目录含非 ASCII**（「00-项目总控/资料包」全中文），探针目标是纯 ASCII；
+  - 同一份代码在 **Node 24 + Windows / ubuntu / macOS 全绿**，只有 **Node 22 + Windows 红**。
+- **根因**：Node 的 `fs.cp` 有两条实现路径——**无 `filter` 时下沉到 C++ 快路径** `fsBinding.cpSyncCopyDir`，**有 `filter` 时走纯 JS 路径**（`opendirSync` + 逐文件 `copyFileSync`）。C++ 快路径在 Node 22 + Windows 上对含非 ASCII 的**目标路径**会静默拷空，既不抛错也不报警。
+- **修法**：`cpSync(..., { recursive: true, filter: () => true })` 强制走纯 JS 路径。该路径只依赖 `mkdirSync` / `opendirSync` / `copyFileSync`——这几个在本仓早已验证过能正确处理中文路径（`锁定口播稿.md` 与 `state.json` 都写在中文目录里）。
+- **回归锁**：归档用例里加了同结构双变体探针——「带 filter（生产用）」必须拷进去（**断言**），「裸 cpSync」的结果一并记进失败信息。一旦有人把生产改回裸 `cpSync`，用例立刻红，而不是等资料包空了才发现。
+
+> 这两处都是**本机测不出来、只有真实 runner 才暴露**的缺陷。它们同时说明：本仓此前把 Windows 适配写进文档与测试里是必要的，但**「本机全绿」不等于「跨平台成立」**——跨平台结论必须以 CI 矩阵为准。
 
 ### 6.2 官方渲染成片 —— **已验证通过**（本轮补齐；本节已关闭，保留在 §6 仅便于追溯）
 

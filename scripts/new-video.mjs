@@ -109,7 +109,13 @@ function runInit() {
   try {
   mkdirSync(join(controlDir, "资料包"), { recursive: true });
   if (statSync(source).isDirectory()) {
-    cpSync(source, join(controlDir, "资料包"), { recursive: true });
+    // 带 filter：强制 fs.cpSync 走纯 JS 递归路径，绕开平台相关的 C++ 快路径。
+    // 实测 Node 22 + Windows 上，C++ 快路径把内容拷进**含非 ASCII 的目标目录**
+    // 时会静默拷空（目录建出来、源文件一个不落、不抛错）；本仓归档目标
+    // 「00-项目总控/资料包」全中文，于是资料包永远是空的。Node 24 与
+    // ubuntu/macOS 全绿，只有 Node 22 + Windows 红。
+    // 完整取证见 docs/architecture/windows-cross-platform-audit-2026-10-31.md。
+    cpSync(source, join(controlDir, "资料包"), { recursive: true, filter: () => true });
   } else {
     copyFileSync(source, join(controlDir, "资料包", basename(source)));
   }
