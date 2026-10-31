@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-75%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-78%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
 
@@ -130,7 +130,11 @@ HyperFrames 的能力是齐的——composition、分镜、子智能体合同、
 | HyperFrames | `0.8.36`（版本锁定，CLI 缺失或漂移即拒绝运行） |
 | ffmpeg / ffprobe | 必需（帧音频切分与时长探测） |
 | Python 3 | 必需（MiniMax 调用器与代理探测） |
-| 平台 | macOS / Linux（`net-env.sh` 探测依赖 bash + python3） |
+| 平台 | macOS / Linux；Windows 仅 WSL2 或 Git Bash（原生 cmd/PowerShell 未支持；shell 脚本依赖 bash） |
+
+## Windows 说明
+
+原生 `cmd.exe` / PowerShell **不在支持范围**；所有 shell 入口依赖 `bash`。Windows 用户请在 **WSL2** 或 **Git Bash** 中运行；仓库已用 `.gitattributes` 强制 `.sh` / `.mjs` / `.md` 为 LF。不要把仓库放在 `/mnt/c/...` 下跑生产。
 
 ## 快速开始
 
@@ -141,7 +145,7 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills
 npm run doctor       # 环境体检：CLI 版本 / skills / 浏览器 / ffmpeg / MiniMax 凭证
 source ./hf-env.sh   # 生产环境入口（提供 hf 函数、网络策略、跳过 init 的联网检查）
-npm test             # 75 项测试
+npm test             # 78 项测试
 ```
 
 > **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，并对本仓实际引用的 13 个官方产物逐项 fail-closed 校验；缺失即报错，不静默跳过。

@@ -13,6 +13,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 Nothing yet.
 
+## [0.2.8] — 2026-10-31
+
+Chinese preset, Windows support boundary, and distribution-boundary fixes. No compatibility is promised for already delivered projects.
+
+### Fixed
+- `presets/creative-mode-zh/FRAME.md`: removed leftover stock-English preset text (Archivo Black / JetBrains Mono / four accents / no rounded cards / 24px body); body type is now 28px (1.46cqw), five accents are consistent, and the rounded-card/font rules are coherent.
+- `presets/creative-mode-zh/caption-skin.html`: restored current-line accent highlight while keeping no background, no box, and no per-word blocks.
+- The distribution package now excludes the developer-only `frame-guard.mjs` / `css-selector-audit.mjs`; the Chinese preset remains packaged. `commands.md` states that those tools are GitHub-repo-only.
+- Added `.gitattributes` enforcing LF for shell/Node/Markdown; Windows support is explicitly **WSL2 or Git Bash**, not native cmd/PowerShell.
+
+### Docs and tests
+- README, SKILL, and preset README now document the Windows boundary and preset.
+- Added `tests/frame-tools.test.mjs` for frame-guard / css-selector-audit / preset regressions; test count 78.
+- SkillHub package: 50 files / 439.3KB / request body 456.2KB (under the 460KB limit).
+
+## [0.2.7] — 2026-10-25
+
 ## [0.2.7] — 2026-10-25
 
 Final-delivery and future-production hardening: master close now delivers a byte-identical `99-最终合成/renders/final.mp4`; caption balancing cuts on Chinese word boundaries; harness identity is recorded in state; preflight includes frame-check.
@@ -202,7 +219,8 @@ First public release.
 ### License
 - Apache-2.0 (consistent with upstream HyperFrames). This project contains no HF source code and only calls it as an external dependency.
 
-[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.7...HEAD
+[Unreleased]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...v0.2.5

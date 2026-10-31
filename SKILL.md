@@ -1,7 +1,7 @@
 ---
 name: zwhyperframes-harness
 slug: zwhyperframes-harness
-version: 0.2.7
+version: 0.2.8
 displayName: HyperFrames Harness — 中文知识视频生产门禁
 summary: 用 HyperFrames 生产中文无真人出镜知识视频的规则与门禁层：锁定稿、TTS/字幕哈希绑定、final-look 前置检查、master 审批；不重写官方能力。
 description: 当用户要用 HyperFrames 制作中文无真人出镜知识视频、要求锁定口播稿/字幕逐字一致/生产可复现，或需要排查 HyperFrames 生产门禁时使用；它把官方 Step 0–6 与质量能力变成 fail-closed 规则，不重写官方能力。
@@ -116,7 +116,8 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 
 ## 前置条件
 
-- macOS / Linux（Keychain 仅 macOS）；Node.js ≥ 22；ffmpeg
+- macOS / Linux；Windows 仅 WSL2 或 Git Bash（原生 cmd/PowerShell 未支持）
+- Keychain 仅 macOS；Node.js ≥ 22；ffmpeg/ffprobe；Python 3
 - HyperFrames 锁定 `v0.8.36`（commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`）
 - MiniMax API Key：只从环境变量或 macOS Keychain 读取，不入仓、不入日志
 - 网络策略唯一所有者是 `scripts/net-env.sh`：下载优先中国大陆源，GitHub/npm 代理探测可达才启用
@@ -129,7 +130,7 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills（需联网）
 npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
-npm test             # 75 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
+npm test             # 78 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
 ```
 
 **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 13 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。

@@ -17,10 +17,10 @@ cd <segment-dir> && node <harness>/vendor/skills/faceless-explainer/scripts/buil
 | 次级面 | `#E4DCC4` | `#ECEEF3` |
 | 强调色 | 橙 `#E85A1F` / 黄 `#F5C518` / 绿 `#1F8A4C` / 粉 `#F06CA8` | 橙 `#F97316` / 黄 `#FACC15` / 绿 `#12B76A` / 粉 `#F5539E` / **蓝 `#2F6BFF`** |
 | 字体 | Archivo Black / JetBrains Mono / Space Grotesk（**无中文字形**） | Noto Sans SC 900 / Space Grotesk 数字 / Inter |
-| 字幕 | 奶油卡 + 4px 墨黑描边 + 14px 橙色硬阴影 + **逐词黄色高亮块** | **纯墨黑文字，无背景、无盒子、无逐词块** |
+| 字幕 | 奶油卡 + 4px 墨黑描边 + 14px 橙色硬阴影 + **逐词黄色高亮块** | **无背景、无盒子、无逐词块；当前行用 accent 高亮** |
 | 圆角档位 | 无 `radii` 声明 | 卡片 24px / 小卡 20px / 小片 14px / 胶囊 999px |
 
-具体症状：中文在 Archivo Black 里掉到系统字形；字幕自带背景（中文知识视频的字幕合同要求逐字墨黑、无盒子）；段与段之间调色板漂移；`frame.md` 注入的 `:root` token 与画面实际用色不一致。
+具体症状：中文在 Archivo Black 里掉到系统字形；字幕自带背景（中文知识视频的字幕合同要求逐字、无盒子、当前行高亮）；段与段之间调色板漂移；`frame.md` 注入的 `:root` token 与画面实际用色不一致。
 
 ## 边界
 

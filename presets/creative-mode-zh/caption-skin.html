@@ -35,7 +35,7 @@
     opacity: 0;
   }
 
-  /* plain line caption (zh, user-directed): big bold ink text, no box, no per-word marking */
+  /* plain line caption (zh, user-directed): big bold text, no box; current line uses accent */
   .caption-pill {
     max-width: 96%;
     padding: 0;
@@ -55,7 +55,7 @@
     color: var(--cap-ink, #0f0f0f);
   }
 
-  /* one span per line: no word-by-word marking — all states read as the same ink */
+  /* one span per line: no word-by-word blocks, but the active line is highlighted */
   .caption-word {
     display: inline;
     padding: 0;
@@ -64,7 +64,11 @@
     background: transparent;
     box-shadow: none;
   }
-  .caption-word.is-active,
+  .caption-word.is-active {
+    color: var(--cap-accent, #2F6BFF);
+    background: transparent;
+    box-shadow: none;
+  }
   .caption-word.is-spoken {
     color: var(--cap-ink, #0f0f0f);
     background: transparent;

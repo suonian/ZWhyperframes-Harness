@@ -29,12 +29,12 @@ radii: { card-lg: "24px", card: "20px", card-sm: "14px", chip: "10px", pill: "99
 typography:
   # — reading ramp (px @ 1920, with cqw) —
   # — canonical body/display aliases (captions + downstream parseFonts read these) —
-  body:    { fontFamily: "Noto Sans SC", cqw: 1.25, weight: 400, lineHeight: 1.6 }
+  body:    { fontFamily: "Noto Sans SC", px: 28, cqw: 1.46, weight: 400, lineHeight: 1.6 }
   h1:      { fontFamily: "Noto Sans SC", cqw: 4.2, weight: 900, lineHeight: 1.05 }
   body-lg:    { fontFamily: "Space Grotesk", px: 28, cqw: 1.46, weight: 400, lineHeight: 1.4 }
-  body-md:    { fontFamily: "Space Grotesk", px: 24, cqw: 1.25, weight: 400, lineHeight: 1.3 }
-  mono-label: { fontFamily: "Space Grotesk", px: 24, cqw: 1.25, weight: 400, tracking: "0.06em", upper: true }
-  mono-kicker:{ fontFamily: "Space Grotesk", px: 24, cqw: 1.25, weight: 400, tracking: "0.14em", upper: true }
+  body-md:    { fontFamily: "Space Grotesk", px: 28, cqw: 1.46, weight: 400, lineHeight: 1.3 }
+  mono-label: { fontFamily: "Space Grotesk", px: 28, cqw: 1.46, weight: 400, tracking: "0.06em", upper: true }
+  mono-kicker:{ fontFamily: "Space Grotesk", px: 28, cqw: 1.46, weight: 400, tracking: "0.14em", upper: true }
   table-head: { fontFamily: "Noto Sans SC", px: 28, cqw: 1.46, weight: 900, upper: true }
   # — display / hero ramp (frame-native, cqw-first) —
   step-title: { fontFamily: "Noto Sans SC", px: 34,  cqw: 1.77, weight: 900, lineHeight: 1.0, upper: true }
@@ -74,7 +74,7 @@ components:
     padding: "{spacing.cell-pad}"
     typography: "{typography.stat-num} + {typography.mono-label}"
     shadow: "none"
-    description: "Flat accent/cream stat tile, square corners, no shadow."
+    description: "Flat accent/cream stat tile, rounded corners, no shadow."
   step-card:
     backgroundColor: "{colors.cream} · {colors.pink} · {colors.yellow} · {colors.green}"
     border: "0.4cqw solid {colors.ink}"
@@ -110,7 +110,7 @@ components:
     border: "0.2cqw solid {colors.ink}"
     rounded: "999px"
     typography: "{typography.mono-label}"
-    description: "The ONLY rounded element; reads as a chip, not a card."
+    description: "The ONLY fully rounded (999px) element; reads as a chip, not a card."
   stamp:
     backgroundColor: "{colors.pink}"
     border: "0.4cqw solid {colors.cream}"
@@ -126,7 +126,7 @@ components:
     rounded: "{radii.card}"
     typography: "{typography.table-head} + {typography.body-md}"
     shadow: "none"
-    description: "Ink head row with cream Archivo labels; pink/green column-fill variants."
+    description: "Ink head row with cream Noto Sans SC labels; pink/green column-fill variants."
   decorative-circle:
     backgroundColor: "{colors.yellow}"
     border: "0.4cqw solid {colors.ink}"
@@ -139,24 +139,24 @@ components:
 ## Overview
 
 Creative Mode at frame scale is a **neo-brutalist editorial poster in motion's clothing** — warm
-cream paper, near-black ink, and four accents that collide at full saturation. Every frame is one
-flat color-blocked composition: no gradients, no blurred shadows, no rounded cards (save the one
+near-white paper, near-black ink, and five accents that collide at full saturation. Every frame is one
+flat color-blocked composition: no gradients, no blurred shadows; rounded cards follow `radii` (the one
 pill chip). Depth is **hard offset shadow** (a solid same-direction duplicate) or **color-block
 contrast**, never light.
 
-The display voice is **Archivo Black in strict uppercase at 0.92 line-height** — letters overlap
-their own cap height; that tightness is the brand. **JetBrains Mono** carries every label, kicker,
-counter, and axis as a "technical artifact" register. **Space Grotesk** carries the few body lines.
+The display voice is **Noto Sans SC 900 at 0.92 line-height** for Chinese, with **Space Grotesk**
+for numerals, labels, kickers, counters, and axes in a "technical artifact" register. The bundled
+fonts are Noto Sans SC (400/500/700/900), Space Grotesk (400/500/600/700), and Inter (400/500).
 The frame is loud by construction and calm by restraint: two or three accents per frame, the green
 ground reserved for a single closing plate, the hard shadow spent on one featured element only.
 
 **Key characteristics at frame scale:**
 
 - **Cream ground** (`{colors.cream}`) on nearly every frame; `{colors.green}` reserved for the closing plate.
-- **0.4cqw (4px @1920) ink borders** on every structural element; 0.3cqw internal rules.
+- **0.4cqw (~7.7px @1920) ink borders** on every structural element; 0.3cqw internal rules.
 - **Hard offset shadow** (≈1.25cqw, orange+ink) on one featured block per frame — never blurred.
-- **Archivo Black uppercase**, 0.92 line-height, always; sentence-case Archivo Black does not exist.
-- **Two or three accents per frame**, never all four; collisions are the design.
+- **Noto Sans SC 900** for Chinese display; 0.92 line-height; use Space Grotesk for Latin/numerals.
+- **Two or three accents per frame**, never all five; collisions are the design.
 - **One pill chip** (999px) per frame as the sole rounded element.
 
 ### Frame Craft Bar
@@ -165,7 +165,7 @@ Three eyeball tests gate every frame before any structural check:
 
 - **Squint** — exactly one element dominates, at **3–6× its nearest neighbor** (a chasm, not a ramp): the `display-hero`/`display-xl` claim or the `stat-num` figure, never two rival headlines.
 - **Silence** — sparse frames (cover, claim, closer) read **45–60% empty**; the **stat grid and comparison ledger are the one dense exception**. Never fill a sparse frame to look complete.
-- **Restraint** — the scarce gestures fire **once per frame**: at most one hard-offset shadow, two-to-three accents (never all four), the green ground reserved for the single closing plate.
+- **Restraint** — the scarce gestures fire **once per frame**: at most one hard-offset shadow, two-to-three accents (never all five), the green ground reserved for the single closing plate.
 - **Reference** — aim at a **Risograph editorial poster / punk-zine spread** (flat ink-bordered blocks, one big claim, vast cream); failure looks like a **rounded, soft-shadowed SaaS feature grid**.
 
 ## The Frame
@@ -183,15 +183,15 @@ in the display ramp is `cqw`.
 ## Colors
 
 Tokens identical to the source. At frame scale: `{colors.cream}` is the **ground**, `{colors.ink}`
-is borders + type, and the four accents (`green` / `pink` / `orange` / `yellow`) are **flat fills
+is borders + type, and the five accents (`blue` / `green` / `pink` / `orange` / `yellow`) are **flat fills
 rationed two-to-three per frame.** `{colors.orange}` is also the hard-shadow color. `{colors.green}`
-doubles as the single closing-plate ground — its rarity is the impact. Never introduce a fifth
+doubles as the single closing-plate ground — its rarity is the impact. Never introduce a sixth
 accent; never use pure white; never gradient.
 
 ## Project adaptations (zh · user-directed)
 
 - **鲜色浅底**：底色 `{colors.cream}` 接近白，面板用 `{colors.cream-2}`；五个强调色（蓝/绿/粉/橙/黄）每帧用 2–3 个，色块必须大而整（≥画面 25%），禁止用细线/细描边表达结构。
-- **中文排版**：所有中文用 Noto Sans SC；标题/关键词 900、强调 700、正文 400–500。标题大到「一眼读完」（display 级 4–8cqw，关键词可到 11–15cqw）；正文最小 24px。
+- **中文排版**：所有中文用 Noto Sans SC；标题/关键词 900、强调 700、正文 400–500。标题大到「一眼读完」（display 级 4–8cqw，关键词可到 11–15cqw）；正文最小 28px。
 - **大元素**：每帧 1 个占画面 ≥50% 的视觉主体（大色块 / 大数字 / 大词 / 大图标），其余为 1–3 个块级配角；禁止细小 chip、发丝线、密集网格、表格线等 PPT 元素。
 - **圆角与硬阴影**：卡片用 `{radii.card-lg/card}`，硬偏移阴影只给一个主角元素。
 - **字幕**：整行大号墨色文本、无框、无逐字标记（见字幕合同与项目 caption skin）。
@@ -218,9 +218,9 @@ Two ramps. The **reading ramp** (body, mono labels, table heads) holds px+cqw fo
 The **display/hero ramp** is frame-native and authored in `cqw` — from `display-head` (4.2cqw) up
 to `display-hero` (15.5cqw) for a wordmark cover.
 
-- **Legibility floor:** any load-bearing line ≥ **1.4cqw (≈27px@1920)**. Mono chrome at 1.15cqw is colophon only.
+- **Legibility floor:** any load-bearing line ≥ **1.46cqw (≈28px@1920)**. Mono chrome at 1.46cqw too; no visible text below 28px.
 - **Fit-to-measure:** a headline's size tracks its line length. Cap the headline block at **≤ 78cqw** and never touch the safe margin. ≤3 words → `display-hero`/`display-xl`; 4–6 words → `display-lg`; 7+ words → `display-head`. Short lines go big; long lines step down.
-- **Uppercase + 0.92 line-height on all Archivo Black**, always. Mono carries 0.06–0.14em tracking. Never letter-space Archivo Black beyond the encoded −0.01em; never set body centered.
+- **Noto Sans SC 900 + 0.92 line-height** for Chinese display. Space Grotesk carries 0.06–0.14em tracking on labels. Never set body centered.
 
 ## Depth & Surface
 
@@ -233,7 +233,7 @@ Zero blur. Two depth devices only:
 
 ## Shapes
 
-- **0 radius** on every structural element — stat cells, step cards, table cells, markers, panels.
+- **Rounded cards** per `radii` (24/20/14px) on stat cells, step cards, table cells, markers, and panels; the 999px pill is the only fully rounded chip.
 - **50%** on decorative circles, stamp inner ring, the meta dot.
 - **999px** on the topbar pill chip only — the single rounded exception.
 - **Rotation** only at the fixed brand angles: badge −4deg, stamp −6deg.
@@ -259,7 +259,7 @@ Zero blur. Two depth devices only:
 (15.5cqw), centered, second line in an accent (`{colors.pink}`/`orange`). **Chrome** mono topbar
 (section label + pill) and meta footer (descriptor + 01•NN). **Accent** the second-line color only;
 optionally one corner decorative-circle bleeding off an edge. **Silence** ~55% empty cream.
-**Fixed** Archivo Black uppercase 0.84 lh, one accent on the wordmark, square corners. **Free** which
+**Fixed** Noto Sans SC 900 display at 0.84 lh, one accent on the wordmark, rounded cards. **Free** which
 accent, line break, whether a circle bleeds a corner. **Density** sparse.
 
 ### 2 · Big Claim (oversized statement · move: scale · left)
@@ -278,7 +278,7 @@ word breaks. **Density** sparse — one idea.
 3-up row of stat-cells. **Composes** frame-chrome, 3× stat-cell. **Focal** the row of three
 ink-bordered cells (green / pink / orange), each a `stat-num` + mono label. **Chrome** mono topbar +
 meta. **Accent** the three cell fills (the named density exception — three accents allowed here).
-**Silence** ~25% — tight by design. **Fixed** 0.4cqw borders, square corners, no per-cell shadow,
+**Silence** ~25% — tight by design. **Fixed** 0.4cqw borders, rounded card corners per `radii`, no per-cell shadow,
 mono labels. **Free** the three figures+labels, head copy, which three accents. **Density** dense-exception.
 
 ### 4 · Closing Plate (closer · move: ground-swap · centered)
@@ -302,7 +302,7 @@ shadow on the frame, 0.4cqw borders. **Free** marker copy, block position, optio
 **Ground** `{colors.cream}`, `content-gutter`. **Composes** frame-chrome, comparison-table.
 **Focal** the cream-2 table with ink head row; one column fill (pink or green) marks the winner.
 **Accent** the single column fill. **Silence** tight — the second density exception. **Fixed**
-cream-2 fill, 0.3cqw internal rules, ink head row with cream Archivo labels. **Free** rows, which
+cream-2 fill, 0.3cqw internal rules, ink head row with cream Noto Sans SC labels. **Free** rows, which
 column fills, copy. **Density** dense-exception.
 
 ## Composition Rules
@@ -314,14 +314,14 @@ column fills, copy. **Density** dense-exception.
 - Keep sparse frames **45–60% empty**; only the stat grid and ledger run dense.
 - Use **two or three accents per frame**; reserve `{colors.green}` ground for the closing plate.
 - Spend the hard offset shadow on **one featured block per frame**.
-- Size headlines **fit-to-measure**; render Archivo Black uppercase at 0.92 lh.
+- Size headlines **fit-to-measure**; render Chinese at Noto Sans SC 900 / 0.92 lh and Latin at Space Grotesk.
 
 ### Don't
 
 - Don't round corners (except the pill chip); don't gradient, blur, or glow.
-- Don't set Archivo Black in sentence case or letter-space it beyond −0.01em.
-- Don't use all four accents on one frame, a fifth accent, or pure white.
-- Don't center body copy or set labels in anything but JetBrains Mono.
+- Don't set Chinese display in all-caps Latin styling or letter-space it beyond −0.01em.
+- Don't use all five accents on one frame, a sixth accent, or pure white.
+- Don't center body copy or set labels in anything but Space Grotesk / Noto Sans SC.
 - Don't blow a headline edge-to-edge — step the ramp down for long lines.
 - Don't put two hard shadows on one frame.
 
@@ -337,7 +337,7 @@ column fills, copy. **Density** dense-exception.
 | Comparison Ledger | full-width table                | table scrolls to fewer cols  | 2-col table              |
 
 Safe area holds the `3.3cqw` chrome inset on the short edge for every ratio; re-step display per
-ratio so no load-bearing line drops below the 1.4cqw floor.
+ratio so no load-bearing line drops below the 1.46cqw floor.
 
 ## Approved Entities
 
@@ -354,16 +354,16 @@ grid and ledger especially carry placeholders, not fabricated values.
 
 - **Squint** — one element dominates at 3–5× its neighbor, else rescale.
 - **Silence** — sparse frames 45–60% empty; only stat grid / ledger run dense.
-- **Accents** — two or three per frame, never all four; green ground only on the closer.
+- **Accents** — two or three per frame, never all five; green ground only on the closer.
 - **Depth** — 0 blur; at most one hard offset shadow; color-block contrast otherwise.
-- **Geometry** — square corners except the pill; rotation only at −4/−6deg.
-- **Type** — Archivo Black uppercase 0.92 lh, fit-to-measure, ≥1.4cqw on load-bearing lines.
+- **Geometry** — rounded corners except the pill; rotation only at −4/−6deg.
+- **Type** — Noto Sans SC 900 / Space Grotesk, 0.92 lh, fit-to-measure, ≥1.46cqw on load-bearing lines.
 - **Anchor** — centered default; left/asymmetric only on marker + ledger; no 3 consecutive frames share an anchor.
 - **Fabrication** — every numeral traces to the script, else placeholder.
 
 ## Known Gaps
 
 - **Motion intentionally out of scope.** frame.md specifies composition only; timing and transitions are a later stage. The closing green is described as a _plate_, not a transition.
-- **Archivo Black requires Google Fonts**; fallback is `sans-serif`. CJK pairing (Noto Serif SC 900 / NSC 400) carries over from the source's CJK section.
+- **Fonts are bundled** in `assets/fonts/`: Noto Sans SC (400/500/700/900), Space Grotesk (400/500/600/700), Inter (400/500). Do not name any other family; do not rely on system CJK fallback.
 - **9:16 / 1:1 are guidance**, not pixel-locked; verify the legibility floor per ratio.
 - Decorative geometry (circle, stamp, stacked blocks) is CSS-only; no external imagery is required.

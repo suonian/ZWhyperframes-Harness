@@ -3,7 +3,7 @@
 **对象**：《为什么大模型越来越贵？被吃垮的无限量包月神话》——4 段 + master 合成，237.588s / 7127 帧 / 30.1MB
 **项目**：`~/Documents/ZWhyperframes-products/llm-unlimited-subscription-myth/`（`master.closed=true`，2026-10-25T01:14:42.702Z）
 **复盘人**：主控智能体（零信任视角，不采信上一轮任何「已通过」叙述）
-**harness 状态**：本轮改动未提交，17 文件 +662/−46；`npm test` = **75 pass / 0 fail**
+**harness 状态**：本轮改动未提交，17 文件 +662/−46；`npm test` = **78 pass / 0 fail**
 
 ---
 
@@ -218,7 +218,7 @@ harness 自身的 `gate verify`（锁稿/TTS/注入绑定同源）4 段亦全过
 - `set-mp4` 作废 final-look 的口径修正（只在真换片时作废，避免段间死锁）——逻辑复核无误。
 - `chrome/`（官方 `hyperframes browser ensure` 的下载缓存）按**路径**排除 + `.gitignore`——复核无误。
 - `scripts/lib/harness.mjs` 抽出的 `RECEIPT_BINDINGS` / `RECEIPT_DIR_BINDINGS` / `receiptBindingHashes` / `receiptDirBindingDigests` / `framesDigest` / `dirDigest` 确为唯一真源，写 receipt 与复核 receipt 共用同一张表 ✅。
-- `npm test` = **75 pass / 0 fail**（本轮新增 2 条用例，均完成变异验证）。
+- `npm test` = **78 pass / 0 fail**（本轮新增 2 条用例，均完成变异验证）。
 
 ---
 

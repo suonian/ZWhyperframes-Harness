@@ -44,10 +44,22 @@ HyperFrames 官方能力很全——composition、分镜、子智能体、音频
 
 ## 前置条件
 
-- macOS 或 Linux（Keychain 仅 macOS）；Windows 原生未验证
+- macOS 或 Linux；Windows 仅在 **WSL2 或 Git Bash** 中支持，原生 cmd/PowerShell 未支持（所有 shell 脚本依赖 bash）
 - Node.js ≥ 22；ffmpeg / ffprobe；Python 3
 - HyperFrames 锁定 `0.8.36`（commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`）
 - MiniMax API Key：只从环境变量或 macOS Keychain 读取
+
+### Windows
+
+原生 `cmd.exe` / PowerShell 不是支持路径；所有命令都依赖 `bash`。请在 **WSL2** 或 **Git Bash** 中运行：
+
+```bash
+bash --version          # 必须能执行
+node --version          # ≥22
+ffmpeg -version
+```
+
+WSL2 中请把仓库放在 WSL 文件系统（例如 `~/src/ZWhyperframes-Harness`），不要放在 `/mnt/c/...`；Git Bash 中 `source ./hf-env.sh` 照常可用。路径含空格/中文时请加引号。`.gitattributes` 已强制 `.sh` / `.mjs` / `.md` 使用 LF。
 
 macOS 可用 Homebrew 准备：
 
@@ -180,6 +192,7 @@ HARNESS_NO_PROXY=1 npm run bootstrap
 - `references/commands.md`：命令参数、成功输出与失败含义
 - `references/example-source.md` / `example-segment-plan.json`：可直接复制的示例输入
 - `scripts/`：管理脚本
+- `presets/creative-mode-zh/`：中文无真人出镜视频专用 creative-mode preset（`FRAME.md` + `caption-skin.html`）
 - `tools/minimax/`：MiniMax API 调用器
 
 GitHub 仓库（完整文档、审计、变更历史、测试）：

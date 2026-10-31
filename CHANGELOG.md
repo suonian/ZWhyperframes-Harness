@@ -11,6 +11,23 @@
 
 暂无。
 
+## [0.2.8] — 2026-10-31
+
+中文 preset、Windows 支持边界与分发包边界修正。不兼容已交付项目，只对后续生产生效。
+
+### 修复
+- `presets/creative-mode-zh/FRAME.md`：删除官方英文 preset 残留（Archivo Black / JetBrains Mono / 四强调色 / 无圆角 / 24px 正文）；正文字号统一到 28px（1.46cqw），色板统一为五强调色，补齐圆角与字体说明。
+- `presets/creative-mode-zh/caption-skin.html`：恢复「当前行 accent 高亮」；仍保持无背景、无盒子、无逐词块。
+- 分发包排除开发期预筛脚本 `frame-guard.mjs` / `css-selector-audit.mjs`；中文 preset 保留在包内。包内 `commands.md` 明确两者仅在 GitHub 仓库提供。
+- 新增 `.gitattributes` 强制 shell/Node/Markdown 使用 LF；Windows 支持边界写明为 **WSL2 或 Git Bash**，原生 cmd/PowerShell 不支持。
+
+### 文档与测试
+- 包/仓库 README、SKILL、preset README 同步 Windows 与 preset 说明。
+- 新增 `tests/frame-tools.test.mjs`：frame-guard / css-selector-audit / preset 回归；测试数 78。
+- SkillHub 包：50 个文件 / 439.3KB / 请求体 456.2KB（低于 460KB 上限）。
+
+## [0.2.7] — 2026-10-25
+
 ## [0.2.7] — 2026-10-25
 
 最终交付与后续生产硬化：master 收尾必须把 candidate 原样交付到 `99-最终合成/renders/final.mp4`；字幕均衡切分改按中文词边界；harness 身份写入 state；preflight 增加 frame-check。
@@ -206,7 +223,8 @@ SkillHub 发布路径的实测适配：平台对 publish 请求体有约 476KB �
 ### 许可
 - Apache-2.0（与上游 HyperFrames 一致）。本项目不含 HF 源码，仅作外部依赖调用。
 
-[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.7...HEAD
+[未发布]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/suonian/ZWhyperframes-Harness/compare/v0.2.4...v0.2.5

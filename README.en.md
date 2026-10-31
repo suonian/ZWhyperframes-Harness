@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-75%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-78%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 A harness engineering project for HyperFrames: rules constrain the official production flow, gates enforce that official capabilities are actually executed. Core official capabilities are never rebuilt.
 
@@ -130,7 +130,11 @@ Of the 12 official quality capabilities, **only 3 have machine gates in tier 3.1
 | HyperFrames | `0.8.36` (pinned; refuses to run if the CLI is missing or drifted) |
 | ffmpeg / ffprobe | Required (per-frame audio splitting and duration probing) |
 | Python 3 | Required (MiniMax caller and proxy probing) |
-| Platform | macOS / Linux (`net-env.sh` probing depends on bash + python3) |
+| Platform | macOS / Linux; Windows only via WSL2 or Git Bash (native cmd/PowerShell unsupported; shell scripts require bash) |
+
+## Windows
+
+Native `cmd.exe` / PowerShell is **not supported**; all shell entry points require `bash`. On Windows use **WSL2** or **Git Bash**. The repository's `.gitattributes` enforces LF for `.sh` / `.mjs` / `.md`; do not run production from `/mnt/c/...`.
 
 ## Quick start
 
@@ -141,7 +145,7 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # install locked dependencies + verify HF version + fetch official skills at the locked commit
 npm run doctor       # environment check: CLI version / skills / browser / ffmpeg / MiniMax credentials
 source ./hf-env.sh   # production entry point (provides the hf function, network policy, skips init's network check)
-npm test             # 75 tests
+npm test             # 78 tests
 ```
 
 > **Official skills are fetched at the locked commit, not from upstream's live tree.** `bootstrap.sh` uses git to fetch the official `skills/` tree at commit `f86aae6` (the `v0.8.36` release) into `vendor/skills/`, then fail-closed checks the 13 official artifacts this repo actually references — a missing one is an error, never a silent skip.

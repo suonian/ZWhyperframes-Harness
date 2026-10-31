@@ -123,13 +123,16 @@ cd <segment-dir> && node <harness>/vendor/skills/faceless-explainer/scripts/buil
 | `captions-zh build` | `caption_groups.json`、`caption-overrides.json`、`compositions/captions.html` | 段稿/STORYBOARD/frame.md 缺或不可解析 |
 | `captions-zh verify` | 无写入，退出 0 | 分组/HTML/画布与输入不一致 |
 
-## 4.2 本地预筛脚本（`frame-guard.mjs` / `css-selector-audit.mjs`）
+## 4.2 本地预筛脚本（`frame-guard.mjs` / `css-selector-audit.mjs`，仅仓库）
+
+> 这两个脚本是**开发期辅助工具**，不是 SkillHub 分发包内容；分发包里没有它们，源码只在 GitHub 仓库提供。
 
 官方 `hf lint` / `hf check --strict` 有两类**盲区**，本仓补两个只读预筛脚本，在官方门禁之前把问题拦下来。两者都**纯读**，不改任何文件；官方门禁仍是唯一权威。
 
 ```bash
-node <harness>/scripts/frame-guard.mjs <segment-dir> [--frame NN]
-node <harness>/scripts/css-selector-audit.mjs <segment-dir>/compositions/frames
+# 仅在 GitHub 仓库根目录运行
+node scripts/frame-guard.mjs <segment-dir> [--frame NN]
+node scripts/css-selector-audit.mjs <segment-dir>/compositions/frames
 ```
 
 | 脚本 | 补的盲区 | 失败含义 |

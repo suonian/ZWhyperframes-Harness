@@ -62,6 +62,9 @@ const CONTENT_EXCLUDE_FILES = new Set([
   "SECURITY.md", "SECURITY.en.md",
   "CODE_OF_CONDUCT.md", "CODE_OF_CONDUCT.en.md",
   "package-manifest.json",
+  // 开发期本地预筛工具：不是生产运行时依赖，分发包不带；源码在 GitHub 仓库。
+  "scripts/frame-guard.mjs",
+  "scripts/css-selector-audit.mjs",
 ]);
 
 // 平台协议 §8.3 体积与数量上限

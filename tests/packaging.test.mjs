@@ -23,6 +23,11 @@ function makeFixture() {
   writeFileSync(join(root, "RELEASE-HANDBOOK.md"), "local only\n");
   writeFileSync(join(root, "README.md"), "[dead](CHANGELOG.md)\n");
   writeFileSync(join(root, "README.package.md"), "# package readme\n");
+  mkdirSync(join(root, "presets", "creative-mode-zh"), { recursive: true });
+  writeFileSync(join(root, "presets", "creative-mode-zh", "FRAME.md"), "# zh preset\n");
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(root, "scripts", "frame-guard.mjs"), "// dev only\n");
+  writeFileSync(join(root, "scripts", "css-selector-audit.mjs"), "// dev only\n");
   // vendor/ 是 bootstrap 取回的上游产物树，模拟其体量足以撞破平台上限。
   for (let i = 0; i < 120; i += 1) {
     const dir = join(root, "vendor", "skills", `skill-${i}`, "scripts");
@@ -57,6 +62,8 @@ test("打包排除 vendor/：上游产物树不得进入技能包", () => {
     assert.ok(rel.includes("README.md"), "产物缺少 README");
     assert.match(readFileSync(join(out, "README.md"), "utf8"), /package readme/u);
     assert.ok(!rel.includes("README.package.md"), "README.package.md 只作为映射源，不应原样入包");
+    assert.ok(rel.includes("presets/creative-mode-zh/FRAME.md"), "中文 preset 必须进入分发包");
+    assert.ok(!rel.includes("scripts/frame-guard.mjs") && !rel.includes("scripts/css-selector-audit.mjs"), "开发期预筛脚本不应进入分发包");
     assert.ok(!rel.includes("RELEASE-HANDBOOK.md"), "本地专用手册不得进入发布包");
     // 清单是**关于**包的元数据，不是包的内容：它写在包目录的同级，
     // 放进包里会让包多带一份自指的文件。
