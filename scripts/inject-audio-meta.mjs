@@ -10,7 +10,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { sha256File, writeJson, findProjectRoot, INJECTION_BINDING_SCHEMA_VERSION } from "./lib/harness.mjs";
+import { sha256File, writeJson, findProjectRoot, INJECTION_BINDING_SCHEMA_VERSION, probeDurationSeconds } from "./lib/harness.mjs";
 import { requireOfficialScript } from "./lib/official-skills.mjs";
 import { readStoryboard } from "./lib/storyboard.mjs";
 import { parseTitles, validateFrameCoverage, mapFramesToWords, buildVoices } from "./lib/audio-inject.mjs";
@@ -55,8 +55,8 @@ const audioDurationMs = words.at(-1).endMs;
 const voiceDir = join(segmentDir, "assets", "voice");
 mkdirSync(voiceDir, { recursive: true });
 // 源音频总时长：帧音频可越过末词进入源尾音（避免末句被截断）
-const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", audioPath], { encoding: "utf8", timeout: 10 * 60 * 1000 });
-const sourceDurationMs = Number(probe.stdout.trim()) > 0 ? Number(probe.stdout.trim()) * 1000 : null;
+const probed = probeDurationSeconds(audioPath);
+const sourceDurationMs = probed.ok && probed.seconds > 0 ? probed.seconds * 1000 : null;
 const voices = buildVoices(frameMaps, audioDurationMs, 0.08, sourceDurationMs);
 
 // ── ffmpeg 切帧音频 ───────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-75%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-128%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 HyperFrames 的 harness 工程：以规则约束官方流程，以门禁强制能力执行。不重写官方能力。
 
@@ -104,6 +104,20 @@ HyperFrames 的能力是齐的——composition、分镜、子智能体合同、
 
 **补缺口是副产品，不是主命题。** 核心能力 100% 来自官方，一律不重写——不重造轮子是边界，不是目的。
 
+### 模板与调色板：用官方的那套，不造自己的
+
+个人定制项目想要「固定音色 + 固定调色板 + 禁过小标签 + 禁无意义元素」。这四件事**官方已经覆盖了大半**，本仓不重造：
+
+| 你要的 | 官方现成的 | 本仓补的 |
+| --- | --- | --- |
+| 固定模板与调色板 | 官方 13 套 frame preset（`hyperframes-creative/frame-presets/`），`build-frame.mjs --preset` 一条命令落地成 `frame.md` + caption skin；品牌色/字体由官方按角色 remix 进 preset | 只声明**本项目默认用哪一套**（`capsule`）+ 中文字体（`Noto Sans SC`）；这是**偏好不是排他**——13 套 preset 全部合法可用，用户指名就照用 |
+| 复用「我的模板」 | 官方 `recipe.mjs freeze/use` 冻结已批准项目（`~/.media/recipes/`）、`prefs.mjs` 记偏好 | 不另建 `brand/` 副本——避免色板双源漂移 |
+| 固定音色 | 官方 prefs 记 voice；本项目用 MiniMax TTS，音色由 `VOICE_PROFILE` 固定 | 门禁核验：段内 manifest 的 `voice_profile` 与真源一致，漂移即红 |
+| 禁过小标签 | 官方 preset 统一 `≥1.4cqw`、并把 px 令牌声明为 chrome | 本项目严到 28px，且**只对 chrome 令牌（页码/计数器）豁免**——承载性标签不豁免 |
+| 禁无意义元素 | 官方每个 preset 的 `Silence` / `Restraint` / `Approved Entities` 条款 | 只补官方没机器化的部分：色板越界拦截（官方 `check` 只查 WCAG 对比度，**不查色板归属**） |
+
+口径全文见 [`docs/rules/visual-baseline.md`](docs/rules/visual-baseline.md)。
+
 ## 凭什么可信
 
 上面的「强制」不是形容词，而是可被检验的事实。具体机制：锁稿 → TTS → 注入绑定 → MP4 之间用 SHA-256 链式绑定；在注入/最终检查通过时，帧口播必须与锁稿**归一化后全等**（不是相似度）；缺失的绑定只能重新派生。
@@ -114,11 +128,13 @@ HyperFrames 的能力是齐的——composition、分镜、子智能体合同、
 
 | 层 | 含义 | 覆盖 |
 | --- | --- | --- |
-| **3.1 本仓机器门禁** | 关键路径 fail-closed | `preflight` / `render-ready` / `verify` / `final-look` / `pitch-round` / `animation-map` / `check` / `mp4` / `next-segment` / `master-inputs` / `final-delivery` / `layout-guard` / `authorized` |
+| **3.1 本仓机器门禁** | 关键路径 fail-closed | `preflight` / `render-ready` / `verify` / `final-look` / `pitch-round` / `animation-map` / `motion-spec` / `check` / `quality` / `mp4` / `next-segment` / `master-inputs` / `final-delivery` / `layout-guard` / `baseline` / `authorized` |
 | **3.2 官方 CLI 命令** | 须真实执行，退出码即证据；**本仓无机器门禁** | 官方 `catalog` / `keyframes` / `compare` / `publish` / carve |
 | **3.3 流程 / 复审证据** | **本仓无机器门禁** | frame-comments 处置、recipe freeze、media-treatment |
 
-官方 12 项质量能力中，**只有 3 项落在 3.1 有机器门禁**。其余 9 项靠流程与复审约束，不满足「不跑就卡住」——这一点写在 [规则文档 §3](docs/rules/production-workflow-rules.md)，而不是藏起来。
+官方 13 项质量能力中，**只有 4 项落在 3.1 有机器门禁**。其余 9 项靠流程与复审约束，不满足「不跑就卡住」——这一点写在 [规则文档 §3](docs/rules/production-workflow-rules.md)，而不是藏起来。
+
+另有一道**视觉基线门禁**（`gate.mjs baseline`：色板越界 / 字号口径 / 音色一致——官方 `check` 只做 WCAG 对比度，不查这三项）与三道**成片视觉质量门禁**（§3.4 渲染输入完整性 / §3.5 成片内容 / §3.6 成片视觉质量）：它们不在 13 项能力编号里，但同样 fail-closed——`gate.mjs quality` 的像素级质检会拦下「首帧纯色等待」与「Scene 区间内画面完全静止」的片子。
 
 > 门禁无法证明智能体「真的执行过」某项能力，除非那项能力留下可校验的产物。这是 harness 的能力边界，承认它比夸大它更有用。
 
@@ -130,7 +146,26 @@ HyperFrames 的能力是齐的——composition、分镜、子智能体合同、
 | HyperFrames | `0.8.36`（版本锁定，CLI 缺失或漂移即拒绝运行） |
 | ffmpeg / ffprobe | 必需（帧音频切分与时长探测） |
 | Python 3 | 必需（MiniMax 调用器与代理探测） |
-| 平台 | macOS / Linux（`net-env.sh` 探测依赖 bash + python3） |
+| 平台 | macOS / Linux / Windows（`net-env.sh` 探测依赖 bash + Python 3） |
+
+### Windows 说明
+
+仓库脚本分两类，**不要在错误的 shell 里跑**：
+
+| 类别 | 文件 | Windows 上怎么跑 |
+| --- | --- | --- |
+| Node 脚本（跨平台原生） | `scripts/*.mjs`、`scripts/lib/*.mjs` | `node scripts/xxx.mjs ...`，PowerShell / CMD 均可 |
+| Shell 脚本（需 bash） | `hf-env.sh`、`scripts/bootstrap.sh`、`scripts/doctor.sh`、`scripts/install-skill.sh`、`scripts/net-env.sh`、`scripts/platform-compat.sh` | **Git Bash**（如 `C:\Program Files\Git\bin\bash.exe`），**不是** PowerShell——PowerShell 没有 `source`/POSIX 语义，`bash -n` 也无法校验它们 |
+
+Windows 上还有三处容易踩的坑，仓库已各自兜住，但要知道原理：
+
+1. **`python3` 常不存在。** Microsoft Store 会注册一个 `python3.exe` 存根，命中它会 `exit 49` 静默失败。仓库用 `resolve_python()` 依次尝试 `MINIMAX_PYTHON` → `python3` → `python`，**必须实际跑一次最小导入**才算通过；也可用 `MINIMAX_PYTHON` 指定解释器。
+2. **`hf` 可能撞名。** Python 装的 HuggingFace Hub CLI 会在 `Scripts\hf.exe` 提供同名命令（实测版本 1.6.0），不 `source hf-env.sh` 就直接调它会拿到错误版本。**生产前务必先 `source ./hf-env.sh`**（Git Bash）或用 `node node_modules/hyperframes/bin/hyperframes.mjs`。
+3. **产品根目录默认走 Known Folder。** Windows 的「文档」目录可能被 OneDrive 重定向，仓库读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders\Personal` 的真实值，而不是拼 `~/Documents`。
+
+> **凭证只有一条路。** macOS 可用 Keychain；Windows / Linux 没有 Keychain，**只能用环境变量** `MINIMAX_API_KEY`。详见下文「MiniMax 凭证」。
+
+> 完整的跨平台取证、修复清单、能力矩阵与**未验证项**见 [`docs/architecture/windows-cross-platform-audit-2026-10-31.md`](docs/architecture/windows-cross-platform-audit-2026-10-31.md)。
 
 ## 快速开始
 
@@ -141,7 +176,7 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills
 npm run doctor       # 环境体检：CLI 版本 / skills / 浏览器 / ffmpeg / MiniMax 凭证
 source ./hf-env.sh   # 生产环境入口（提供 hf 函数、网络策略、跳过 init 的联网检查）
-npm test             # 75 项测试
+npm test             # 128 项测试
 ```
 
 > **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，并对本仓实际引用的 13 个官方产物逐项 fail-closed 校验；缺失即报错，不静默跳过。
@@ -192,15 +227,21 @@ HARNESS_NPM_REGISTRY=https://registry.npmjs.org bash scripts/bootstrap.sh  # 覆
 
 ### MiniMax 凭证
 
+**环境变量是唯一的跨平台通道。** macOS 额外支持 Keychain；Windows / Linux 没有 Keychain，只能用环境变量。
+
 ```bash
 export MINIMAX_API_KEY="你的 API Key"        # 优先
 ```
 
-或存入 macOS Keychain（服务名默认 `MINIMAX_API_KEY`，可用 `MINIMAX_KEYCHAIN_SERVICE` 覆盖）：
+macOS 可存入 Keychain（服务名默认 `MINIMAX_API_KEY`，可用 `MINIMAX_KEYCHAIN_SERVICE` 覆盖）：
 
 ```bash
 security add-generic-password -a minimax -s MINIMAX_API_KEY -w '你的 API Key'
 ```
+
+> Windows PowerShell：`$env:MINIMAX_API_KEY="..."` 只对**当前会话**有效；要持久化到用户级用
+> `[Environment]::SetEnvironmentVariable("MINIMAX_API_KEY","...","User")`（新开的终端才生效）。
+> bash 脚本里的 `export` 只影响该次 Git Bash 会话；需要跨会话可用时把它写进 `~/.bashrc`。
 
 ## 仓库结构
 
@@ -216,7 +257,7 @@ scripts/               管理脚本（单步、确定性、零 agent 调用）
   minimax-tts.mjs      MiniMax 语音 + 词级时间
   inject-audio-meta.mjs  词级时间 → 官方 audio_meta.json
   captions-zh.mjs      中文字幕分组数据（渲染仍走官方）
-  gate.mjs             门禁（13 个命令，见「凭什么可信」）
+  gate.mjs             门禁（14 个命令，见「凭什么可信」）
   state.mjs            状态与授权记录的唯一写入入口
   finalize-master.mjs  master 拼接（thin ffmpeg concat）
   build-skill-package.mjs  打包为 SkillHub 可上传的技能包（按平台准入规则过滤 + fail-closed 校验）
@@ -234,6 +275,7 @@ SKILL.md               SkillHub 分发封装（只做路由，不承载规范）
 | --- | --- |
 | `docs/rules/production-workflow-rules.md` | 生产流程唯一所有者：官方 Step 0–6 落点、用户决策门、强制质量能力三层清单、交接与问题账本 |
 | `docs/rules/visual-production-rulebook.md` | 视觉质量底线（官方 worker 合同优先 + 项目要求） |
+| `docs/rules/visual-baseline.md` | 模板 / 调色板 / 音色默认基线唯一所有者：官方资产索引、默认偏好（偏好非排他）、字号口径裁决、机器门禁分工 |
 | `docs/rules/captions-contract.md` | 字幕合同唯一所有者（要求不可变更） |
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
 | `references/faq.md` | 常见问题、错误索引与反模式（排障入口） |
@@ -243,7 +285,7 @@ SKILL.md               SkillHub 分发封装（只做路由，不承载规范）
 
 冲突裁决顺序：**用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同**（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 
-> **语言政策**：`docs/rules/` 下四份文件**仅维护中文版**，规范性要求以中文为准。这是刻意的——它们是单一所有者的规范合同，做英文孪生版本会给规范性要求造出两个 source of truth，而本仓的裁决顺序没有语言维度可以仲裁漂移。`AGENTS.md`、`docs/architecture/`、`docs/plans/` 同理。社区与治理文档则是双语的，入口见下方文档索引的「英文版」列。
+> **语言政策**：`docs/rules/` 下五份文件**仅维护中文版**，规范性要求以中文为准。这是刻意的——它们是单一所有者的规范合同，做英文孪生版本会给规范性要求造出两个 source of truth，而本仓的裁决顺序没有语言维度可以仲裁漂移。`AGENTS.md`、`docs/architecture/`、`docs/plans/` 同理。社区与治理文档则是双语的，入口见下方文档索引的「英文版」列。
 
 ## 获取帮助
 

@@ -1,0 +1,37 @@
+# 统一以 LF 检出：文本文件在所有平台都以 LF 落盘，两个平台的字节一致。
+#
+# 为什么必须显式声明（不能只靠各人的 git config）：
+#
+# 1) Windows 上 git 的默认 core.autocrlf=true 会把 LF 改写成 CRLF，而本仓有两处
+#    直接依赖 LF：
+#    · tests/docs-links.test.mjs 断言 SKILL.md 以 "---\n" 开头（frontmatter 起始标记）。
+#      CRLF 下首行是 "---\r"，断言直接失败。
+#    · 同一文件按 "\n" 切行统计用例数时，CRLF 残留的 "\r" 会改变注释剥离行为，
+#      让「文档声明的测试数与实际用例数一致」多算 1 —— 假阳性的漂移告警。
+#
+# 2) 本仓的 shell 脚本（hf-env.sh、scripts/*.sh）在 CRLF 下会被 bash 解析成
+#    带 \r 的命令，报 "$'\r': command not found" —— 表现为「脚本莫名其妙失败」，
+#    而不是「行尾不对」。
+#
+# 3) 跨机器复现依赖内容哈希（vendor 内容哈希、锁稿哈希、TTS/字幕绑定），
+#    工作区字节必须与索引一致，否则同一份内容在不同平台算出不同哈希。
+#
+# eol=lf = 工作区一律 LF，提交时不转换。
+* text=auto eol=lf
+
+# 二进制：不做行尾处理，也不参与文本归一化。
+*.mp3 binary
+*.mp4 binary
+*.webm binary
+*.wav binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.zip binary
+*.gz binary

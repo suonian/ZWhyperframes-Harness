@@ -45,6 +45,8 @@ hyperframes/references/pitch-round.md"
 
 # shellcheck source=scripts/net-env.sh
 source "$HARNESS_ROOT/scripts/net-env.sh"
+# shellcheck source=scripts/platform-compat.sh
+source "$HARNESS_ROOT/scripts/platform-compat.sh"
 # 代理可达性由 net-env.sh 探测并给出原因，此处只做提示，不重复探测——
 # 重复探测既冗余，又会在 HARNESS_PROXY 未设置时于 set -u 下崩溃。
 echo "[bootstrap] 网络策略：npm=${npm_config_registry}"
@@ -52,14 +54,56 @@ echo "[bootstrap] 代理状态：${HARNESS_PROXY_STATUS}（${HARNESS_PROXY_REASO
 
 echo "[bootstrap] 安装锁定依赖（hyperframes@${HF_EXPECTED_VERSION}）…"
 # 固定 npm：仓库锁文件是 package-lock.json（bun 会另生成 bun.lock 造成双锁漂移）。
-npm install --prefix "$HARNESS_ROOT"
+# 靠 cwd 决定项目根，不传 --prefix：Windows 上 npm 经 cmd.exe 传参时，
+# POSIX 路径 /d/... 会被拼成 <当前盘>\d\...，npm 报 ENOENT 找不到 package.json。
+( cd "$HARNESS_ROOT" && npm install )
 
 echo "[bootstrap] 校验 HF CLI 版本…"
-ACTUAL="$(node "$HARNESS_ROOT/node_modules/.bin/hyperframes" --version 2>/dev/null || true)"
+# 用包内真实入口而不是 node_modules/.bin/hyperframes：Windows 上后者是 npm 生成的
+# sh 包装脚本，node 解析成 JS 会 SyntaxError（Linux/macOS 上它是软链，才没问题）。
+# hf_cli 以仓库根为 cwd、以相对路径调入口，不给 node 绝对 POSIX 路径。
+ACTUAL="$(hf_cli --version 2>/dev/null || true)"
 if [ "${ACTUAL}" != "${HF_EXPECTED_VERSION}" ]; then
   echo "HF CLI 版本不匹配：期望 ${HF_EXPECTED_VERSION}，实际 ${ACTUAL:-未找到}" >&2
   exit 1
 fi
+echo "[bootstrap] HF CLI 版本校验通过：${ACTUAL}"
+
+echo "[bootstrap] 安装官方 skill 的 helper 依赖（@hyperframes/*@${HF_EXPECTED_VERSION}）…"
+# 官方 skills/hyperframes-animation/scripts/animation-map.mjs **自带依赖**：
+# 它通过 vendor/skills/hyperframes-animation/scripts/package-loader.mjs 解析
+# @hyperframes/producer 与 @hyperframes/core，而这两个包**不在** hyperframes CLI 包里
+# （只装 CLI 时 node_modules/@hyperframes 根本不存在——实测）。
+#
+# 官方 loader 的两条退路都不可接受：
+#   · 缺包时做「一次性临时 bootstrap」：装到 tmp 目录、跑完即删（官方
+#     bootstrapWithNpmInstall 末尾 rmSync(installRoot)）→ 每跑一次 animation-map
+#     就重下一次 ~100MB 依赖；
+#   · 推不出锁定版本时**默认用 @latest**，只打印一行 stderr——实测上游 latest 已是
+#     0.8.223，与锁定值差 187 个补丁版，而且这条漂移是**静默**的。
+#     根因：官方 loader 靠 readBundledHyperframesVersion() 从自身所在目录的祖先链里
+#     找名为 hyperframes / @hyperframes/cli 的 package.json 推断版本，本仓的
+#     package.json 叫 zwhyperframes-harness，推断必然落空。
+#
+# 这里按锁定版本装进**仓库** node_modules：
+#   --no-save         不写进 package.json —— 它们不是本仓的直接依赖，也就不进分发包，
+#                     分发包体积与 package-lock.json 都保持不变
+#   --no-package-lock 不动锁文件（下一轮 npm install 会剪掉它们，因此本段紧跟主安装之后）
+#   --ignore-scripts  与官方 loader 同一姿态：生命周期脚本不执行。puppeteer 的
+#                     postinstall 因此不会去下载第二份 Chromium——浏览器用的是官方 CLI
+#                     缓存的 chrome-headless-shell（实测可用）。
+# 传递依赖逐个钉版本：producer 声明的是 ^0.8.36，范围会飘（实测 engine 被解到 0.8.223）。
+if ! hf_node scripts/lib/official-deps.mjs >/dev/null 2>&1; then
+  ( cd "$HARNESS_ROOT" && npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund \
+      "@hyperframes/core@${HF_EXPECTED_VERSION}" \
+      "@hyperframes/producer@${HF_EXPECTED_VERSION}" \
+      "@hyperframes/engine@${HF_EXPECTED_VERSION}" \
+      "@hyperframes/lint@${HF_EXPECTED_VERSION}" \
+      "@hyperframes/parsers@${HF_EXPECTED_VERSION}" \
+      "@hyperframes/studio-server@${HF_EXPECTED_VERSION}" )
+fi
+# fail-closed：依赖不齐或版本漂移，官方 animation-map 会静默退回 @latest。
+hf_node scripts/lib/official-deps.mjs
 
 echo "[bootstrap] 按锁定 commit 取回官方 skills（${HF_SKILLS_COMMIT}）…"
 # 幂等：vendor 里已锁定在同一个 commit 且产物齐全时不重新下载。
@@ -68,14 +112,10 @@ VENDOR_STAMP="$HARNESS_ROOT/vendor/.skills-commit"
 VENDOR_HASH_FILE="$HARNESS_ROOT/vendor/.skills-content-sha256"
 
 # vendor 内容树的聚合哈希；用来发现「stamp 正确但文件被改/陈旧」的情况。
+# 实现见 scripts/lib/tree-hash.sh（单独成文件是为了能被 tests/ 直接调用做回归）。
+source "$HARNESS_ROOT/scripts/lib/tree-hash.sh"
 vendor_content_hash() {
-  local hasher
-  if command -v shasum >/dev/null 2>&1; then
-    hasher="shasum -a 256"
-  else
-    hasher="sha256sum"
-  fi
-  find "$VENDOR_SKILLS" -type f -print | LC_ALL=C sort | xargs $hasher | $hasher | awk '{print $1}'
+  tree_hash "$VENDOR_SKILLS"
 }
 
 SKILLS_READY=0
@@ -103,16 +143,25 @@ if [ "$SKILLS_READY" -ne 1 ]; then
     rm -rf "$TMP"
   }
   trap cleanup EXIT
-  git -C "$TMP" init -q
-  git -C "$TMP" remote add origin "$HF_SKILLS_REPO_URL"
-  git -C "$TMP" config core.sparseCheckout true
+  # git 是原生程序（Windows 上是 MinGW 构建），不认 MSYS 的 POSIX 路径：
+  # /tmp/xxx 会被它当成 <当前盘>\tmp\xxx 而报「cannot change to」。
+  # 统一用 native_path 转成原生可解析的形态。
+  GIT_TMP="$(native_path "$TMP")"
+  git -C "$GIT_TMP" init -q
+  git -C "$GIT_TMP" remote add origin "$HF_SKILLS_REPO_URL"
+  git -C "$GIT_TMP" config core.sparseCheckout true
   # 必须用 non-cone 模式并锚定到根目录。
   # cone 模式下 `sparse-checkout set skills` 匹配的是**所有层级**名为 skills 的目录
   # （gitignore 语义），因此上游的 `.agents/skills/` 也会被一并拉入——而那里的媒体
   # 文件由 `.gitattributes` 声明为 LFS，checkout 时要向 LFS 服务器取对象；
   # 该通路不可达时整个 bootstrap 会以「smudge 过滤器 lfs 失败」中断。
   # non-cone 的 `/skills/` 精确锚定到根下的 skills/，不触及 .agents/。
-  git -C "$TMP" sparse-checkout set --no-cone '/skills/'
+  #
+  # 为什么走 --stdin 而不是命令行参数：'/skills/' 是 **git pathspec**，不是文件系统
+  # 路径。MSYS 的参数转换会把以 / 开头的参数当路径改写，于是它变成
+  # '<Git 安装目录>/skills/'——匹配不到任何东西，bootstrap 于是「成功」地取回一个
+  # 没有 skills/ 目录的空仓库。stdin 不经过参数转换，pathspec 原样送达。
+  printf '/skills/\n' | git -C "$GIT_TMP" sparse-checkout set --no-cone --stdin
   # LFS 指针不落地：即使将来上游给 skills/ 加了 LFS 规则，也不该在这里等 LFS 下载。
   # 指针会不会被误当成真实内容，由取回后的指针检测 fail-closed 拦截。
   export GIT_LFS_SKIP_SMUDGE=1
@@ -137,13 +186,13 @@ if [ "$SKILLS_READY" -ne 1 ]; then
   FETCHED=0
   GOT_SHA=""
   for url in "$HF_SKILLS_REPO_URL" "$HF_SKILLS_REPO_SSH"; do
-    git -C "$TMP" remote set-url origin "$url"
+    git -C "$GIT_TMP" remote set-url origin "$url"
     for ref in "$HF_SKILLS_COMMIT" "refs/tags/${HF_SKILLS_TAG}"; do
       echo "[bootstrap] 尝试取回：${url} ${ref}"
       if perl -e 'alarm shift; exec @ARGV' "$FETCH_TIMEOUT" \
-           git -C "$TMP" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 \
+           git -C "$GIT_TMP" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 \
            fetch --depth 1 --filter=blob:none origin "$ref"; then
-        CANDIDATE="$(git -C "$TMP" rev-parse "FETCH_HEAD^{commit}" 2>/dev/null || true)"
+        CANDIDATE="$(git -C "$GIT_TMP" rev-parse "FETCH_HEAD^{commit}" 2>/dev/null || true)"
         if [ "$CANDIDATE" = "$HF_SKILLS_COMMIT" ]; then
           FETCHED=1
           GOT_SHA="$CANDIDATE"
@@ -164,9 +213,9 @@ if [ "$SKILLS_READY" -ne 1 ]; then
   # checkout 同样加硬超时：partial clone 的按需 blob 拉取发生在这一步，
   #   上游连接异常时它会与 fetch 一样软挂死。
   perl -e 'alarm shift; exec @ARGV' "$FETCH_TIMEOUT" \
-    git -C "$TMP" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 checkout -q FETCH_HEAD
+    git -C "$GIT_TMP" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 checkout -q FETCH_HEAD
   # 校验取回的确实是该 commit，而不是被远端改写
-  GOT_SHA="$(git -C "$TMP" rev-parse HEAD)"
+  GOT_SHA="$(git -C "$GIT_TMP" rev-parse HEAD)"
   if [ "${GOT_SHA}" != "${HF_SKILLS_COMMIT}" ]; then
     echo "取回的 commit 与锁定值不符：期望 ${HF_SKILLS_COMMIT}，实际 ${GOT_SHA}" >&2
     exit 1
@@ -220,27 +269,25 @@ VENDOR_SWAP_OK=1
 # 上游 skill 的内容随 commit 变，agent 目录里若留着别的版本，会与本仓规则引用的
 # 合同文本不一致——那正是「规则说 A、实际跑 B」的漂移。
 #
-# 替换一律用 `ln -sfn` 原地改指向，而不是「删除后再建」：
-# 软链的替换是 O(1) 的，而删除的代价随目录内容量级变化
-# （在带可恢复删除 shim 的环境里，逐项 rm -rf 实测可达分钟级）。
+# 用 Node 建链接而不是 `ln -sfn`：POSIX 上 ln -sfn 建软链、替换是 O(1)；
+# Windows 上 MSYS 的 ln 不建真软链（core.symlinks=false 或无权限），会**退化成整树复制**。
+# 副本与 vendor 失去联动，vendor 更新后副本就是陈旧的。Node 的 fs.symlinkSync 在
+# Windows 上用 'junction' 类型即可：无需管理员权限，且始终指向 vendor。
 # 只有当目标确实是**真实目录**（上游 CLI 或用户手工装下的旧版本）时才需要挪走，
 # 且统一挪到暂存区、末尾一次性清理，避免 N 次慢删除。
 echo "[bootstrap] 链接官方 skills 到智能体发现目录…"
 SUPERSEDED="$(mktemp -d "$HOME/.harness-superseded.XXXXXX")"
+# 仓库外的路径（用户发现目录）仍需 native_path：node 是原生程序，不认 MSYS 的 POSIX 路径。
+# 脚本本身走 hf_node——cwd=仓库根 + 相对路径，登录 shell 下也不会被参数转换改写。
+LINK_ROOTS=""
 for root in "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.config/opencode/skills"; do
-  mkdir -p "$root"
-  for skill_dir in "$VENDOR_SKILLS"/*/; do
-    [ -f "${skill_dir}SKILL.md" ] || continue
-    name="$(basename "$skill_dir")"
-    target="$root/$name"
-    src="${skill_dir%/}"
-    if [ -e "$target" ] && [ ! -L "$target" ]; then
-      echo "[bootstrap]   替换既有目录（版本漂移源）：${target}"
-      mv "$target" "$SUPERSEDED/$(basename "$root")-$name"
-    fi
-    ln -sfn "$src" "$target"
-  done
+  [ -n "$LINK_ROOTS" ] && LINK_ROOTS="${LINK_ROOTS},"
+  LINK_ROOTS="${LINK_ROOTS}$(native_path "$root")"
 done
+hf_node scripts/lib/link-official-skills.mjs \
+  --vendor-skills "$(native_path "$VENDOR_SKILLS")" \
+  --superseded "$(native_path "$SUPERSEDED")" \
+  --roots "$LINK_ROOTS"
 # 被替换下来的旧版本保留在 $SUPERSEDED（不自动删除）——用户手工安装的版本可恢复。
 if [ -n "$(ls -A "$SUPERSEDED" 2>/dev/null)" ]; then
   echo "[bootstrap] 被替换的旧版本保留在：${SUPERSEDED}"

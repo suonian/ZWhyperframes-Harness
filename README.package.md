@@ -34,20 +34,14 @@ HyperFrames 官方能力很全——composition、分镜、子智能体、音频
 
 ## 30 秒判断
 
-| 你的情况 | 建议 |
-| --- | --- |
-| 有中文口播稿，要标准化生产 | 用本技能 |
-| 想先看完整流程 | 读 `references/walkthrough.md` |
-| 安装/门禁报错 | 查 `references/faq.md` |
-| 只想要通用 HyperFrames 用法 | 直接用官方 HyperFrames |
-| 要改官方渲染/字幕/装配器 | 不要；本仓只加约束 |
+有中文口播稿、要标准化生产 → 用本技能；想先看完整流程 → 按 `docs/rules/production-workflow-rules.md` §2 的 Step 0–6；安装/门禁报错 → 查 `references/faq.md`；只要通用 HyperFrames 用法 → 直接用官方；要改官方渲染/字幕/装配器 → 不要，本仓只加约束。
 
 ## 前置条件
 
-- macOS 或 Linux（Keychain 仅 macOS）；Windows 原生未验证
+- macOS / Linux / Windows（Windows 需 Git Bash；Keychain 仅 macOS）
 - Node.js ≥ 22；ffmpeg / ffprobe；Python 3
 - HyperFrames 锁定 `0.8.36`（commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`）
-- MiniMax API Key：只从环境变量或 macOS Keychain 读取
+- MiniMax API Key：只从环境变量或 macOS Keychain 读取（Windows / Linux 只有环境变量一条路）
 
 macOS 可用 Homebrew 准备：
 
@@ -60,6 +54,19 @@ Debian/Ubuntu 可用：
 ```bash
 sudo apt-get update && sudo apt-get install -y nodejs npm ffmpeg python3
 ```
+
+Windows 可用 winget 准备（**另需 Git for Windows 提供 bash**）：
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+winget install Gyan.FFmpeg
+winget install Python.Python.3.13
+winget install Git.Git
+```
+
+> **Windows 上分两类跑。** `*.mjs`（Node 脚本）在 PowerShell 里直接 `node scripts/xxx.mjs ...`；`hf-env.sh` / `bootstrap.sh` / `doctor.sh` / `net-env.sh` 是 bash 脚本，要在 **Git Bash** 里跑（PowerShell 没有 `source` 与 POSIX 语义）。
+> `python3` 在 Windows 上常缺失（Microsoft Store 存根会静默失败），仓库会自动回退到 `python`，也可用 `MINIMAX_PYTHON` 指定解释器。
+> 装在 Python 环境里的 HuggingFace Hub CLI 会占用 `hf` 这个名字——生产前先 `source ./hf-env.sh`，否则会调到版本不对的那个。
 
 ## 安装
 
@@ -109,42 +116,27 @@ source ./hf-env.sh    # 生产入口；必须在 bootstrap 之后
 
 ## 它强制什么、不强制什么
 
-- **有机器门禁**：final-look preflight（锁稿/TTS/注入/字幕/animation-map/28px 布局/官方 check）、渲染前复核 `render-ready`（帧/index/字幕/语音/字体/BGM/音效逐字节比对）、`verify`、`mp4`、`master-inputs`、段/ master 授权状态。
+- **有机器门禁**：final-look preflight（锁稿/TTS/注入/字幕/animation-map/28px 布局/**视觉基线**/官方 check）、渲染前复核 `render-ready`（帧/index/字幕/语音/字体/BGM/音效逐字节比对）、`verify`、`mp4`、`master-inputs`、段/ master 授权状态。
 - **没有机器门禁**：官方 frame preset 的审美选择、catalog 语义检索、carve、keyframes、compare、publish、preview 评论、recipe freeze、media-treatment。它们由流程与复审保证执行，规则文档明确披露，不假装 fail-closed。
 - **责任边界**：官方能力由 HyperFrames 提供；本仓只读退出码/保留产物，不重写官方 composition、字幕渲染、check 或 render；管理件（锁稿/TTS/字幕/master/state）由本仓确定性脚本负责。
+- **模板与调色板**：用官方自带的 13 套 frame preset（`build-frame.mjs --preset`），本仓只声明默认用哪一套（`capsule`）——**偏好不是排他**，指名就照用；「我的模板」用官方 `recipe.mjs freeze/use` 冻结复用。详见 `docs/rules/visual-baseline.md`。
 - 详见 `docs/rules/production-workflow-rules.md` §3 的三层清单。
 
 ## 稳定性与错误处理
 
-| 机制 | 实现 |
-| --- | --- |
-| 网络/取回 | bootstrap 的 git fetch 硬超时、LFS 指针检测、旧 vendor 回滚；失败不写 commit stamp |
-| 外部命令 | `runHf` 15 分钟；gate preflight 30 分钟；captions verify 10 分钟 |
-| 状态写入 | `writeJson` 临时文件 + rename；授权/绑定不会写半截 |
-| 证据链 | 锁稿/TTS/注入/字幕/MP4 的 SHA-256 绑定；漂移即拒绝 |
-| TOCTOU | finalize 后重新哈希；master 批准前校验 candidate |
-| 恢复 | 新建项目/段失败清理；旧 vendor 回滚；错误带 `[gate]`/`[state]` 前缀 |
+网络/取回：bootstrap 的 git fetch 硬超时、LFS 指针检测、旧 vendor 回滚，失败不写 commit stamp。外部命令：`runHf` 15 分钟、gate preflight 30 分钟、captions verify 10 分钟。状态写入：`writeJson` 临时文件 + rename，不写半截。证据链：锁稿/TTS/注入/字幕/MP4 的 SHA-256 绑定，漂移即拒绝。TOCTOU：finalize 后重新哈希，master 批准前校验 candidate。恢复：新建项目/段失败清理半成品，错误带 `[gate]`/`[state]` 前缀。
 
 ## 证据链
 
-```text
-锁定口播稿
-  └─ user_script.txt（段级冻结）
-      └─ tts-binding.json（mp3/titles/manifest）
-          └─ injection-binding.json（audio_meta/STORYBOARD/帧时长）
-              └─ final-look-receipt.json（preflight 产物）
-                  └─ state.json 的 MP4 SHA-256 / master candidate
-```
+`锁定口播稿 → user_script.txt（段级冻结）→ tts-binding.json（mp3/titles/manifest）→ injection-binding.json（audio_meta/STORYBOARD/帧时长）→ final-look-receipt.json（preflight 产物）→ state.json 的 MP4 SHA-256 / master candidate`
 
 缺失的绑定只能重新派生；禁止事后补哈希。
 
 ## 设计取舍
 
 - **不重写官方能力**：composition、字幕渲染、check、render 仍走 HyperFrames；本仓只加约束和证据链，避免 fork 上游。
-- **证据优先于声明**：每个关键产物都有 SHA-256 绑定；不能靠“我已经检查过”通过。
-- **fail-closed 而非自动修复**：证据漂移时拒绝继续，要求重新派生；不把未知状态猜成通过。
-- **锁定 commit 而不是 latest**：官方 skills 按 `v0.8.36` 取回，避免上游 main 漂移改变生产结果。
-- **单步确定性脚本**：脚本不做 agent 调用、不自动改规范；方便审计与重跑。
+- **证据优先于声明**：每个关键产物都有 SHA-256 绑定；不能靠“我已经检查过”通过。漂移时 **fail-closed 而非自动修复**——不把未知状态猜成通过。
+- **锁定 commit 而不是 latest**：官方 skills 按 `v0.8.36` 取回；脚本单步、确定性、不做 agent 调用，方便审计与重跑。
 
 ## 安全与隐私
 
@@ -176,11 +168,11 @@ HARNESS_NO_PROXY=1 npm run bootstrap
 - `AGENTS.md`：智能体入口
 - `docs/rules/`：四份规范合同
 - `references/faq.md`：常见问题、错误索引、反模式
-- `references/walkthrough.md`：从资料包到 master 的端到端走查
 - `references/commands.md`：命令参数、成功输出与失败含义
-- `references/example-source.md` / `example-segment-plan.json`：可直接复制的示例输入
 - `scripts/`：管理脚本
 - `tools/minimax/`：MiniMax API 调用器
+
+> **端到端走查（`references/walkthrough.md`）与它的示例输入不在本包内**——它们是「照抄一遍完整流程」的教学材料，在 GitHub 仓库里随时可查。包内保留的是运行与排障所需的 `references/faq.md`（按症状索引）、`references/commands.md`（命令契约）与 `docs/rules/`（规范合同）。
 
 GitHub 仓库（完整文档、审计、变更历史、测试）：
 

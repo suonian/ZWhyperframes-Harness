@@ -53,17 +53,89 @@ jobs:
       - name: Test
         run: npm test
 
+      # 版本校验走 scripts/hf-version.mjs（它解析包内真实入口，不依赖
+      # `node node_modules/.bin/hyperframes`——后者在 Windows 上是 sh 包装脚本，
+      # node 解析成 JS 会 SyntaxError）。
+      # 下方刻意保留一行独立的版本字面量断言（期望值不通过变量传递）：
+      # CI 与脚本侧的声明要互相交叉校验，单一真源会让这条校验退化成同义反复。
       - name: Verify locked HyperFrames version
         run: |
-          ACTUAL="$(node node_modules/.bin/hyperframes --version)"
+          ACTUAL="$(node scripts/hf-version.mjs --print)"
           echo "hyperframes: $ACTUAL"
-          test "$ACTUAL" = "0.8.36" || { echo "版本漂移：期望 0.8.36"; exit 1; }
+          test "$ACTUAL" = "0.8.36"
 
       - name: Shell syntax check
         run: |
           bash -n hf-env.sh
           bash -n scripts/net-env.sh
+          bash -n scripts/platform-compat.sh
           bash -n scripts/bootstrap.sh
           bash -n scripts/doctor.sh
           bash -n scripts/install-skill.sh
-          python3 -m py_compile tools/minimax/scripts/*.py
+          # 解释器要挑一个**真能运行**的：Windows 上 python3 可能是 Microsoft Store
+          # 存根（执行即非零退出、不输出任何东西）。复用仓库自己的解析逻辑。
+          HARNESS_ROOT="$PWD"
+          source scripts/platform-compat.sh
+          resolve_python || { echo "没有可用的 Python 解释器"; exit 1; }
+          "$HARNESS_PY" -m py_compile tools/minimax/scripts/*.py
+
+  test-windows:
+    name: Node ${{ matrix.node }} / windows-latest
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    defaults:
+      run:
+        # 用 Git Bash：仓库的 bootstrap.sh / doctor.sh 是 bash 脚本。
+        # GitHub 的 windows runner 自带 Git for Windows（含 perl、cygpath），
+        # 指定 shell: bash 后 PATH 会带上 Git Bash。
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      # windows-latest **不自带 ffmpeg**（实测官方 actions/runner-images 的
+      # Windows2025 镜像工具清单：只有 ImageMagick / jq / zstd，没有 ffmpeg）。
+      # 不装就装，第一个造测试片的用例会以「null !== 0」失败，看不出根因。
+      - name: Install ffmpeg (Windows)
+        run: choco install ffmpeg --no-progress --yes
+
+      - name: Verify ffmpeg
+        run: |
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+
+      - name: Install dependencies
+        run: npm ci
+
+      # bootstrap.sh 的三处 Windows 适配（npm --prefix 路径形态、CLI 入口解析、
+      # sparse-checkout pathspec 走 stdin）都在仓库内，Windows 上应直接可用。
+      - name: Bootstrap (fetch official skills at the locked commit)
+        run: npm run bootstrap
+
+      - name: Test
+        run: npm test
+
+      - name: Verify locked HyperFrames version
+        run: |
+          ACTUAL="$(node scripts/hf-version.mjs --print)"
+          echo "hyperframes: $ACTUAL"
+          test "$ACTUAL" = "0.8.36"
+
+      - name: Shell syntax check
+        run: |
+          bash -n hf-env.sh
+          bash -n scripts/net-env.sh
+          bash -n scripts/platform-compat.sh
+          bash -n scripts/bootstrap.sh
+          bash -n scripts/doctor.sh
+          bash -n scripts/install-skill.sh
+          HARNESS_ROOT="$PWD"
+          source scripts/platform-compat.sh
+          resolve_python || { echo "没有可用的 Python 解释器"; exit 1; }
+          "$HARNESS_PY" -m py_compile tools/minimax/scripts/*.py

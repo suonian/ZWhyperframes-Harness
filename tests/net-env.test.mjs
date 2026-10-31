@@ -11,15 +11,48 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
-import { symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmp } from "./lib/tmp.mjs";
+import { findBash, findZsh } from "./lib/shell.mjs";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = "./scripts/net-env.sh";
-const BASH = "/bin/bash";
-const ZSH = "/bin/zsh";
+// shell 按平台解析，不能写死 /bin/bash（Windows 上那是 MSYS 的虚拟路径，原生 node
+// 解析不到；PATH 上的 bash 又通常是 WSL 存根）。见 tests/lib/shell.mjs。
+const BASH = findBash();
+const ZSH = findZsh();
+// 找不到 bash 时**明确失败**，而不是整份跳过：本仓的 bootstrap / doctor / hf-env
+// 全都是 bash 脚本，没有 bash 就跑不了这个仓——「环境缺 shell」是真实的阻塞，
+// 跳过会让它看起来像通过。
+if (!BASH) {
+  throw new Error(
+    "未找到可用的 bash。本仓的 bootstrap.sh / doctor.sh / hf-env.sh 都需要 bash；" +
+      "Windows 上请安装 Git for Windows（Git Bash），或把 bash 放进 PATH。",
+  );
+}
+
+/**
+ * 子进程环境。
+ *
+ * 刻意**不继承** NO_PROXY/no_proxy：macOS 默认就带，会掩盖「未设置」这一路。
+ * 也不整体继承 process.env——本机常带 HTTP_PROXY/HTTPS_PROXY，会污染
+ * 「落到直连时不得残留任何代理变量」那条用例的前置条件。
+ *
+ * 但 Windows 上原生程序需要一批系统变量（SystemRoot / TEMP / PATHEXT …），
+ * 缺了会出现与被测逻辑无关的怪错，所以按需补齐。
+ */
+function childEnv(extra = {}) {
+  const env = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME ?? process.env.USERPROFILE,
+    ...extra,
+  };
+  for (const key of ["SystemRoot", "USERPROFILE", "TEMP", "TMP", "COMSPEC", "PATHEXT", "WINDIR"]) {
+    if (process.env[key] !== undefined && env[key] === undefined) env[key] = process.env[key];
+  }
+  return env;
+}
 
 /** 在干净环境里 source net-env.sh 并回显指定变量；用绝对路径调 shell，避免 PATH 干扰。 */
 function sourceWith(body, env = {}, { pre = "", shell = BASH } = {}) {
@@ -30,8 +63,7 @@ function sourceWith(body, env = {}, { pre = "", shell = BASH } = {}) {
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 20_000,
-      // 刻意不继承 NO_PROXY/no_proxy：macOS 默认就带，会掩盖「未设置」这一路。
-      env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env },
+      env: childEnv(env),
     },
   );
   assert.equal(r.status, 0, `source 失败：\n${r.stderr}`);
@@ -131,7 +163,7 @@ test("无 python3 时显式说明原因，不静默直连", (t) => {
   const probe = spawnSync(BASH, ["-c", "command -v python3 >/dev/null 2>&1"], {
     encoding: "utf8",
     timeout: 20_000,
-    env: { PATH: sandbox, HOME: process.env.HOME },
+    env: childEnv({ PATH: sandbox }),
   });
   if (probe.status === 0) {
     t.skip("PATH 隔离未生效（本机仍能找到 python3），无法构造该前置条件");
@@ -183,7 +215,7 @@ test("probe_proxy 对真实监听端口判定为可达、对无人端口判定�
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 20_000,
-      env: { PATH: process.env.PATH, HOME: process.env.HOME },
+      env: childEnv(),
     });
     return r.status;
   };
@@ -197,9 +229,9 @@ test("probe_proxy 对真实监听端口判定为可达、对无人端口判定�
 });
 
 test("bash 与 zsh 行为一致（zsh 默认不做词分割）", (t) => {
-  const zsh = spawnSync(ZSH, ["-c", "exit 0"], { encoding: "utf8" });
-  if (zsh.error || zsh.status !== 0) {
-    t.skip("环境无 zsh，跳过跨 shell 一致性用例");
+  // 需要 bash 做对照基准，也需要 zsh；缺任一就跳过。
+  if (!BASH || !ZSH) {
+    t.skip("环境缺 bash 或 zsh，跳过跨 shell 一致性用例");
     return;
   }
   // 本文件要被 ~/.zshrc source。若按 `for x in $LIST` + IFS 分词，

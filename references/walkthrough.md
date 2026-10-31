@@ -3,6 +3,10 @@
 > 这是一个**可照抄结构**的最小示例，不是可直接运行的产品项目。尖括号 `<...>` 是占位符；实际产品默认写入 `~/Documents/ZWhyperframes-products/`。
 > 可直接复制的输入见 `references/example-source.md` 与 `references/example-segment-plan.json`（哈希已对齐）。
 
+> **Windows 上的两点差异。**
+> ① `~` 在 PowerShell / CMD 里会展开到用户目录，但**不是**「文档」目录——Windows 的「文档」可能被 OneDrive 重定向。命令行里请把 `--project` 写成实际绝对路径，或用 `--products-root` 显式指定；脚本缺省走「文档」Known Folder 的真实值。
+> ② `source ./hf-env.sh` 是 bash 语法。PowerShell 里没有 `source`（用 `. .\hf-env.sh` 也不等价——那是加载 .ps1），请在 **Git Bash** 里跑这三步。
+
 ## 0. 前提
 
 ```bash

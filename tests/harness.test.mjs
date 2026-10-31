@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, chmodSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   normalizeText, sha256Text, STATE_VERSION, CONTROL_DIR,
-  readState, writeState, segmentEntry, findProjectRoot,
+  readState, writeState, segmentEntry, findProjectRoot, replaceFileSync,
 } from "../scripts/lib/harness.mjs";
 import { tmp } from "./lib/tmp.mjs";
 
@@ -37,4 +37,18 @@ test("state 版本不匹配 fail-closed", () => {
   mkdirSync(join(root, CONTROL_DIR), { recursive: true });
   writeFileSync(join(root, CONTROL_DIR, "state.json"), JSON.stringify({ version: 99 }));
   assert.throws(() => readState(root), /版本不匹配/u);
+});
+
+test("replaceFileSync：覆盖只读目标必须成功（Windows 差异）", () => {
+  const root = tmp("zw-harness-test-");
+  const target = join(root, "target.json");
+  const staging = join(root, "target.tmp");
+  writeFileSync(target, "old");
+  writeFileSync(staging, "new");
+  // POSIX 的 rename() 无条件替换目标；Windows 的 MoveFileEx 带 REPLACE_EXISTING 时，
+  // 目标带只读属性会直接 EPERM。产物（state.json / 绑定 JSON / final.mp4）可能来自只读介质，
+  // 所以「覆盖只读目标」必须在所有平台上都成功。
+  chmodSync(target, 0o444);
+  replaceFileSync(staging, target);
+  assert.equal(readFileSync(target, "utf8"), "new");
 });

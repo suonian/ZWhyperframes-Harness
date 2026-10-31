@@ -7,7 +7,12 @@ import { fileURLToPath } from "node:url";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // vendor/ 是 bootstrap 按锁定 commit 取回的上游产物树（.gitignore 内），不属于本仓：
 // 它的 326 份 markdown 由上游维护，其内部相对链接的成败不应让本仓的门禁变红。
-const SKIP_DIRS = new Set([".git", "node_modules", "vendor", "__pycache__", ".skillhub-pkg"]);
+// .minimax/ 是项目级技能安装目录（<repo>/.minimax/skills/），装的是本仓自身的**副本**——
+// 把它纳入遍历会让「本机有副本 / CI 没有」造成门禁结论不可复现；同样排除。
+// .envcheck/ 是本机验证脚本的暂存区。
+const SKIP_DIRS = new Set([
+  ".git", "node_modules", "vendor", "__pycache__", ".skillhub-pkg", ".minimax", ".envcheck",
+]);
 
 // GitHub 真实锚点算法：转小写 → 去掉标点（保留字母/数字/空白/连字符/下划线）→ 逐个空格换成连字符。
 // 关键：空格是「逐个」替换，不折叠，因此 "a · b" 得到 "a--b"（中间那个 `·` 被删，留下两个空格）。
@@ -19,7 +24,8 @@ const slug = (heading) =>
     .replace(/\s/g, "-");
 
 function walkMd(dir, acc = []) {
-  for (const name of readdirSync(dir)) {
+  // 排序：目录遍历顺序随文件系统而变，固定顺序让失败信息可复现。
+  for (const name of readdirSync(dir).sort()) {
     if (SKIP_DIRS.has(name)) continue;
     const abs = join(dir, name);
     if (statSync(abs).isDirectory()) walkMd(abs, acc);

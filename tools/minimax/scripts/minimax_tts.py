@@ -20,6 +20,26 @@ import urllib.error
 import urllib.request
 
 
+# Windows 管道下 stdout/stderr 默认 GBK（cp936）：Node 侧按 utf8 解码会得到乱码，
+# 口播稿里的 emoji / 扩展 B 区汉字还会直接 UnicodeEncodeError 崩掉。
+# 统一强制 UTF-8 输出（调用方也可通过 PYTHONIOENCODING/PYTHONUTF8 设置，这里兜底）。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (ValueError, OSError):
+            pass
+
+
+def write_json_file(path: pathlib.Path, payload: object) -> None:
+    """写 JSON 产物：固定 UTF-8 + LF。
+
+    Windows 的 write_text 默认把 \\n 写成 \\r\\n，于是同一份内容在两个平台落盘字节不同
+    → 哈希不同 → 跨机复现与预存哈希都失配。这里直接写字节，锁死行尾。
+    """
+    path.write_bytes(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
+
+
 DEFAULT_BASE_URL = "https://api.minimaxi.com"
 BACKUP_BASE_URL = "https://api-bj.minimaxi.com"
 KEYCHAIN_ACCOUNT = "minimax"
@@ -78,6 +98,18 @@ def read_text(args: argparse.Namespace) -> str:
     if args.text_file:
         return pathlib.Path(args.text_file).read_text(encoding="utf-8")
     return args.text
+
+
+def dump_voice_profile() -> int:
+    """只读导出当前音色档案（不联网、不需要 API Key）。
+
+    为什么需要这个出口：VOICE_PROFILE 是音色的**唯一真源**（本文件内定义）。
+    门禁要核对「段内 manifest 的 voice_profile == 真源」，若在 Node 侧再抄一份
+    常量，就出现两份真源——改了一处忘了另一处，门禁会拿旧值判绿。
+    所以让门禁直接问这份真源，而不是复制它。
+    """
+    print(json.dumps(VOICE_PROFILE, ensure_ascii=False, indent=2))
+    return 0
 
 
 def get_api_key() -> str | None:
@@ -205,6 +237,11 @@ def reusable_manifest(manifest_path: pathlib.Path, endpoint: str, payload: dict)
 
 
 def main() -> int:
+    # --dump-voice-profile 是纯只读出口：不联网、不需要 API Key、不要求 --text。
+    # 必须在 parse_args 之前短路——parse_args 里 --text/--text-file 是必填互斥组。
+    if "--dump-voice-profile" in sys.argv:
+        return dump_voice_profile()
+
     args = parse_args()
     disable_proxy_for_minimax()
     text = read_text(args).strip()
@@ -251,7 +288,11 @@ def main() -> int:
 
     api_key = get_api_key()
     if not api_key:
-        print("缺少 MINIMAX_API_KEY，且未在本机 Keychain 找到 MiniMax 密钥。", file=sys.stderr)
+        print(
+            "缺少 MINIMAX_API_KEY，且未在本机 Keychain 找到 MiniMax 密钥。"
+            "（Keychain 只有 macOS 有；其它系统请设置环境变量 MINIMAX_API_KEY）",
+            file=sys.stderr,
+        )
         return 2
 
     response = request_json(endpoint, api_key, payload)
@@ -286,7 +327,7 @@ def main() -> int:
             stored_response["data"]["audio"] = f"<已写入音频文件，省略 {len(stored_audio)} 个十六进制字符>"
     if isinstance(stored_response.get("data", {}).get("subtitle_file"), str):
         stored_response["data"]["subtitle_file"] = "<已下载到本地字幕文件，临时签名 URL 已省略>"
-    response_path.write_text(json.dumps(stored_response, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_file(response_path, stored_response)
 
     manifest = {
         "provider": "minimax",
@@ -321,7 +362,7 @@ def main() -> int:
         "voice_profile": VOICE_PROFILE,
     }
 
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_file(manifest_path, manifest)
 
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
     return 0

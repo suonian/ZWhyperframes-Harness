@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E.svg)](https://nodejs.org/)
 [![HyperFrames](https://img.shields.io/badge/hyperframes-0.8.36%20locked-8A2BE2.svg)](https://github.com/heygen-com/hyperframes)
 [![CI](https://img.shields.io/badge/CI-4%20jobs-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-75%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-128%20total-brightgreen)](https://github.com/suonian/ZWhyperframes-Harness/actions/workflows/ci.yml)
 
 A harness engineering project for HyperFrames: rules constrain the official production flow, gates enforce that official capabilities are actually executed. Core official capabilities are never rebuilt.
 
@@ -104,6 +104,20 @@ HyperFrames' capabilities are complete — composition, storyboarding, sub-agent
 
 **Filling the gaps is a by-product, not the mission.** Core capabilities come 100% from official, none of it is rebuilt — anti-duplication is a boundary, not the purpose.
 
+### Templates and palette: use the official ones, don't invent your own
+
+A personal project usually wants a fixed voice, a fixed palette, no tiny labels, and no meaningless elements. Official already covers most of that, so this repo does not rebuild it:
+
+| What you want | What official already has | What this repo adds |
+| --- | --- | --- |
+| Fixed template and palette | 13 official frame presets (`hyperframes-creative/frame-presets/`); `build-frame.mjs --preset` lands one as `frame.md` + caption skin in one command, remixing brand colors and fonts onto the preset by role | Only declares **which one this project defaults to** (`capsule`) plus the CJK font (`Noto Sans SC`). That is a **preference, not an exclusion** — all 13 presets remain legal, and an explicitly named preset is honoured |
+| Reusing "my template" | Official `recipe.mjs freeze/use` freezes an approved project into `~/.media/recipes/`; `prefs.mjs` remembers preferences | No separate `brand/` copy — a second source of truth for the palette would drift |
+| Fixed voice | Official prefs remember the voice; this project uses MiniMax TTS with the voice fixed in `VOICE_PROFILE` | A gate that checks the segment manifest's `voice_profile` against that source of truth and fails on drift |
+| No tiny labels | Every official preset states `≥ 1.4cqw` and declares px tokens as chrome | This project is stricter at 28px, and exempts **only chrome tokens** (page numbers, counters) — carrying labels are never exempt |
+| No meaningless elements | Every official preset carries `Silence` / `Restraint` / `Approved Entities` clauses | Only the part official never mechanized: palette confinement (official `check` audits WCAG contrast and **does not check palette ownership**) |
+
+Full criteria: [`docs/rules/visual-baseline.md`](docs/rules/visual-baseline.md) (Chinese, the normative copy).
+
 ## Why you can trust it
 
 The "enforcement" above is not an adjective but a verifiable fact. The mechanism: locked script → TTS → injection binding → MP4 are chained with SHA-256; a frame's voiceover is checked for full equality with the locked script after normalization at injection/final check — not similarity; a missing binding can only be re-derived.
@@ -114,11 +128,13 @@ The "enforcement" above is not an adjective but a verifiable fact. The mechanism
 
 | Tier | Meaning | Coverage |
 | --- | --- | --- |
-| **3.1 Machine gates in this repo** | Critical paths fail closed | `preflight` / `render-ready` / `verify` / `final-look` / `pitch-round` / `animation-map` / `check` / `mp4` / `next-segment` / `master-inputs` / `final-delivery` / `layout-guard` / `authorized` |
+| **3.1 Machine gates in this repo** | Critical paths fail closed | `preflight` / `render-ready` / `verify` / `final-look` / `pitch-round` / `animation-map` / `motion-spec` / `check` / `quality` / `mp4` / `next-segment` / `master-inputs` / `final-delivery` / `layout-guard` / `baseline` / `authorized` |
 | **3.2 Official CLI commands** | Must genuinely be executed; the exit code is the evidence. **No machine gate in this repo** | Official `catalog` / `keyframes` / `compare` / `publish` / carve |
 | **3.3 Process / review evidence** | **No machine gate in this repo** | frame-comments disposition, recipe freeze, media-treatment |
 
-Of the 12 official quality capabilities, **only 3 have machine gates in tier 3.1**. The other 9 are held by process and review, and do not satisfy "blocked unless run" — that is stated in [Rules §3](docs/rules/production-workflow-rules.md) rather than hidden.
+Of the 13 official quality capabilities, **only 4 have machine gates in tier 3.1**. The other 9 are held by process and review, and do not satisfy "blocked unless run" — that is stated in [Rules §3](docs/rules/production-workflow-rules.md) rather than hidden.
+
+One further **visual baseline gate** (`gate.mjs baseline`: palette confinement, type-size floor, voice consistency — the official `check` only audits WCAG contrast and none of these three) plus three **finished-video visual quality gates** (§3.4 render input integrity / §3.5 finished-video content / §3.6 finished-video visual quality) sit outside the 13 numbered capabilities but fail closed just the same — `gate.mjs quality` runs a pixel-level audit that rejects clips whose first frame is a blank wait or whose scene intervals contain no visible change at all.
 
 > A gate cannot prove an agent "actually executed" a capability unless that capability leaves a verifiable artifact. This is the harness's capability boundary, and admitting it is more useful than exaggerating it.
 
@@ -130,7 +146,26 @@ Of the 12 official quality capabilities, **only 3 have machine gates in tier 3.1
 | HyperFrames | `0.8.36` (pinned; refuses to run if the CLI is missing or drifted) |
 | ffmpeg / ffprobe | Required (per-frame audio splitting and duration probing) |
 | Python 3 | Required (MiniMax caller and proxy probing) |
-| Platform | macOS / Linux (`net-env.sh` probing depends on bash + python3) |
+| Platform | macOS / Linux / Windows (`net-env.sh` probing depends on bash + Python 3) |
+
+### Notes for Windows
+
+The repo ships two kinds of scripts — **do not run them in the wrong shell**:
+
+| Kind | Files | How to run on Windows |
+| --- | --- | --- |
+| Node scripts (natively cross-platform) | `scripts/*.mjs`, `scripts/lib/*.mjs` | `node scripts/xxx.mjs ...`; PowerShell and CMD both work |
+| Shell scripts (need bash) | `hf-env.sh`, `scripts/bootstrap.sh`, `scripts/doctor.sh`, `scripts/net-env.sh` | **Git Bash** (e.g. `C:\Program Files\Git\bin\bash.exe`), **not** PowerShell — PowerShell has no `source`/POSIX semantics, and `bash -n` cannot validate them there |
+
+Three Windows pitfalls are already handled inside the repo, but here is the reasoning:
+
+1. **`python3` is often absent.** Microsoft Store registers a `python3.exe` stub that exits 49 and fails silently. The repo resolves the interpreter by trying `MINIMAX_PYTHON` → `python3` → `python`, and **only accepts one that actually runs a minimal import**; you can also set `MINIMAX_PYTHON`.
+2. **`hf` collides with another CLI.** A pip-installed HuggingFace Hub CLI ships `Scripts\hf.exe` under the same name (1.6.0 in our test), so invoking `hf` without sourcing `hf-env.sh` silently gets the wrong version. **Always `source ./hf-env.sh` first** (in Git Bash), or call `node node_modules/hyperframes/bin/hyperframes.mjs` directly.
+3. **The product root follows the Known Folder.** Windows may redirect "Documents" into OneDrive, so the repo reads the real value from `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders\Personal` instead of assuming `~/Documents`.
+
+> **One credential channel only.** macOS can use the Keychain; Windows and Linux have no Keychain, so **the environment variable** `MINIMAX_API_KEY` is the only option. See "MiniMax credentials" below.
+
+> For the full cross-platform evidence, fix list, capability matrix and **open items**, see [`docs/architecture/windows-cross-platform-audit-2026-10-31.md`](docs/architecture/windows-cross-platform-audit-2026-10-31.md) (Chinese only).
 
 ## Quick start
 
@@ -141,7 +176,7 @@ cd ZWhyperframes-Harness
 npm run bootstrap    # install locked dependencies + verify HF version + fetch official skills at the locked commit
 npm run doctor       # environment check: CLI version / skills / browser / ffmpeg / MiniMax credentials
 source ./hf-env.sh   # production entry point (provides the hf function, network policy, skips init's network check)
-npm test             # 75 tests
+npm test             # 128 tests
 ```
 
 > **Official skills are fetched at the locked commit, not from upstream's live tree.** `bootstrap.sh` uses git to fetch the official `skills/` tree at commit `f86aae6` (the `v0.8.36` release) into `vendor/skills/`, then fail-closed checks the 13 official artifacts this repo actually references — a missing one is an error, never a silent skip.
@@ -192,15 +227,21 @@ HARNESS_NPM_REGISTRY=https://registry.npmjs.org bash scripts/bootstrap.sh  # ove
 
 ### MiniMax credentials
 
+**The environment variable is the only cross-platform channel.** macOS additionally supports the Keychain; Windows and Linux have no Keychain, so the environment variable is the only option there.
+
 ```bash
 export MINIMAX_API_KEY="your API key"        # preferred
 ```
 
-Or store it in the macOS Keychain (service name defaults to `MINIMAX_API_KEY`, overridable via `MINIMAX_KEYCHAIN_SERVICE`):
+On macOS you may store it in the Keychain (service name defaults to `MINIMAX_API_KEY`, overridable via `MINIMAX_KEYCHAIN_SERVICE`):
 
 ```bash
 security add-generic-password -a minimax -s MINIMAX_API_KEY -w 'your API key'
 ```
+
+> Windows PowerShell: `$env:MINIMAX_API_KEY="..."` affects **the current session only**; to persist it at user level use
+> `[Environment]::SetEnvironmentVariable("MINIMAX_API_KEY","...","User")` (takes effect in newly opened terminals).
+> In bash, `export` only affects that Git Bash session; put it in `~/.bashrc` to make it survive across sessions.
 
 ## Repository layout
 
@@ -216,7 +257,7 @@ scripts/               Management scripts (single-step, deterministic, agent-cal
   minimax-tts.mjs      MiniMax speech + word-level timing
   inject-audio-meta.mjs  Word-level timing → official audio_meta.json
   captions-zh.mjs      Chinese caption grouping data (rendering still official)
-  gate.mjs             Gates (13 commands, see "Why you can trust it")
+  gate.mjs             Gates (14 commands, see "Why you can trust it")
   state.mjs            The only write entry point for state and approvals
   finalize-master.mjs  Master concatenation (thin ffmpeg concat)
   build-skill-package.mjs  Builds the SkillHub-uploadable skill package (platform admission rules + fail-closed checks)
@@ -234,6 +275,7 @@ Video products **do not enter this repository**; by default they are written to 
 | --- | --- |
 | `docs/rules/production-workflow-rules.md` | Official Step 0–6 landing points, decision gates, three-tier mandatory capability list, handoff and issue ledger |
 | `docs/rules/visual-production-rulebook.md` | Visual quality floor (official worker contract first + project requirements) |
+| `docs/rules/visual-baseline.md` | Template / palette / voice default baseline: official asset index, default preference (preference, not exclusion), type-size criteria, machine-gate split |
 | `docs/rules/captions-contract.md` | Caption contract (requirements immutable) |
 | `docs/rules/segment-production-rules.md` | Locked-script freezing and segmentation |
 | `references/faq.md` | FAQ, error index, and anti-patterns (troubleshooting entry) |
@@ -243,7 +285,7 @@ Video products **do not enter this repository**; by default they are written to 
 
 Precedence: **current user instruction > AGENTS.md > `docs/rules/` > official HF contracts** (with the official text at the locked commit under `vendor/skills/` as ground truth).
 
-> **Language policy.** The four files under `docs/rules/` are maintained in **Chinese only**, and Chinese is authoritative for their normative requirements. This is deliberate: they are normative contracts with a single owner, so an English twin would create two sources of truth, and this repo's precedence order has no language dimension to adjudicate drift. The same applies to `AGENTS.md`, `docs/architecture/`, and `docs/plans/`. Community and governance documents are bilingual — see the "English" column in the documentation index below.
+> **Language policy.** The five files under `docs/rules/` are maintained in **Chinese only**, and Chinese is authoritative for their normative requirements. This is deliberate: they are normative contracts with a single owner, so an English twin would create two sources of truth, and this repo's precedence order has no language dimension to adjudicate drift. The same applies to `AGENTS.md`, `docs/architecture/`, and `docs/plans/`. Community and governance documents are bilingual — see the "English" column in the documentation index below.
 
 ## Getting help
 

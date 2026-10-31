@@ -26,11 +26,15 @@
 
 ```bash
 export MINIMAX_API_KEY="..."        # 优先
-# 或
+# 或（仅 macOS）
 security add-generic-password -a minimax -s MINIMAX_API_KEY -w '...'
 ```
 
 Keychain 服务名可用 `MINIMAX_KEYCHAIN_SERVICE` 覆盖。
+
+> **Keychain 是 macOS 专有机制**，Windows / Linux 上没有等价物，环境变量是唯一通道。本仓**不引入第三种凭证形态**（例如去读某个应用自己的配置文件）——那会让「key 只在两处」的审计结论失效。
+>
+> Windows PowerShell：`$env:MINIMAX_API_KEY="..."` 只对当前会话有效；持久化用 `[Environment]::SetEnvironmentVariable("MINIMAX_API_KEY","...","User")`。
 
 仓库中的 `tools/minimax/minimax.config.example.json` 等文件**只有占位符**，请勿提交真实密钥。`.gitignore` 已排除 `.env*` 与 `*.local`。
 

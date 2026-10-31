@@ -26,11 +26,15 @@ Please include, where possible: the affected file/lines, reproduction steps, the
 
 ```bash
 export MINIMAX_API_KEY="..."        # preferred
-# or
+# or (macOS only)
 security add-generic-password -a minimax -s MINIMAX_API_KEY -w '...'
 ```
 
 The Keychain service name can be overridden with `MINIMAX_KEYCHAIN_SERVICE`.
+
+> **The Keychain is a macOS-only mechanism.** Windows and Linux have no equivalent, so the environment variable is the only channel there. This repo deliberately does **not** introduce a third credential shape (for example, reading some other application's config file) — that would invalidate the audit conclusion "the key lives in exactly two places".
+>
+> Windows PowerShell: `$env:MINIMAX_API_KEY="..."` affects the current session only; to persist it at user level use `[Environment]::SetEnvironmentVariable("MINIMAX_API_KEY","...","User")`.
 
 Files in the repository such as `tools/minimax/minimax.config.example.json` contain **placeholders only**; never commit real secrets. `.gitignore` already excludes `.env*` and `*.local`.
 

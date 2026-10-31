@@ -5,6 +5,7 @@ import { join, resolve, dirname, relative, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
+import { CHANGELOG_MAX_BYTES, truncateChangelog } from "../scripts/lib/package-limits.mjs";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILDER = join(REPO, "scripts", "build-skill-package.mjs");
@@ -116,7 +117,9 @@ test("发布：请求体超过服务端实测上限时 fail-closed，不发出�
     writeFileSync(join(root, "huge.txt"), "x".repeat(500 * 1024));
     const r = spawnSync("node", [PUBLISHER, "--root", root, "--dry-run"], { encoding: "utf-8" });
     assert.notEqual(r.status, 0, "超限时必须以非零码退出");
-    assert.match(r.stderr + r.stdout, /超过.*上限/u, "错误信息须说明是体积超限");
+    // 超限现在会先在**打包阶段**被拦下（口径已统一），发布脚本的闸是第二道。
+    // 两种口径的措辞都接受，但都必须点名是体积问题。
+    assert.match(r.stderr + r.stdout, /超过.*(上限|发布闸)/u, "错误信息须说明是体积超限");
     // 关键：不得发出任何请求——干跑模式下即使体积合格也不会请求，
     // 所以这里只需确认失败发生在体积闸门上（而非打包或凭据环节）。
     assert.doesNotMatch(r.stdout, /HTTP \d+/u, "体积超限时不得发出请求");
@@ -134,4 +137,63 @@ test("发布：体积在上限内时通过闸门并完成干跑", () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("打包期就应拒绝产出「发布必失败」的包（体积按真实请求体判）", () => {
+  // 回归锁：此前打包按「文件字节和」判、发布按「真实请求体」判，两条线口径不同，
+  // 于是能产出「打包通过、发布必失败」的包——请求体比文件字节和多十几 KB
+  // （multipart 头 + changelog 字段）。这里用一份超大的内容验证：
+  // 打包阶段就必须拒绝，而不是等到发布那一刻才炸。
+  const root = makeFixture();
+  const out = join(root, "out");
+  try {
+    writeFileSync(join(root, "huge.txt"), "x".repeat(500 * 1024));
+    const r = spawnSync("node", [BUILDER, "--root", root, "--out", out], { encoding: "utf-8" });
+    assert.notEqual(r.status, 0, "超限时打包必须以非零码退出");
+    assert.match(r.stderr + r.stdout, /超过.*(上限|发布闸)/u, "错误信息须说明是体积超限");
+    assert.ok(!existsSync(out), "超限时不得产出包目录");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("打包期与发布期的体积口径必须一致（估计值 == 真实请求体）", () => {
+  // 发布脚本会用真实 body 长度与打包期用的估计函数对账，不等即拒发。
+  // 这里直接跑本仓：干跑通过 ⟺ 两条口径对得上（发布脚本一旦发现漂移就退出非零）。
+  const out = join(tmpdir(), `hf-pkg-selfcheck-${process.pid}`);
+  try {
+    const build = spawnSync("node", [BUILDER, "--root", REPO, "--out", out], { encoding: "utf-8" });
+    assert.equal(build.status, 0, `打包失败：${build.stderr}`);
+    const manifest = JSON.parse(
+      readFileSync(join(dirname(out), `${basename(out)}.manifest.json`), "utf-8"),
+    );
+    assert.ok(manifest.estimatedBodyBytes > 0, "清单必须记录请求体估计值");
+    assert.ok(
+      manifest.estimatedBodyBytes <= manifest.limits.maxBodyBytes,
+      `清单里的请求体估计 ${manifest.estimatedBodyBytes} 超过发布闸 ${manifest.limits.maxBodyBytes}`,
+    );
+
+    const publish = spawnSync("node", [PUBLISHER, "--root", REPO, "--dry-run"], { encoding: "utf-8" });
+    assert.equal(publish.status, 0, `发布干跑失败（口径可能已漂移）：${publish.stderr}`);
+    const m = publish.stdout.match(/请求体\s+([\d.]+)\s*KB/u);
+    assert.ok(m, `发布干跑未报告请求体体积：${publish.stdout}`);
+    const realKb = Number(m[1]);
+    // 干跑只打印到 0.1KB，比较时留 200 字节的舍入余量。
+    assert.ok(
+      Math.abs(manifest.estimatedBodyBytes / 1024 - realKb) < 0.2,
+      `打包期估计 ${(manifest.estimatedBodyBytes / 1024).toFixed(1)} KB 与发布期真实 ${realKb} KB 不一致`,
+    );
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test("changelog 字段超上限时必须截断并标注（不能静默丢内容）", () => {
+  const long = "发布说明。".repeat(4000); // 远超 CHANGELOG_MAX_BYTES
+  const truncated = truncateChangelog(long);
+  assert.ok(Buffer.byteLength(truncated, "utf-8") <= CHANGELOG_MAX_BYTES, "截断后仍超上限");
+  assert.match(truncated, /已截断/u, "截断必须留显式标记，否则读者会以为看到的是全文");
+  assert.ok(long.startsWith(truncated.slice(0, 40)), "截断必须保留开头");
+  const short = "短说明";
+  assert.equal(truncateChangelog(short), short, "未超上限时不应被改动");
 });

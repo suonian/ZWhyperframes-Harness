@@ -92,7 +92,11 @@ function runInit() {
   const productsRoot = resolve(get("products-root") ?? PRODUCTS_ROOT_DEFAULT);
   if (!existsSync(source)) throw new Error(`来源不存在：${source}`);
   const rel = relative(productsRoot, projectDir);
-  if ((rel === "" || rel.startsWith("..")) && !has("allow-outside-products-root")) {
+  // relative() 在**跨盘**时返回绝对路径（Windows 的 C:\ 与 D:\ 没有公共前缀），
+  // 此时 rel.startsWith("..") 为 false —— 只看 ".." 会让守卫被绕过，
+  // 项目目录可以写到产品根之外。所以绝对路径也要判为「越界」。
+  const outsideProductsRoot = rel === "" || rel.startsWith("..") || isAbsolute(rel);
+  if (outsideProductsRoot && !has("allow-outside-products-root")) {
     throw new Error(`项目必须位于产品根目录内：${productsRoot}`);
   }
   if (existsSync(projectDir) && readdirSync(projectDir).length > 0) {
@@ -147,7 +151,10 @@ function validateSegmentPlan(state, plan, projectDir) {
   if (!plan.locked_script_sha256 || plan.locked_script_sha256 !== sha256File(lockedPath)) {
     throw new Error("segment-plan.json 的 locked_script_sha256 缺失或与当前锁稿不一致");
   }
-  const lockedLines = readFileSync(lockedPath, "utf8").split("\n");
+  // 锁稿可能带 CRLF（Windows 编辑器保存的 .md）：按 "\n" 切行会残留 "\r"，
+  // 段正文哈希与计划里的 text_sha256 对不上，报「段正文不一致」——实际是行尾差异。
+  // 统一按 /\r?\n/ 切行，与提取锁稿时的归一化口径一致。
+  const lockedLines = readFileSync(lockedPath, "utf8").split(/\r?\n/u);
   let cursor = 1;
   for (const seg of plan.segments) {
     const [start, end] = seg.lines;
