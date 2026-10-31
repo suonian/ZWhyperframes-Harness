@@ -3,7 +3,7 @@
 //   init    资料归档 + 锁定稿提取冻结 + 项目状态初始化（拒绝非空目录）
 //   segment 按分段计划对单段执行官方 hyperframes init + 段骨架
 // 分段计划（语义切分）由主智能体判断后写入 segment-plan.json；本脚本只校验与执行。
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, cpSync, statSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, statSync, rmSync } from "node:fs";
 import { join, resolve, relative, isAbsolute, basename } from "node:path";
 import {
   PRODUCTS_ROOT_DEFAULT, CONTROL_DIR, MASTER_DIR, MASTER_RENDERS_DIR, STATE_VERSION,
@@ -83,6 +83,17 @@ function extractLockedScript(source) {
   throw new Error(`资料包目录中未找到锁定口播（需在某个 .md/.txt 文件中使用 <命名空间>:script:start/end 标记）：${source}`);
 }
 
+// 显式递归复制：不使用 fs.cpSync 的原生实现，避免 Windows 上目录/中文路径的
+// 平台差异与原生崩溃；只负责资料包归档这一件事。
+function copyTree(src, dest) {
+  if (statSync(src).isDirectory()) {
+    mkdirSync(dest, { recursive: true });
+    for (const entry of readdirSync(src)) copyTree(join(src, entry), join(dest, entry));
+  } else {
+    copyFileSync(src, dest);
+  }
+}
+
 // ── init ─────────────────────────────────────────────────────────────────────
 function runInit() {
   const projectDir = resolve(get("project") ?? ".");
@@ -105,10 +116,8 @@ function runInit() {
   try {
   mkdirSync(join(controlDir, "资料包"), { recursive: true });
   if (statSync(source).isDirectory()) {
-    // 明确复制目录“内容”，不要依赖 cpSync(srcDir, existingDest) 的平台差异；
-    // Windows 上直接把 srcDir 复制到已存在的 资料包/ 会多套一层。
     for (const entry of readdirSync(source)) {
-      cpSync(join(source, entry), join(controlDir, "资料包", entry), { recursive: true });
+      copyTree(join(source, entry), join(controlDir, "资料包", entry));
     }
   } else {
     copyFileSync(source, join(controlDir, "资料包", basename(source)));

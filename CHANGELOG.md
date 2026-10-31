@@ -18,7 +18,7 @@ Windows / Git Bash 路径的真实兼容性修复，并增加 Windows CI smoke�
 ### 修复
 - `runHf()` 不再执行 `node_modules/.bin/hyperframes`（Windows 上是 shell/cmd 包装，`node` 直接执行会失败），改为从 `hyperframes/package.json` 的 `bin.hyperframes` 解析真实 `.mjs` 入口。
 - `hf-env.sh` / `bootstrap.sh` / `doctor.sh` 同样改为直接调用 `node_modules/hyperframes/bin/hyperframes.mjs`，不再依赖 POSIX shim。
-- `new-video.mjs` 的目录资料包改为显式复制目录**内容**，不再依赖 `cpSync(srcDir, existingDest)` 的平台差异（Windows 上曾多套一层 `资料包/`）。
+- `new-video.mjs` 的目录资料包改为显式递归复制目录**内容**（不再使用 `cpSync`），避免 Windows 上目录/中文路径的平台差异与原生崩溃。
 - `tests/net-env.test.mjs` 在 Windows 上解析 Git Bash 的绝对路径，并且不剥掉 `SystemRoot` / `COMSPEC` / `PATHEXT` / `TEMP`；zsh 用例仍按环境跳过。
 - 新增 `windows-latest` / Git Bash / Node 22 的 CI smoke：不跑 bootstrap，验证 Node 测试、shell 语法与 Windows 路径；官方 skill 用例按缺失跳过。
 
