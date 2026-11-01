@@ -10,10 +10,14 @@ assignees: ''
 
 ```bash
 node --version      # 期望 >= 22
-node node_modules/.bin/hyperframes --version   # 期望 0.8.36（版本锁定，漂移即拒绝运行）
+node scripts/hf-version.mjs --print   # 期望 0.8.36（版本锁定，漂移即拒绝运行）
 ffmpeg -version
 python3 --version
 ```
+
+> 不要用 `node node_modules/.bin/hyperframes`：`.bin/` 下是 npm 生成的 sh 包装脚本（不是 JS），
+> 用 node 执行会报 `SyntaxError: missing ) after argument list`（Windows 上尤其）。`scripts/hf-version.mjs`
+> 解析的是包内真实入口，跨平台一致。
 
 - 操作系统：
 - Node.js 版本：

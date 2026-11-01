@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, cpSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -58,6 +58,16 @@ function writePlan(project, segments) {
 
 function makeTinyMp4(path, seconds = 1) {
   const r = spawnSync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=white:s=1920x1080:r=30", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-t", String(seconds), "-c:v", "libx264", "-c:a", "aac", "-shortest", path], { encoding: "utf8" });
+  // ffmpeg 缺失时 spawnSync 返回 status=null、error 被填、stderr 为 null。
+  // 直接 assert.equal(r.status, 0) 的失败信息是「null !== 0」，看不出根因，
+  // 会被误判成「造片逻辑坏了」。这里给出可执行的处置。
+  if (r.error) {
+    assert.fail(
+      `ffmpeg 不可用（${r.error.code ?? r.error.message}）：造测试片需要 ffmpeg。` +
+        "Windows 上装：winget install Gyan.FFmpeg；CI 的 test-windows job 必须先装 ffmpeg" +
+        "（windows-latest 镜像**不带** ffmpeg）。",
+    );
+  }
   assert.equal(r.status, 0, r.stderr);
 }
 
@@ -166,9 +176,53 @@ test("new-video init：目录资料包——整体归档 + 显式标记锁稿提
   const r = run("new-video.mjs", ["init", "--project", project, "--source", sourceDir, "--allow-outside-products-root"]);
   assert.equal(r.status, 0, r.stderr || r.stdout);
   assert.equal(readFileSync(join(project, "00-项目总控", "锁定口播稿.md"), "utf8"), "目录包第一行口播。\n目录包第二行口播。\n");
-  assert.ok(existsSync(join(project, "00-项目总控", "资料包", "原稿.md")));
-  assert.ok(existsSync(join(project, "00-项目总控", "资料包", "证据", "说明.md")));
-  assert.ok(existsSync(join(project, "00-项目总控", "资料包", "00-锁定口播稿.md")));
+
+  // 归档目标目录是「00-项目总控/资料包」——**全中文**。
+  // 实测 Node 22 + Windows 上，fs.cpSync 的 C++ 快路径把内容拷进含非 ASCII 的
+  // 目标目录时会静默拷空（目录建出来、源文件一个不落、不抛错）。带 filter 时
+  // fs.cpSync 改走纯 JS 路径（逐文件 copyFileSync），该路径在本平台正常。
+  //
+  // 这里同环境同结构探**两个变体**：生产用的「带 filter」必须拷进去（断言），
+  // 「裸 cpSync」的结果一并记进失败信息——一旦有人把生产改回裸 cpSync，
+  // 本用例立刻红，而不是等到资料包空了才发现。
+  const probeRoot = TMP();
+  const probeSrc = join(probeRoot, "package");
+  mkdirSync(join(probeSrc, "证据"), { recursive: true });
+  writeFileSync(join(probeSrc, "原稿.md"), "x");
+  writeFileSync(join(probeSrc, "证据", "说明.md"), "y");
+
+  const variantTrees = {};
+  for (const [label, destName, opts] of [
+    ["裸 cpSync", "目标-裸", { recursive: true }],
+    ["带 filter（生产用）", "目标-带filter", { recursive: true, filter: () => true }],
+  ]) {
+    const dest = join(probeRoot, destName);
+    mkdirSync(dest, { recursive: true });
+    try {
+      cpSync(probeSrc, dest, opts);
+      variantTrees[label] = readdirSync(dest, { recursive: true }).map(String).sort();
+    } catch (error) {
+      variantTrees[label] = `THREW: ${error.message}`;
+    }
+  }
+
+  const archiveDir = join(project, "00-项目总控", "资料包");
+  const controlDir = join(project, "00-项目总控");
+  const archived = existsSync(controlDir)
+    ? JSON.stringify(readdirSync(controlDir, { recursive: true }).map(String).sort())
+    : "<00-项目总控 目录不存在>";
+  const detail =
+    `项目总控实际内容=${archived}；cpSync 变体探针=${JSON.stringify(variantTrees)}；` +
+    `init stdout=${r.stdout}；init stderr=${r.stderr}`;
+
+  assert.deepEqual(
+    variantTrees["带 filter（生产用）"],
+    ["原稿.md", "证据", join("证据", "说明.md")].sort(),
+    `fs.cpSync 带 filter 拷到含非 ASCII 的目标目录失败：${JSON.stringify(variantTrees)}`,
+  );
+  assert.ok(existsSync(join(archiveDir, "原稿.md")), `归档缺 原稿.md。${detail}`);
+  assert.ok(existsSync(join(archiveDir, "证据", "说明.md")), `归档缺 证据/说明.md。${detail}`);
+  assert.ok(existsSync(join(archiveDir, "00-锁定口播稿.md")), `归档缺 00-锁定口播稿.md。${detail}`);
 });
 
 test("new-video init：目录资料包无显式标记 fail-closed", () => {
@@ -424,6 +478,23 @@ test("state set-mp4：产物漂移时必须拒绝绑定（漂移的渲染进不�
   assert.equal(after.segments[0].mp4.sha256, sha256File(mp4));
 });
 
+test("state set-mp4：黑屏无声片必须拒绝绑定（0 clip 空壳渲染进不了链条）", () => {
+  // 官方 init 铺的 index.html 是 **0 clip 的空壳**。跳过官方 Step 2–5（帧 / 装配 / 字幕）
+  // 直接渲染，产出的 MP4 存在、非空、哈希正常、时长也对得上 STORYBOARD——但它整片全黑
+  // 且没有音频轨。旧门禁全放行，于是「黑屏，没有任何画面和声音」就交付出去了。
+  const { project, statePath, segDir } = makeRenderReadyProject();
+  const mp4 = join(segDir, "renders", "video.mp4");
+  mkdirSync(join(segDir, "renders"), { recursive: true });
+  const r = spawnSync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=black:s=1920x1080:r=30", "-t", "1.2", "-c:v", "libx264", mp4], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const res = run("state.mjs", ["set-mp4", "--project", project, "--segment", "01", "--mp4", mp4]);
+  assert.equal(res.status, 1, "黑屏无声片必须拒绝绑定");
+  assert.match(res.stderr, /内容门禁/u);
+  // 拒绝后状态未被改写：这一段仍然没有绑定任何 MP4。
+  const after = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(after.segments[0].mp4, null, "被拒的片不能写进状态");
+});
+
 test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开始授权自动确认前段）", () => {
   const root = TMP();
   const project = join(root, "demo");
@@ -636,6 +707,69 @@ test("gate verify：锁稿/TTS 绑定漂移 fail-closed", () => {
   assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01", "--allow-missing"]).status, 1);
   writeFileSync(join(project, "01-开场", "user_script.txt"), "改过的口播稿。\n");
   assert.equal(run("gate.mjs", ["verify", "--project", project, "--segment", "01", "--allow-missing"]).status, 1);
+});
+
+test("gate verify：STORYBOARD 帧缺 duration 行不得误判漂移（比对必须同源）", () => {
+  const root = TMP();
+  const project = join(root, "demo");
+  const source = join(root, "package.md");
+  writeFileSync(source, PACKAGE);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  const plan = { segments: [{ id: "01", dir: "01-开场", lines: [1, 3] }] };
+  writePlan(project, plan.segments);
+  assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
+  const seg = join(project, "01-开场");
+  mkdirSync(join(seg, "audio"), { recursive: true });
+  writeFileSync(join(seg, "audio", "narration.mp3"), "audio");
+  writeFileSync(join(seg, "audio", "narration.titles"), "titles");
+  writeFileSync(join(seg, "audio", "narration.manifest.json"), "{}");
+  writeFileSync(join(seg, "audio_meta.json"), JSON.stringify({ bgm: null, voices: [] }));
+  writeFileSync(join(seg, "audio_engine_meta.json"), JSON.stringify({ bgm: null, voices: [] }));
+  // 官方形态：帧**没有** `- duration:` 行。官方 sync-durations 只更新已有行、从不新增，
+  // 所以这是合法产物，不是缺件。
+  const storyboard = "---\nmusic: none\n---\n\n## Frame 1 — 开场\n\n- voiceover: 第一行口播，讲开场冲突。\n";
+  writeFileSync(join(seg, "STORYBOARD.md"), storyboard);
+  const sha = (value) => createHash("sha256").update(value).digest("hex");
+  const textSha = sha(readFileSync(join(seg, "user_script.txt")));
+  writeFileSync(
+    join(seg, "audio", "tts-binding.json"),
+    JSON.stringify({ text_sha256: textSha, audio_sha256: sha("audio"), titles_sha256: sha("titles"), manifest_sha256: sha("{}") }),
+  );
+  // 注入绑定按「按帧解析出的 meta.duration」记录——缺 duration 行时是字符串 "undefined"。
+  const injection = {
+    schema_version: 2,
+    text_sha256: textSha,
+    titles_sha256: sha("titles"),
+    audio_sha256: sha("audio"),
+    audio_meta_sha256: sha256File(join(seg, "audio_meta.json")),
+    neutral_sha256: sha256File(join(seg, "audio_engine_meta.json")),
+    storyboard_sha256: sha256File(join(seg, "STORYBOARD.md")),
+    frame_durations: [{ number: 1, duration: "undefined" }],
+    frame_count: 1,
+    voiced_frame_count: 1,
+    voice_total_duration_s: 1,
+    word_count: 1,
+    bgm_mode: "none",
+    at: "t",
+  };
+  const injectionPath = join(seg, "audio", "injection-binding.json");
+  writeFileSync(injectionPath, JSON.stringify(injection, null, 2));
+  // 未漂移：帧缺 duration 行**不构成**漂移，必须放行。
+  assert.equal(
+    run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status,
+    0,
+    "帧缺 duration 行不是漂移，verify 不得误判 fail-closed",
+  );
+  // 真漂移：帧时长被改，且把 storyboard 哈希同步更新为新值——
+  // 这样只剩「时长比对」这一道防线，它必须仍然拦住。
+  writeFileSync(join(seg, "STORYBOARD.md"), storyboard.replace("## Frame 1 — 开场", "## Frame 1 — 开场\n\n- duration: 9s"));
+  injection.storyboard_sha256 = sha256File(join(seg, "STORYBOARD.md"));
+  writeFileSync(injectionPath, JSON.stringify(injection, null, 2));
+  assert.equal(
+    run("gate.mjs", ["verify", "--project", project, "--segment", "01"]).status,
+    1,
+    "帧时长真的变了必须 fail-closed",
+  );
 });
 
 test("gate layout-guard：可见字号 <28px fail-closed；≥28px 通过", () => {

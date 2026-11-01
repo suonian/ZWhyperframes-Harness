@@ -17,11 +17,21 @@ import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   sha256File, readState, segmentEntry, resolveSegmentDir, readJsonIfPresent, runHf, CONTROL_DIR,
-  INJECTION_BINDING_SCHEMA_VERSION, HARNESS_ROOT, writeJson, isUserApproval,
+  INJECTION_BINDING_SCHEMA_VERSION, HARNESS_ROOT, writeJson, isUserApproval, probeDurationSeconds,
   receiptBindingHashes, framesDigest, RECEIPT_BINDINGS, receiptDirBindingDigests, RECEIPT_DIR_BINDINGS,
 } from "./lib/harness.mjs";
-import { readStoryboard } from "./lib/storyboard.mjs";
+import { readStoryboard, storyboardDurationFacts, readStoryboardScenes } from "./lib/storyboard.mjs";
 import { validateMasterInputs } from "./lib/master-inputs.mjs";
+import { assertMediaContent } from "./lib/media-probe.mjs";
+import { assertAnimationMap, runOfficialAnimationMap } from "./lib/animation-map.mjs";
+import { OFFICIAL_SKILL_PKG_VERSION } from "./lib/official-deps.mjs";
+import { parseCheckEnvelope, collectFindings, formatFindings } from "./lib/check-envelope.mjs";
+import { writeMotionSpec } from "./lib/motion-spec.mjs";
+import { analyzeVideoPixels, evaluatePixelQuality } from "./lib/pixel-quality.mjs";
+import {
+  checkPaletteConfinement, checkFontSizeFloor, checkVoiceProfile,
+  readTtsManifests, readVoiceProfileTruth, readFrameColors, readTypographyPxTokens, MIN_TEXT_PX,
+} from "./lib/visual-baseline.mjs";
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -107,9 +117,23 @@ function runVerify() {
     if (!existsSync(neutralPath) || injection.neutral_sha256 !== sha256File(neutralPath)) fail("audio_engine_meta.json 与注入绑定漂移");
     const storyboardPath = join(segmentDir, "STORYBOARD.md");
     if (!existsSync(storyboardPath) || injection.storyboard_sha256 !== sha256File(storyboardPath)) fail("STORYBOARD.md 与 sync-durations 注入绑定漂移");
-    const storyboard = readFileSync(storyboardPath, "utf8");
-    const durations = [...storyboard.matchAll(/^- duration:\s*(.+?)\s*$/gmu)].map((match) => match[1]);
-    if (JSON.stringify(injection.frame_durations?.map((frame) => frame.duration)) !== JSON.stringify(durations)) fail("STORYBOARD 帧顺序/时长与注入绑定不一致");
+    // 帧顺序/时长必须用**与注入同一套解析**比对。
+    // 旧实现从原文正则里数 `- duration:` 行，而注入绑定存的是「按帧解析出的 meta.duration」
+    // （帧缺 duration 行时是字符串 "undefined"）。两套表示法在「帧没有 duration 行」时必然不等
+    // → 未漂移的产物被误判为漂移，fail-closed 变成假阳性。
+    // 「帧缺 duration 行」是合法的官方形态：官方 sync-durations 只**更新**已有的 duration 行、
+    // 从不新增（缺行时它自己也只是打印 "no `- duration:` line for frame(s) ..."）。
+    // 漂移检测不靠这一条——上一行的 storyboard_sha256 已覆盖文件任何改动；
+    // 这里比的是结构化的「帧号 + 时长」，顺带把帧顺序变化也纳入，且信息量不小于旧实现。
+    const currentFrames = readStoryboard(segmentDir).frames.map((frame) => ({
+      number: Number(frame.number),
+      duration: String(frame.meta.duration),
+    }));
+    const boundFrames = (injection.frame_durations ?? []).map((frame) => ({
+      number: Number(frame.number),
+      duration: String(frame.duration),
+    }));
+    if (JSON.stringify(currentFrames) !== JSON.stringify(boundFrames)) fail("STORYBOARD 帧顺序/时长与注入绑定不一致");
     for (const [key, file] of [["audio_sha256", "narration.mp3"], ["titles_sha256", "narration.titles"]]) {
       const path = join(segmentDir, "audio", file);
       if (!existsSync(path) || injection[key] !== sha256File(path)) fail(`注入输入与绑定漂移：${file}`);
@@ -250,7 +274,7 @@ function runRenderReady() {
   );
 }
 
-function runPreflight() {
+async function runPreflight() {
   const { entry, segmentDir } = requireSegment();
   if (!isUserApproval(entry.approvals?.start)) fail(`段 ${entry.id} 缺少合法的用户「开始授权」`);
   const framesDir = join(segmentDir, "compositions", "frames");
@@ -266,6 +290,10 @@ function runPreflight() {
   runCaptionsVerify(segmentDir);
   runAnimationMap();
   runLayoutGuard();
+  // 色板越界 / 字号口径 / 音色一致：官方 check 不看 frame.md 一致性，必须本仓判。
+  await runBaseline();
+  // sidecar 必须先于 check 生成：官方 check 靠同目录的 *.motion.json 启用运动校验。
+  runMotionSpec();
   runCheck();
 
   const receipt = buildFinalLookReceipt({ entry, segmentDir });
@@ -274,15 +302,15 @@ function runPreflight() {
   pass(`段 ${entry.id} final look 前置检查全部通过（receipt ${sha256File(receiptPath).slice(0, 12)}…）`);
 }
 
-function runFinalLook() {
+async function runFinalLook() {
   const { entry, segmentDir } = requireSegment();
   if (!isUserApproval(entry.approvals?.final_look)) fail(`段 ${entry.id} 缺少合法的用户「final look 渲染授权」`);
-  runPreflight();
+  await runPreflight();
   const receiptPath = join(segmentDir, ".hyperframes", "final-look-receipt.json");
   const expected = entry.approvals.final_look.gate_receipt?.sha256;
   if (!expected) fail("final look 授权缺少 gate receipt；旧授权请重新执行 state approve --kind final-look 派生");
   if (sha256File(receiptPath) !== expected) fail("final look 授权绑定的 gate receipt 与当前产物不一致（产物已变化，请重新授权）");
-  pass(`段 ${entry.id} 已获 final look 授权（verify/captions/animation-map/layout/check 全部通过，receipt 绑定一致）`);
+  pass(`段 ${entry.id} 已获 final look 授权（verify/captions/animation-map/layout/baseline/check 全部通过，receipt 绑定一致）`);
 }
 
 // §3 第 1 项：pitch-round 采样门。官方合同（skills/hyperframes/references/pitch-round.md）
@@ -317,26 +345,77 @@ function runPitchRound() {
 // 默认把产物写到 <composition>/.hyperframes/anim-map/animation-map.json。
 // 注意：官方每个 composition 产出**一个** animation-map.json（覆盖全时间线），
 // 不是"每页一个"——原规则表述不准确，此处按官方实际契约校验。
+//
+// 关键升级：以前这里只验「文件存在且非空」，官方算出来的 deadZones / tween flags
+// **全被丢弃**。现在按内容断言（阻断/告警分档见 scripts/lib/animation-map.mjs）。
 function runAnimationMap() {
   const { segmentDir } = requireSegment();
   const custom = get("out");
-  const candidates = custom
-    ? [join(resolve(custom), "animation-map.json")]
+  const outDir = custom ? resolve(custom) : null;
+  const candidates = outDir
+    ? [join(outDir, "animation-map.json")]
     : [join(segmentDir, ".hyperframes", "anim-map", "animation-map.json")];
-  const found = candidates.find((p) => existsSync(p));
+  let found = candidates.find((p) => existsSync(p));
+  // --generate：产物缺失时先跑**官方**脚本生成，再做内容断言。
+  // 官方脚本自带依赖解析与版本推断的退路（临时 bootstrap / @latest），
+  // 由 scripts/lib/official-deps.mjs 把版本钉死；这里只负责调用与读取退出码。
+  if (!found && args.includes("--generate")) {
+    const run = runOfficialAnimationMap(segmentDir, { outDir });
+    if (run.status !== 0) {
+      fail(
+        `官方 animation-map 脚本失败（退出码 ${run.status}）\n` +
+          `  stderr: ${(run.stderr || "").trim().split("\n").slice(-5).join("\n  ")}\n` +
+          `  官方依赖：${run.deps.ok ? "齐备" : `缺失 ${run.deps.missing.join(", ")}／漂移 ${run.deps.drifted.join(", ")}`}`,
+      );
+    }
+    found = candidates.find((p) => existsSync(p));
+    if (!found) {
+      fail(`官方 animation-map 脚本退出码 0 但产物未落盘：${candidates.join(" 或 ")}`);
+    }
+    pass(`已调用官方 animation-map 脚本生成产物（依赖版本 ${OFFICIAL_SKILL_PKG_VERSION} 已钉死）`);
+  }
   if (!found) {
-    fail(`缺少 animation-map.json（预期 ${candidates.join(" 或 ")}；官方脚本 animation-map.mjs 的产物）`);
+    fail(
+      `缺少 animation-map.json（预期 ${candidates.join(" 或 ")}；官方脚本 animation-map.mjs 的产物）。` +
+        `可用 --generate 先调用官方脚本生成。`,
+    );
   }
-  let parsed;
+  const verdict = assertAnimationMap(found);
+  if (!verdict.ok) {
+    fail(`animation-map 内容未通过（官方判据被本仓按阻断/告警分档执行）：\n  · ${verdict.findings.join("\n  · ")}`);
+  }
+  const warn = verdict.warnings.length ? `\n  · ${verdict.warnings.join("\n  · ")}` : "";
+  pass(
+    `animation-map 内容通过（${verdict.facts.tweenCount} 个补间 / ${verdict.facts.deadZoneCount} 个死区 / ` +
+      `${verdict.facts.staggerCount} 组 stagger）${warn}`,
+  );
+}
+
+// ── motion sidecar：让官方的运动校验真的跑起来 ────────────────────────────
+// 官方 `check` 的 motion 阶段**默认是关的**（实测：无 sidecar 时
+// motion.enabled=false, samples=0）。官方文档原话：
+// "With no sidecar, `check` behaves exactly as before."
+// 也就是说官方那条「最接近自动看片的代理检查」在本仓一直是零覆盖。
+// 本命令从帧 HTML 的主体声明 + index.html 的装配时间轴生成官方 sidecar。
+function runMotionSpec() {
+  const { segmentDir } = requireSegment();
+  let generated;
   try {
-    parsed = JSON.parse(readFileSync(found, "utf8"));
-  } catch {
-    fail(`animation-map.json 无法解析：${found}`);
+    generated = writeMotionSpec(segmentDir);
+  } catch (error) {
+    fail(`motion sidecar 生成失败：\n${error.message}`);
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || Object.keys(parsed).length === 0) {
-    fail(`animation-map.json 为空或形状非法：${found}`);
-  }
-  pass(`animation-map 产物存在且非空（${found}）`);
+  const kinds = generated.spec.assertions.reduce((acc, a) => {
+    acc[a.kind] = (acc[a.kind] ?? 0) + 1;
+    return acc;
+  }, {});
+  pass(
+    `motion sidecar 已生成（${generated.path}）：` +
+      Object.entries(kinds)
+        .map(([kind, count]) => `${kind}×${count}`)
+        .join(" · ") +
+      `，时长 ${generated.spec.duration}s`,
+  );
 }
 
 function runCheck() {
@@ -344,9 +423,42 @@ function runCheck() {
   // 同时把字幕带以下 17% 作为 keep-out 交给官方 layout 检查；视觉规则书 §2 的安全边界。
   // frame-check：把项目级安全边界（上 100 / 左右 120 / 字幕带）带入官方 check。
   // 有意出画的 travel 必须显式 data-layout-allow-overflow，不能靠 info 混过去。
-  const r = runHf(["check", "--strict", "--frame-check=severity=error;tol=4", "--timeout=30000", "--caption-zone=x0=0;y0=.83;x1=1;y1=1"], { cwd: segmentDir });
-  if (r.status !== 0) fail(`官方 check --strict 未通过：\n${r.stdout}\n${r.stderr}`);
-  pass("官方 check --strict 通过（含 lint + 字幕带 keep-out）");
+  //
+  // 用 --json 而不是只看退出码：官方信封里每条 finding 都带 selector / 时间点 /
+  // 源文件 / fixHint，只看退出码等于把官方最值钱的部分扔掉（用户只拿到一个非零码）。
+  const r = runHf(
+    ["check", "--strict", "--json", "--frame-check=severity=error;tol=4", "--timeout=30000", "--caption-zone=x0=0;y0=.83;x1=1;y1=1"],
+    { cwd: segmentDir },
+  );
+  const envelope = parseCheckEnvelope(r.stdout);
+  if (!envelope) {
+    fail(
+      `官方 check 的 JSON 信封无法解析（退出码 ${r.status}）：\n${r.stdout ?? ""}\n${r.stderr ?? ""}`,
+    );
+  }
+  const findings = collectFindings(envelope);
+  if (findings.length) {
+    fail(
+      `官方 check --strict 未通过（${findings.length} 条）：\n` +
+        formatFindings(findings)
+          .map((line) => `  · ${line}`)
+          .join("\n"),
+    );
+  }
+  // 覆盖率透明化：motion 阶段没跑 = 官方运动校验是零覆盖，必须让人知道，
+  // 而不是让「全绿」看起来像「运动也验过了」。
+  const motionEnabled = envelope.motion?.enabled === true;
+  const motionSamples = Number(envelope.motion?.samples ?? 0);
+  if (!motionEnabled) {
+    fail(
+      "官方 check 的 motion 阶段没有运行（motion.enabled=false）——" +
+        "官方运动校验是零覆盖，不能把这次通过当成「运动也验过了」。" +
+        "先执行 `node scripts/gate.mjs motion-spec --segment <NN>` 生成 sidecar。",
+    );
+  }
+  pass(
+    `官方 check --strict 通过（含 lint + 字幕带 keep-out + 官方 motion 校验 ${motionSamples} 次采样）`,
+  );
 }
 
 
@@ -369,9 +481,10 @@ function runFinalDelivery() {
   if (finalSha !== candidateSha) fail("renders/final.mp4 不是 candidate 的字节级副本（哈希不一致）");
   if (final.candidate_sha256 !== candidateSha) fail("final_render.candidate_sha256 与 candidate 不一致");
   if (final.duration_s !== candidate.duration_s) fail("final_render.duration_s 与 candidate 不一致");
-  const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", final.path], { encoding: "utf8", timeout: 10 * 60 * 1000 });
-  const duration = Number(probe.stdout.trim());
-  if (probe.status !== 0 || !Number.isFinite(duration) || duration <= 0) fail(`最终成片时长探测失败：${final.path}`);
+  const probed = probeDurationSeconds(final.path);
+  if (!probed.ok) fail(`最终成片时长探测失败：${probed.reason}`);
+  const duration = probed.seconds;
+  if (duration <= 0) fail(`最终成片时长探测失败：${final.path}`);
   if (Math.abs(duration - Number(candidate.duration_s)) > 0.2) fail(`最终成片时长 ${duration.toFixed(2)}s 与 candidate ${candidate.duration_s}s 不一致`);
   const manifestPath = final.manifest_path ?? join(resolve(projectRoot), "99-最终合成", "renders", "final-render.json");
   const manifest = readJsonIfPresent(manifestPath);
@@ -389,18 +502,65 @@ function runMp4() {
   if (!existsSync(mp4)) fail(`缺少 MP4：${mp4}`);
   if (statSync(mp4).size === 0) fail(`MP4 为空：${mp4}`);
   if (entry.mp4.sha256 !== sha256File(mp4)) fail("MP4 与状态绑定哈希漂移（需重新 set-mp4）");
-  const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", mp4], { encoding: "utf8", timeout: 10 * 60 * 1000 });
-  const duration = Number(probe.stdout.trim());
-  if (probe.status !== 0 || !Number.isFinite(duration) || duration <= 0) fail(`MP4 时长探测失败：${mp4}`);
-  const board = readStoryboard(segmentDir);
-  const expected = board.frames
-    .map((frame) => Number.parseFloat(String(frame.meta.duration ?? "").replace(/s$/u, "")))
-    .filter((n) => Number.isFinite(n) && n > 0)
-    .reduce((sum, n) => sum + n, 0);
-  if (expected > 0 && Math.abs(duration - expected) > 1) {
-    fail(`MP4 时长 ${duration.toFixed(2)}s 与 STORYBOARD 总时长 ${expected.toFixed(2)}s 不一致`);
+  const probed = probeDurationSeconds(mp4);
+  if (!probed.ok) fail(`MP4 时长探测失败：${probed.reason}`);
+  const duration = probed.seconds;
+  if (duration <= 0) fail(`MP4 时长探测失败：${mp4}`);
+  // 时长比对：与 state.mjs 同一套结构化解析（storyboardDurationFacts），
+  // 不各写一份正则——旧的分歧见 scripts/lib/storyboard.mjs 的注释。
+  const facts = storyboardDurationFacts(segmentDir);
+  if (facts.malformed.length > 0) {
+    fail(
+      `STORYBOARD 的 duration 行无法解析（时长校验无法进行）：\n` +
+        facts.malformed.map((frame) => `  · 帧 ${frame.number}：duration=${frame.raw}`).join("\n"),
+    );
   }
-  pass(`MP4 有效（${duration.toFixed(2)}s，哈希与状态一致）`);
+  if (facts.expected > 0 && Math.abs(duration - facts.expected) > 1) {
+    fail(`MP4 时长 ${duration.toFixed(2)}s 与 STORYBOARD 总时长 ${facts.expected.toFixed(2)}s 不一致`);
+  }
+  // 成片**内容**门禁：存在/非空/哈希/时长全对，也可能是「0 clip 空壳渲染」的黑屏无声片。
+  // 这里补上轨道/响度/黑帧三项事实判定，缺一即 fail-closed。
+  const media = assertMediaContent(mp4);
+  if (!media.ok) {
+    fail(`MP4 内容门禁未通过（黑屏/无声片不能进生产链）：\n  · ${media.findings.join("\n  · ")}`);
+  }
+  pass(
+    `MP4 有效（${duration.toFixed(2)}s，哈希与状态一致，${media.facts.videoStreams} 视频轨 / ` +
+      `${media.facts.audioStreams} 音频轨 / mean_volume ${media.facts.meanDb?.toFixed(1)} dB，无长黑帧）`,
+  );
+}
+
+// ── 成片像素级质检 ───────────────────────────────────────────────────────
+// 官方 check 的 motion 阶段数的是「元素的 opacity/transform 有没有变」，
+// 不是「画面看起来有没有变」——实测两者会给出相反结论。
+// 这一道门禁把判据落到**渲染像素**上：首帧是否可辨认、每个 Scene 区间内
+// 画面有没有变化（规则书 §1 全时长揭示 / §2 首帧规则）。
+function runQuality() {
+  const { entry, segmentDir } = requireSegment();
+  // 显式 --mp4 优先于已绑定的 MP4：复核/对比某支具体片子时，
+  // 绑定的那个只是「默认对象」，不该覆盖调用方的明确指定。
+  const explicit = get("mp4");
+  const mp4 = explicit ? resolve(explicit) : entry.mp4?.path;
+  if (!mp4) {
+    fail("成片像素级质检需要已绑定的 MP4；先运行 state.mjs set-mp4，或用 --mp4 <路径> 指定");
+  }
+  if (!existsSync(mp4)) fail(`MP4 不存在：${mp4}`);
+  const analysis = analyzeVideoPixels(mp4);
+  if (!analysis.ok) fail(`成片像素分析失败：${analysis.reason}`);
+  const { scenes } = readStoryboardScenes(segmentDir);
+  const verdict = evaluatePixelQuality(analysis.facts, scenes);
+  const f = analysis.facts;
+  const summary =
+    `静止占比 ${(f.staticRatio * 100).toFixed(1)}% · 最长静止 ${f.longestStaticSec}s · ` +
+    `首帧唯一色 ${f.firstFrame.uniqueColors} / 非背景 ${(f.firstFrame.subjectRatio * 100).toFixed(2)}% · ` +
+    `${scenes.length} 个 Scene 区间`;
+  if (!verdict.ok) {
+    fail(`成片像素级质检未通过：\n  · ${verdict.findings.join("\n  · ")}${verdict.warnings.length ? `\n  · ${verdict.warnings.join("\n  · ")}` : ""}`);
+  }
+  pass(
+    `成片像素级质检通过（${summary}）` +
+      (verdict.warnings.length ? `\n  · ${verdict.warnings.join("\n  · ")}` : ""),
+  );
 }
 
 function runNextSegment() {
@@ -470,15 +630,108 @@ function runLayoutGuard() {
   pass(`帧内可见字号均 ≥ ${MIN_PX}px（${files.length} 帧，宽度基准 ${width}px）`);
 }
 
-try {
+// ── §5 视觉基线门禁：色板越界 / 字号口径 / 音色一致 ──────────────────────────
+//
+// 定位：官方 `check` 不看 frame.md 一致性，也不看色板越界。本门禁只判官方不判的，
+// 且口径写死在 docs/rules/visual-baseline.md（规则书是唯一所有者）。
+//
+// 三条判定全部 fail-closed：证据缺失或无法判定 = 不通过。猜错等于把检查变成恒绿。
+async function runBaseline() {
+  const { segmentDir } = requireSegment();
+  const framesDir = join(segmentDir, "compositions", "frames");
+  const frameMdPath = join(segmentDir, "frame.md");
+
+  if (!existsSync(frameMdPath)) {
+    fail("缺少 frame.md（官方 Step 2 产物：`build-frame.mjs --preset <name>` 生成的视觉真源）");
+  }
+  const frameMd = readFileSync(frameMdPath, "utf8");
+  const declaredColors = await readFrameColors(frameMd);
+
+  let width = 1920;
+  try {
+    const board = readStoryboard(segmentDir);
+    const m = /^(\d+)\s*[x×]\s*(\d+)$/u.exec(String(board.globals.format ?? "").trim());
+    if (m) width = Number(m[1]);
+  } catch {
+    // 没有 STORYBOARD 时沿用 1920 基准（与 layout-guard 同口径）。
+  }
+
+  const files = existsSync(framesDir) ? readdirSync(framesDir).filter((f) => f.endsWith(".html")).sort() : [];
+  const paletteViolations = [];
+  const fontViolations = [];
+  const fontExempt = [];
+
+  // 基线自检：frame.md 里**承载性** px 令牌低于下限 → 基线本身有问题。
+  // 这正是官方 `capsule` 的 `label: px 14` 与本仓 28px 下限的冲突点：
+  // 官方把它当 chrome，但 `label` 在语义上是承载性标签（正文标签），
+  // 一旦 worker 引用它就必然低于下限。与其等成片后才拦，不如在基线层拦。
+  const baselineViolations = [];
+  for (const { token, px, chrome } of readTypographyPxTokens(frameMd)) {
+    if (chrome) continue;
+    if (px < MIN_TEXT_PX) {
+      baselineViolations.push(
+        `frame.md 承载性令牌 ${token} = ${px}px 低于 ${MIN_TEXT_PX}px 下限` +
+        `（官方 chrome-only 豁免不适用于承载性令牌；请上调该令牌或改用 cqw）`,
+      );
+    }
+  }
+
+  for (const file of files) {
+    const html = readFileSync(join(framesDir, file), "utf8");
+    const palette = await checkPaletteConfinement(frameMd, html);
+    for (const v of palette.violations) paletteViolations.push(`${file}: ${v}`);
+    const fonts = checkFontSizeFloor(frameMd, html, width);
+    for (const v of fonts.violations) fontViolations.push(`${file}: ${v}`);
+    for (const v of fonts.exempt) fontExempt.push(`${file}: ${v}`);
+  }
+
+  // 音色：段内 manifest 的 voice_profile 必须与真源（minimax_tts.py 的 VOICE_PROFILE）一致。
+  const truth = readVoiceProfileTruth(HARNESS_ROOT);
+  const voiceViolations = [];
+  if (!truth.ok) {
+    voiceViolations.push(truth.error);
+  } else {
+    const manifests = readTtsManifests(segmentDir);
+    if (!manifests.length) {
+      voiceViolations.push("段内 audio/ 目录没有 TTS manifest（*.manifest.json），无法核验音色");
+    }
+    for (const { path, data } of manifests) {
+      const result = checkVoiceProfile(data, truth.profile);
+      for (const v of result.violations) voiceViolations.push(`${path}: ${v}`);
+    }
+  }
+
+  const all = [...baselineViolations, ...paletteViolations, ...fontViolations, ...voiceViolations];
+  if (all.length) {
+    fail(
+      `视觉基线不一致：\n${all.join("\n")}` +
+      `\n（口径见 docs/rules/visual-baseline.md）`,
+    );
+  }
+  const notes = [];
+  if (fontExempt.length) notes.push(`${fontExempt.length} 处官方 chrome 令牌豁免`);
+  pass(
+    `视觉基线一致（色板 ${declaredColors.length} 键 / ${files.length} 帧未越界；` +
+    `字号 ≥${MIN_TEXT_PX}px @${width}；音色与真源一致${notes.length ? `；${notes.join("，")}` : ""}）`,
+  );
+}
+
+// 顶层 dispatch。
+//
+// 注意：async 子命令（preflight / final-look / baseline）的 reject **不会**被
+// 同步 try/catch 捕获——所以这里用 promise 链的 .catch() 兜底，而不是只靠 try。
+const dispatch = async () => {
   if (command === "verify") runVerify();
-  else if (command === "preflight") runPreflight();
+  else if (command === "preflight") await runPreflight();
   else if (command === "render-ready") runRenderReady();
   else if (command === "layout-guard") runLayoutGuard();
+  else if (command === "baseline") await runBaseline();
   else if (command === "authorized") runAuthorized();
-  else if (command === "final-look") runFinalLook();
+  else if (command === "final-look") await runFinalLook();
   else if (command === "pitch-round") runPitchRound();
   else if (command === "animation-map") runAnimationMap();
+  else if (command === "motion-spec") runMotionSpec();
+  else if (command === "quality") runQuality();
   else if (command === "check") runCheck();
   else if (command === "mp4") runMp4();
   else if (command === "next-segment") runNextSegment();
@@ -486,12 +739,14 @@ try {
   else if (command === "final-delivery") runFinalDelivery();
   else {
     console.error(
-      "用法: gate.mjs verify|preflight|render-ready|authorized|final-look|pitch-round|animation-map|check|mp4|next-segment|master-inputs|final-delivery|layout-guard\n" +
-      "      --project <项目根> [--segment <NN>] [--out <animation-map 输出目录>]",
+      "用法: gate.mjs verify|preflight|render-ready|authorized|final-look|pitch-round|animation-map|motion-spec|check|quality|mp4|next-segment|master-inputs|final-delivery|layout-guard|baseline\n" +
+      "      --project <项目根> [--segment <NN>] [--out <animation-map 输出目录>] [--mp4 <成片路径>]",
     );
     process.exit(2);
   }
-} catch (error) {
+};
+
+dispatch().catch((error) => {
   console.error(`gate.mjs 失败：${error.message}`);
   process.exit(1);
-}
+});

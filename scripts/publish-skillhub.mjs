@@ -14,8 +14,12 @@
 // 关于体积上限的实测：服务端对 publish 请求体有约 476KB 的实际上限
 // （协议文档 §8.3 写的是 ≤10MB，文档与线上部署不一致——与本仓此前发现的
 // 「.jpg 列入白名单但线上拒收」属同一类问题）。475KB 可通过、480KB 被断开。
-// 故本脚本设 460KB 的安全上限并 fail-closed：宁可明确报错，也不让服务端
-// 静默断连（客户端侧只看到 Broken pipe，没有任何可读信息）。
+//
+// 上限与体积估算都在 scripts/lib/package-limits.mjs（打包脚本共用同一套）：
+// 打包期按**估计的请求体**判、发布期按**真实 body** 判，两处口径一致。
+// 发布闸是 **460KB 机器硬性限制**（服务端实测上限约 476KB，本仓在其下留 15KB 余量），
+// 并 fail-closed：宁可明确报错，也不让服务端静默断连（客户端侧只看到 Broken pipe，
+// 没有任何可读信息）。
 //
 // 字段与文件收集规则与 SkillHub CLI（skills_store_cli.py 的
 // parse_skill_md_frontmatter / _collect_skill_files / _post_publish_multipart）保持一致。
@@ -31,6 +35,12 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import https from "node:https";
 import { extractChangelog } from "./lib/changelog.mjs";
+import {
+  PUBLISH_MAX_BODY_BYTES,
+  buildPublishPayload,
+  estimateBodyBytes,
+  parseSkillFrontmatter,
+} from "./lib/package-limits.mjs";
 
 const HARNESS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -52,7 +62,16 @@ for (let i = 2; i < process.argv.length; i += 1) {
 // 产物落在系统临时目录而非仓库内：包内不应包含上一次打包的产物，
 // 也不该在工作区留下未忽略的构建物。
 const PKG_DIR = join(tmpdir(), `skillhub-pkg-${process.pid}`);
-process.on("exit", () => rmSync(PKG_DIR, { recursive: true, force: true }));
+// 清理失败**不得**影响发布结论：Windows 上临时目录可能被杀毒软件占用，
+// rmSync 会抛 EPERM/EBUSY；在 exit 处理器里抛错会打出一段与发布无关的栈。
+// 这里吞掉清理异常——发布结果只由上面的退出码决定。
+process.on("exit", () => {
+  try {
+    rmSync(PKG_DIR, { recursive: true, force: true });
+  } catch {
+    // 故意忽略：临时目录残留不影响发布。
+  }
+});
 const build = spawnSync("node", [join(HARNESS_ROOT, "scripts", "build-skill-package.mjs"), "--root", sourceRoot, "--out", PKG_DIR], {
   encoding: "utf8",
 });
@@ -64,30 +83,9 @@ const buildSummary = (build.stdout || "").split("\n").filter((l) => l.includes("
 console.log(`[publish] ${buildSummary}`);
 
 // ── frontmatter 解析（与 CLI 一致：仅 key: value 与 key: [a, b]） ────────
-function parseFrontmatter(md) {
-  const text = readFileSync(md, "utf-8");
-  if (!text.startsWith("---")) throw new Error("SKILL.md 缺少 front matter（首行需为 ---）");
-  const parts = text.split("\n");
-  const end = parts.findIndex((line, idx) => idx > 0 && line.trim() === "---");
-  if (end < 0) throw new Error("SKILL.md front matter 缺少结束标记 ---");
-  const out = {};
-  for (const raw of parts.slice(1, end)) {
-    const line = raw.trimEnd();
-    if (!line.trim() || line.trimStart().startsWith("#")) continue;
-    if (!line.includes(":")) continue;
-    const idx = line.indexOf(":");
-    const key = line.slice(0, idx).trim();
-    const val = line.slice(idx + 1).trim();
-    if (val.startsWith("[") && val.endsWith("]")) {
-      out[key] = val.slice(1, -1).split(",").map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
-    } else {
-      out[key] = val.replace(/^["']|["']$/g, "");
-    }
-  }
-  return out;
-}
-
-const meta = parseFrontmatter(join(PKG_DIR, "SKILL.md"));
+// 解析实现在 scripts/lib/package-limits.mjs：打包脚本与本脚本必须解析出**同一个**
+// payload，否则打包期算出的请求体估计与这里的真实请求体对不上。
+const meta = parseSkillFrontmatter(readFileSync(join(PKG_DIR, "SKILL.md"), "utf-8"));
 for (const field of ["slug", "version", "displayName"]) {
   if (!meta[field]) throw new Error(`SKILL.md 缺少 ${field}`);
 }
@@ -127,17 +125,12 @@ if (!changelog) {
   // CHANGELOG 缺失时不失败——它只是发布说明的来源，不是发布的必要条件。
 }
 
-const payload = {
-  slug: meta.slug,
-  version: meta.version,
-  displayName: meta.displayName,
-  summary: meta.summary ?? "",
-  description: meta.description ?? "",
-  tags: Array.isArray(meta.tags) ? meta.tags : [],
-  license: meta.license ?? "",
-  homepage: meta.homepage ?? "",
-  changelog,
-};
+// payload 构造与打包脚本共用同一套实现（scripts/lib/package-limits.mjs），
+// 否则打包期算出的请求体估计与这里的真实请求体对不上，那道闸就是假的。
+// changelog 在这里被**截断到上限**：它是请求体里的一个字段，大小由仓库的
+// CHANGELOG.md 决定——发布新版本时它会变成新版本的整节说明（本仓当前「未发布」
+// 节就有 30KB 量级），不设上限等于把超限留到上线那一刻。
+const payload = buildPublishPayload(meta, changelog);
 
 // ── changelog 提取 ───────────────────────────────────────────────────────
 // 按行扫描，不用多行正则——理由见 scripts/lib/changelog.mjs 的注释。
@@ -162,18 +155,28 @@ for (const f of files) {
 chunks.push(Buffer.from(`--${boundary}--\r\n`, "utf-8"));
 const body = Buffer.concat(chunks);
 
+// 对账：真实 body 与打包期用的估计函数必须一致。
+// 不一致说明 estimateBodyBytes 与真实构造漂了——那意味着**打包期那道闸判的是
+// 一个假数字**，此时宁可拒绝上传，也不能放行一个「本地过、线上炸」的包。
+const estimate = estimateBodyBytes(files, JSON.stringify(payload));
+if (estimate !== body.length) {
+  console.error(`拒绝上传——请求体估计与真实体积不一致（估计 ${estimate}，真实 ${body.length}）。`);
+  console.error("打包期的体积闸与发布期的真实构造已漂移，必须先修 scripts/lib/package-limits.mjs。");
+  process.exit(1);
+}
+
 // fail-closed：请求体必须在服务端实测上限之内（见文件头）。超限时不发请求——
 // 让服务端断开连接只会得到一个没有可读信息的 Broken pipe。
-const MAX_BODY_BYTES = 460 * 1024;
-console.log(`[publish] ${files.length} 个文件，请求体 ${(body.length / 1024).toFixed(1)} KB（上限 ${(MAX_BODY_BYTES / 1024).toFixed(0)} KB）`);
-if (body.length > MAX_BODY_BYTES) {
-  console.error(`拒绝上传——请求体 ${(body.length / 1024).toFixed(1)} KB 超过服务端实测上限 ${(MAX_BODY_BYTES / 1024).toFixed(0)} KB。`);
+console.log(`[publish] ${files.length} 个文件，请求体 ${(body.length / 1024).toFixed(1)} KB（上限 ${(PUBLISH_MAX_BODY_BYTES / 1024).toFixed(0)} KB）`);
+if (body.length > PUBLISH_MAX_BODY_BYTES) {
+  console.error(`拒绝上传——请求体 ${(body.length / 1024).toFixed(1)} KB 超过发布闸 ${(PUBLISH_MAX_BODY_BYTES / 1024).toFixed(0)} KB。`);
   console.error("服务端不接受 gzip 压缩的请求体，体积只能靠缩减发布包内容清单来满足。");
   process.exit(1);
 }
 
 if (dryRun) {
-  console.log(`[publish] changelog ${changelog.length} 字符${changelog ? `：${changelog.slice(0, 80).replace(/\n/g, " ")}…` : "（空）"}`);
+  const shown = payload.changelog ?? "";
+  console.log(`[publish] changelog ${shown.length} 字符${shown ? `：${shown.slice(0, 80).replace(/\n/g, " ")}…` : "（空）"}`);
   console.log(`✓ Dry-run passed: ${meta.slug}@${meta.version}`);
   process.exit(0);
 }

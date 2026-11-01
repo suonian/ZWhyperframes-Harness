@@ -1,7 +1,7 @@
 ---
 name: zwhyperframes-harness
 slug: zwhyperframes-harness
-version: 0.2.9
+version: 0.2.10
 displayName: HyperFrames Harness — 中文知识视频生产门禁
 summary: 用 HyperFrames 生产中文无真人出镜知识视频的规则与门禁层：锁定稿、TTS/字幕哈希绑定、final-look 前置检查、master 审批；不重写官方能力。
 description: 当用户要用 HyperFrames 制作中文无真人出镜知识视频、要求锁定口播稿/字幕逐字一致/生产可复现，或需要排查 HyperFrames 生产门禁时使用；它把官方 Step 0–6 与质量能力变成 fail-closed 规则，不重写官方能力。
@@ -31,7 +31,7 @@ HyperFrames 的 harness 工程，用于生产中文无真人出镜知识类视�
 
 | | 约束 |
 | --- | --- |
-| 输入 | 中文 UTF-8 锁定口播稿（`script:start/end` 唯一标记块）、资料包文件/目录、项目路径；Node ≥22、ffmpeg/ffprobe、Python 3；MiniMax Key（环境变量或 macOS Keychain） |
+| 输入 | 中文 UTF-8 锁定口播稿（`script:start/end` 唯一标记块）、资料包文件/目录、项目路径；Node ≥22、ffmpeg/ffprobe、Python 3；MiniMax Key（环境变量；macOS 另有 Keychain） |
 | 输出 | 段 MP4、master candidate MP4、`state.json` 与各绑定/收据 JSON、字幕分组与 official captions HTML |
 | 不可变 | 锁稿/段稿/TTS/字幕/master 在授权后不得改字或换片；变化必须重新派生并重新授权 |
 | 不负责 | 官方 composition/字幕渲染/check/render 的实现、视觉素材生成、`vendor/` 官方内容修改 |
@@ -55,15 +55,13 @@ HyperFrames 的 harness 工程，用于生产中文无真人出镜知识类视�
 
 ## 它解决什么
 
-HyperFrames 的能力是齐的。问题不在缺功能，而在**生产由智能体临场驱动**：同一套流程跑十次就有十种结果；规则写进了文档，官方质量能力「名义上在用」，却没有任何机制保证真的被执行过。
-
-本仓用两件事应对：**规则把官方流程钉死，门禁把「声称做过」变成「不通过就卡住」**。
+HyperFrames 的能力是齐的。问题不在缺功能，而在**生产由智能体临场驱动**：同一套流程跑十次就有十种结果；规则写进了文档，官方质量能力「名义上在用」，却没有任何机制保证真的被执行过。本仓用两件事应对：**规则把官方流程钉死，门禁把「声称做过」变成「不通过就卡住」**。
 
 | | 性质 | 做什么 |
 | --- | --- | --- |
 | **保流程** | 强制 | 把「应该按官方 `faceless-explainer` Step 0–6 + review-loop」变成「不按就过不去」 |
 | **强制能力** | 强制 | 把「规则里写了要用 pitch-round」变成「没跑就门禁红」 |
-| **补缺口** | 补件 | 锁定稿分段、MiniMax 词级时间注入、master 拼接、状态与授权记录——这是副产品，不是主命题 |
+| **补缺口** | 补件 | 锁定稿分段、MiniMax 词级时间注入、master 拼接、状态与授权记录 |
 
 ## 从哪里开始读
 
@@ -74,10 +72,11 @@ HyperFrames 的能力是齐的。问题不在缺功能，而在**生产由智能
 | `AGENTS.md` | 智能体入口：定位、规则导航、版本与网络策略、硬边界 |
 | `docs/rules/production-workflow-rules.md` | 生产流程唯一所有者：官方 Step 0–6 落点、用户决策门、强制质量能力清单、交接与问题账本 |
 | `docs/rules/visual-production-rulebook.md` | 视觉质量底线（官方 worker 合同优先 + 项目要求） |
+| `docs/rules/visual-baseline.md` | 模板/调色板/音色默认基线唯一所有者：官方资产索引、默认偏好（偏好非排他）、字号口径裁决、机器门禁分工 |
 | `docs/rules/captions-contract.md` | 字幕合同唯一所有者（要求不可变更） |
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
 | `references/faq.md` | 常见问题、错误索引、反模式清单（排障先看这里） |
-| `references/walkthrough.md` | 从资料包到 master 的端到端最小走查 |
+| `references/walkthrough.md` | 从资料包到 master 的端到端最小走查（**只在仓库里**，分发包不含） |
 | `references/commands.md` | 命令参数、成功输出、失败含义与返工顺序 |
 
 冲突裁决顺序：**用户当前指令 > `AGENTS.md` > `docs/rules/` > 官方 HF 合同**（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
@@ -88,9 +87,9 @@ HyperFrames 的能力是齐的。问题不在缺功能，而在**生产由智能
 
 | 你是 | 先读 |
 | --- | --- |
-| 第一次安装/运行 | 本文件「快速开始」→ `references/faq.md` §1 |
-| 要完整生产一支视频 | `references/walkthrough.md` → `docs/rules/production-workflow-rules.md` |
-| 排查某个门禁/报错 | `references/faq.md` 的 30 秒索引 |
+| 第一次安装/运行 | 本文件「快速开始」→ `references/faq.md` |
+| 要完整生产一支视频 | `docs/rules/production-workflow-rules.md`（走查在仓库 `references/walkthrough.md`） |
+| 排查某个门禁/报错 | `references/faq.md` |
 | 维护规则或脚本 | `AGENTS.md` → `docs/rules/` → `scripts/` |
 | 只想看能力边界 | 本文件「关于强制力的真实覆盖」 |
 
@@ -112,14 +111,14 @@ skillhub install zwhyperframes-harness --dir ~/.agents/skills
 node scripts/build-skill-package.mjs --root . --out <产物目录>
 ```
 
-该脚本按平台准入规则过滤并逐项 fail-closed 校验（文件数 ≤100、总包 ≤460KB（服务端实测上限）、单文件 ≤1MB、必须含 `SKILL.md`），产出含每个文件 SHA-256 的清单 `<out>.manifest.json`（写在包目录同级，不放进包内）。
+该脚本按平台准入规则过滤并逐项 fail-closed 校验（文件数 ≤100、单文件 ≤1MB、必须含 `SKILL.md`），并按**真实 multipart 请求体**判体积——**发布闸 460KB 是机器硬性限制**（服务端实测上限约 476KB，本仓在其下留 15KB 余量）。请求体比文件字节和多十几 KB（multipart 头 + changelog 字段），按后者判会放过一个「本地过、线上炸」的包。产出含每个文件 SHA-256 的清单 `<out>.manifest.json`（写在包目录同级，不放进包内）。
 
 ## 前置条件
 
-- macOS / Linux；Windows 仅 WSL2 或 Git Bash（原生 cmd/PowerShell 未支持）
-- Keychain 仅 macOS；Node.js ≥ 22；ffmpeg/ffprobe；Python 3
+- macOS / Linux；**Windows 仅 WSL2 或 Git Bash**（原生 cmd/PowerShell 不在支持范围）
+- Keychain 仅 macOS；Node.js ≥ 22；ffmpeg / ffprobe；Python 3
 - HyperFrames 锁定 `v0.8.36`（commit `f86aae655ae5aae7a9a2c124fa016f3bc30ebe52`）
-- MiniMax API Key：只从环境变量或 macOS Keychain 读取，不入仓、不入日志
+- MiniMax API Key：只从环境变量或 macOS Keychain 读取，不入仓、不入日志（Windows / Linux 只有环境变量一条路）
 - 网络策略唯一所有者是 `scripts/net-env.sh`：下载优先中国大陆源，GitHub/npm 代理探测可达才启用
 
 ## 快速开始
@@ -130,12 +129,12 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills（需联网）
 npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
-npm test             # 78 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
+npm test             # 133 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
 ```
 
 **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 13 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。
 
-上游的 `hyperframes skills update` 不可用：它把「latest」硬编码为上游 main 的实时 HEAD，无法固定到本仓锁定的 commit，且在上游 2026-10-21 退役 workflow 类 skills 后会直接报「Unknown skill(s): faceless-explainer」。`npx skills add owner/repo@<sha>` 也不可用：实测它只在发现阶段认 sha，装出的内容逐字节等于 main HEAD。依据与完整证据见 <https://github.com/suonian/ZWhyperframes-Harness/blob/main/docs/architecture/hf-contract-audit-2026-10-21.md>。
+上游的 `hyperframes skills update` 与 `npx skills add` **都不可用**（前者把「latest」硬编码为上游 main 的实时 HEAD 且会移除已退役的 `faceless-explainer`，后者实测只认 sha、装出的内容逐字节等于 main HEAD）。依据与完整证据见 <https://github.com/suonian/ZWhyperframes-Harness/blob/main/docs/architecture/hf-contract-audit-2026-10-21.md>。
 
 ## 如何开工生产
 
@@ -160,23 +159,27 @@ node scripts/new-video.mjs segment --project <产品项目目录> --plan <segmen
 | 状态原子写 | `writeJson` 临时文件 + rename；授权/绑定不会写半截 |
 | 证据链 | 锁稿/TTS/注入/字幕/MP4 都做 SHA-256 绑定；漂移即拒绝 |
 | TOCTOU | finalize 生成 candidate 后重新哈希输入；master 批准前再校验 candidate |
-| 失败可恢复 | 新建项目/段失败清理半成品；旧 vendor 回滚；错误信息带 `[gate]`/`[state]` 前缀 |
+| 失败可恢复 | 新建项目/段失败清理半成品；旧 vendor 回滚；错误带 `[gate]`/`[state]` 前缀 |
 
 ## 关于强制力的真实覆盖
 
-**请勿夸大本项目的强制力。** 官方 12 项质量能力中，**只有 3 项有本仓的机器门禁**，其余为官方 CLI 命令（6 项）或流程/复审证据（3 项），无机器门禁。详见 `docs/rules/production-workflow-rules.md` §3 的三层标注。
+**请勿夸大本项目的强制力。** 官方 13 项质量能力中，**只有 4 项有本仓的机器门禁**，其余为官方 CLI 命令（6 项）或流程/复审证据（3 项），无机器门禁。详见 `docs/rules/production-workflow-rules.md` §3 的三层标注。
 
 | 层 | 谁负责 | 本仓做什么 | 没做会怎样 |
 | --- | --- | --- | --- |
 | 官方生产动作（presets/catalog/carve/keyframes/compare/publish 等） | HyperFrames CLI | 读取退出码、保留产物，不重写 | 流程/复审发现，门禁不一定红 |
 | 官方质量能力（pitch-round/animation-map/check） | 官方产物 + 本仓门禁 | preflight 机械校验产物 | final-look 被拒绝 |
 | harness 管理件（锁稿/TTS/字幕/master/state） | 本仓脚本 | 单步、确定性、哈希绑定 | 对应 gate/state 命令失败 |
+| 成片视觉质量（§3.4/§3.5/§3.6） | 本仓门禁 + 官方 motion 阶段 | 渲染输入完整性、成片内容（有声有色非黑）、像素级视觉质检 | 对应 gate 命令失败 |
+| 视觉基线（色板/字号/音色） | 本仓门禁 | `gate.mjs baseline` 判色板越界、承载性字号下限、段内音色与真源一致（官方 `check` 只查 WCAG 对比度，不查这三项） | 对应 gate 命令失败 |
 
-规则文档中写明：**任何声称本仓对全部 12 项 fail-closed 的表述都是错的。** 门禁只能强制可校验的产物——除非某项能力留下产物，否则无法证明它真的被执行过。
+规则文档中写明：**任何声称本仓对全部 13 项 fail-closed 的表述都是错的。** 门禁只能强制可校验的产物——除非某项能力留下产物，否则无法证明它真的被执行过。
+
+> **motion 阶段必须真的跑起来**：官方 `check` 的 motion 校验在没有 `*.motion.json` sidecar 时恒为 `enabled:false`（零覆盖）。本仓用 `gate.mjs motion-spec` 从帧 HTML 的 `data-motion-role="hero"` 声明生成 sidecar，让它启用；`gate.mjs check` 若发现 motion 阶段没跑会**直接判失败**，不让「全绿」冒充「运动也验过了」。
 
 ## 常见问题与排障
 
-先查 `references/faq.md` 的 30 秒索引；端到端命令与产物见 `references/walkthrough.md`。安装、TTS、字幕、门禁、master、中国大陆网络和反模式都在那里按症状分组。若仍无法解决，附上 `hf --version`、`npm test`、`gate verify`/`preflight` 输出（不要粘贴 API Key）。
+先查 `references/faq.md` 的 30 秒索引；安装、TTS、字幕、门禁、master、中国大陆网络和反模式都在那里按症状分组。若仍无法解决，附上 `hf --version`、`npm test`、`gate verify`/`preflight` 输出（不要粘贴 API Key）。端到端走查在 GitHub 仓库的 `references/walkthrough.md`（不在分发包内）。
 
 ## 硬边界（指向唯一所有者）
 

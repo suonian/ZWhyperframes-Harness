@@ -7,9 +7,32 @@
 
 > ⚠️ **HyperFrames 版本锁定**：`0.8.36`。升级不是版本号的改动，而是**合同审计**任务——官方 skill 内容随上游 commit 一并变动，而本仓规则直接引用其原文。
 
-## [未发布]
+## [0.2.10] — 2026-11-01
 
-暂无。
+**A1 集成分支**：以 `v0.2.9`（`53c456c`）为主干，吸收 `feat/visual-baseline-and-windows-hardening` 的 Windows 平台修复、视觉基线门禁、成片质量门禁与全套测试，同时保留 main 的最终交付契约、frame 工具（`frame-guard` / `css-selector-audit`）与仓库内的 `creative-mode-zh` preset。**默认视觉基线 = 官方 `capsule` + `Noto Sans SC`；`creative-mode-zh` 为显式可选 preset，不再强制。** 只允许一套默认政策。
+
+### 新增与变更（摘要）
+
+- **视觉基线门禁 `gate.mjs baseline`**（官方不覆盖处才补）：帧内颜色不越出 `frame.md` 的 `colors:` 声明；承载性字号 ≥28px（官方 chrome 令牌豁免）；`frame.md` 承载性 px 令牌 ≥28px；段内 TTS manifest 的 `voice_profile` 与真源一致。已接入 `preflight`；规则唯一所有者是 `docs/rules/visual-baseline.md`。
+- **成片门禁**：`gate.mjs mp4` / `state set-mp4` 查轨道结构（有视频轨 + 有音频轨）、响度（非静音）、黑帧（无持续 ≥1s 全黑）；`gate.mjs quality` 查首帧可辨认度与 Scene 区间画面变化；`gate.mjs motion-spec` + 官方 `check` 要求帧内主体声明 `data-motion-role="hero"`，否则 fail-closed。
+- **渲染输入完整性**：`gate.mjs render-ready` 在 `set-mp4` 前逐字节复核帧集合 / `index.html` / 字幕 / `audio_meta` / 语音 / 字体 / BGM / 音效；receipt v3。
+- **Windows 平台硬化**：`scripts/platform-compat.sh`（`hf_node` / `hf_cli` / `native_path` / `resolve_python`）；bootstrap 改走 `cd + 相对路径`（登录 Git Bash 下不再把 POSIX 路径交给 npm）；`new-video` 归档改 `cpSync(..., { filter })`（Node 22 + Windows 非 ASCII 目标目录）；`tests/lib/shell.mjs` 按平台探测 bash/zsh；CI 新增 `test-windows`（Git Bash + **完整 bootstrap** + Node 22/24）。
+- **保留 main 的最终交付契约**：`state master --kind close` 生成 `99-最终合成/renders/final.mp4` + `final-render.json` 并绑定 `state.master.final_render`；`gate final-delivery` 校验 final 与 candidate 的 SHA-256 完全相同。
+- **A1 preset 政策落地**：`AGENTS.md` / `docs/rules/visual-baseline.md` / `references/commands.md` / `references/walkthrough.md` 统一为「默认官方 `capsule` + `Noto Sans SC`，`creative-mode-zh` 显式指名才用」。
+
+### 分发与体积（460KB 硬线）
+
+- 发布闸从 476KB 收回为**机器硬性限制 460KB**：`scripts/lib/package-limits.mjs` 是唯一真源，打包期按估计的请求体判、发布期按真实 body 判并与估计值对账，任一超线即 fail-closed——不靠人工自觉。
+- **`package-lock.json` 必须在包内**：`package.json` 只钉住 `hyperframes@0.8.36`，钉不住传递依赖；丢了锁，消费者侧 `npm install` 会与 CI 漂移，违反「依赖锁定、可复现」的底线。
+- 为在 460KB 内同时保住锁文件与全部 `docs/rules/`，以下内容改为 **repo-only**（GitHub 仓库可查）：`references/faq.md`、`presets/creative-mode-zh/`（`references/walkthrough.md` 原本就不入包）。`references/commands.md`、`SKILL.md`、`AGENTS.md`、`scripts/`、`tools/minimax/` 保留在包内。
+- `frame-guard.mjs` / `css-selector-audit.mjs` 继续 repo-only（开发期预筛工具，不进包、不接入 `gate preflight`）。
+
+### 验证
+
+- 本地（Windows 10 + Git Bash 5.2.37 + Node 24.16）：`npm test` **133 例（132 pass / 0 fail / 1 skip）**——skip 的是缺 zsh 的跨 shell 用例；登录 shell `npm run bootstrap` 幂等；`new-video` 目录归档与源逐文件一致（含中文目录与二进制文件）；官方 CLI `0.8.36`；`npm run doctor` 仅缺 `MINIMAX_API_KEY`。
+- 分发包：**45 个文件 / 文件字节 446.2 KB / 请求体 458.0 KB**（≤460 KB 硬线）。`package-lock.json` 入包，FAQ / walkthrough / preset 出包，均有 `tests/packaging.test.mjs` 断言。
+- CI：`windows-smoke` + `test-windows`（Git Bash，**完整 bootstrap**，Node 22/24）+ ubuntu / macOS（Node 22/24）共 **7 个 check 全绿**。
+- 跨 shell 一致性用例已归一化：只比必需项结论、剔除可选工具（whisper-cpp / TTS / BGM / Docker）的路径展示——否则装了 whisper-cpp 的 macOS 开发机会因 `$HOME/...` 与 `/opt/homebrew/...` 的展示差异而误红。
 
 ## [0.2.9] — 2026-10-31
 
@@ -28,8 +51,6 @@ Windows / Git Bash 路径的真实兼容性修复，并增加 Windows CI smoke�
 
 ## [0.2.8] — 2026-10-31
 
-## [0.2.8] — 2026-10-31
-
 中文 preset、Windows 支持边界与分发包边界修正。不兼容已交付项目，只对后续生产生效。
 
 ### 修复
@@ -42,8 +63,6 @@ Windows / Git Bash 路径的真实兼容性修复，并增加 Windows CI smoke�
 - 包/仓库 README、SKILL、preset README 同步 Windows 与 preset 说明。
 - 新增 `tests/frame-tools.test.mjs`：frame-guard / css-selector-audit / preset 回归；测试数 78。
 - SkillHub 包：50 个文件 / 439.3KB / 请求体 456.2KB（低于 460KB 上限）。
-
-## [0.2.7] — 2026-10-25
 
 ## [0.2.7] — 2026-10-25
 

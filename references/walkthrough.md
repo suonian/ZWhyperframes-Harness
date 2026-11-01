@@ -3,6 +3,10 @@
 > 这是一个**可照抄结构**的最小示例，不是可直接运行的产品项目。尖括号 `<...>` 是占位符；实际产品默认写入 `~/Documents/ZWhyperframes-products/`。
 > 可直接复制的输入见 `references/example-source.md` 与 `references/example-segment-plan.json`（哈希已对齐）。
 
+> **Windows 上的两点差异。**
+> ① `~` 在 PowerShell / CMD 里会展开到用户目录，但**不是**「文档」目录——Windows 的「文档」可能被 OneDrive 重定向。命令行里请把 `--project` 写成实际绝对路径，或用 `--products-root` 显式指定；脚本缺省走「文档」Known Folder 的真实值。
+> ② `source ./hf-env.sh` 是 bash 语法。PowerShell 里没有 `source`（用 `. .\hf-env.sh` 也不等价——那是加载 .ps1），请在 **Git Bash** 里跑这三步。
+
 ## 0. 前提
 
 ```bash
@@ -112,7 +116,7 @@ node scripts/state.mjs approve \
 
 1. 写 `BRIEF.md`（init 之后；`## Intent` 必须有 pitch-round 胜出概念）；
 2. Step 1 是 brief，faceless 没有 capture；
-3. Step 2 用官方 `build-frame.mjs --preset` 生成 `frame.md` + caption skin。**中文段用 `--preset creative-mode-zh --preset-dir <harness>/presets`**（官方 `creative-mode` 是英文版，字幕带背景、中文掉字体；命令见 `references/commands.md` §4.1）。同一项目的所有段用同一个 preset。
+3. Step 2 用官方 `build-frame.mjs --preset` 生成 `frame.md` + caption skin。**默认 `--preset capsule`**（口径见 `docs/rules/visual-baseline.md` §2）；也可显式指名本仓可选的中文 preset `--preset creative-mode-zh --preset-dir <harness>/presets`（官方英文 `creative-mode` 字幕带背景、中文掉字体，不要直用；命令见 `references/commands.md` §4.1）。同一项目的所有段用同一个 preset。
 
 ```bash
 node scripts/gate.mjs pitch-round --project ~/Documents/ZWhyperframes-products/demo --segment 01

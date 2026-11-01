@@ -12,6 +12,14 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rmSync, statSync, lstatSync } from "node:fs";
 import { join, resolve, relative, extname, sep, dirname, basename } from "node:path";
 import { sha256File, writeJson } from "./lib/harness.mjs";
+import { extractChangelog } from "./lib/changelog.mjs";
+import {
+  MAX_FILES as MAX_FILES_LIMIT,
+  SERVER_MAX_BODY_BYTES,
+  checkPackageBodySize,
+  parseSkillFrontmatter,
+  readChangelogForVersion,
+} from "./lib/package-limits.mjs";
 
 const args = process.argv.slice(2);
 const get = (k) => {
@@ -34,7 +42,10 @@ const ALLOWED_EXT = new Set([
 // chrome/ 是官方 CLI（hyperframes browser ensure）的浏览器下载缓存，落在 <cwd>/chrome/；
 // 在本仓根跑过一次就会留下上百 MB 的压缩包。按**路径**排除，不靠扩展名白名单兜底——
 // 白名单只是平台准入条件，不是「我们想发什么」的判断。
-const EXCLUDE_DIRS = new Set([".git", ".github", ".idea", ".vscode", "node_modules", "vendor", ".skillhub-pkg", "__pycache__", ".astro", ".astron", "chrome"]);
+// .minimax/ 是 MiniMax Code 的原生工作区 skill 根（<repo>/.minimax/skills/），
+// 也是 install-skill.sh --dir 的安装目标。它落在仓库内部，不排除的话，
+// 本仓打出的技能包会被下一次打包重新扫进来——既递归又撞文件数上限。
+const EXCLUDE_DIRS = new Set([".git", ".github", ".idea", ".vscode", "node_modules", "vendor", ".skillhub-pkg", "__pycache__", ".astro", ".astron", "chrome", ".minimax"]);
 const EXCLUDE_NAMES = new Set([".DS_Store", "Thumbs.db"]);
 
 // ── 发布包的内容清单 ─────────────────────────────────────────────────────
@@ -51,9 +62,37 @@ const EXCLUDE_NAMES = new Set([".DS_Store", "Thumbs.db"]);
 // 技能包的内容边界：**使用者运行这个 harness 干活所需的文件**。
 // 治理文档、变更历史、英文镜像、内部架构记录与本仓自身的门禁用例都不属于
 // 那一层——它们在 GitHub 仓库里随时可查，且对「用这个 harness 做视频」无用。
-// 保留 package-lock.json 是因为生产依赖锁定是本仓的核心性质，丢了它
-// `npm install` 会解析到与 CI 不同的传递依赖版本。
-const CONTENT_EXCLUDE_DIRS = new Set(["tests", "docs/architecture", "docs/plans"]);
+//
+// **package-lock.json 必须入包（0.2.10 的裁决，不可再动）**：它承载「生产依赖可复现」
+// 这一核心性质——`package.json` 只钉住 `hyperframes@0.8.36` 这一层，钉不住它的传递
+// 依赖；没有锁文件，消费者侧 `npm install` 会重新解析，装出来的东西与 CI 不同。
+// 体积压力一律靠**内容取舍**解决（见下方「为锁文件腾位置的排除项」），
+// 不许在核心交付契约上让步。
+const CONTENT_EXCLUDE_DIRS = new Set(["tests", "docs/architecture", "docs/plans", "presets"]);
+
+/**
+ * 包内 package.json 的最终内容。
+ *
+ * 包内要去掉指向**包外文件**的 npm script：分发侧工具链
+ * （publish-skillhub.mjs / build-skill-package.mjs / install-skill.sh）不入包，
+ * 留着它们的 script 就等于在包里放一个跑不通的入口——
+ * 「文档/入口描述了包里没有的东西」正是本仓要消灭的那类漂移。
+ *
+ * 这个函数同时用于**体积估算**与实际写盘——两边必须用同一份字节，
+ * 否则打包期算出的请求体估计与发布期的真实 body 会有差值。
+ */
+function renderPackageJson(text) {
+  const pkg = JSON.parse(text);
+  if (pkg.scripts) {
+    for (const [name, file] of Object.entries({
+      "publish-skill": "scripts/publish-skillhub.mjs",
+      "install-skill": "scripts/install-skill.sh",
+    })) {
+      if (CONTENT_EXCLUDE_PATHS.has(file) && pkg.scripts[name]) delete pkg.scripts[name];
+    }
+  }
+  return `${JSON.stringify(pkg, null, 2)}\n`;
+}
 const CONTENT_EXCLUDE_FILES = new Set([
   "CHANGELOG.md", "CHANGELOG.en.md",
   "RELEASE-HANDBOOK.md",
@@ -62,20 +101,95 @@ const CONTENT_EXCLUDE_FILES = new Set([
   "SECURITY.md", "SECURITY.en.md",
   "CODE_OF_CONDUCT.md", "CODE_OF_CONDUCT.en.md",
   "package-manifest.json",
-  // 开发期本地预筛工具：不是生产运行时依赖，分发包不带；源码在 GitHub 仓库。
-  "scripts/frame-guard.mjs",
-  "scripts/css-selector-audit.mjs",
+  // ── 为 package-lock.json 腾位置的排除项（0.2.10）──────────────────────────
+  // 锁文件（约 94KB）必须入包；460KB 硬线要容下它，只能把「非生产运行时必需」的
+  // 长文档移出包。取舍顺序由用户裁决：FAQ → walkthrough → preset（repo-only）→
+  // 其它长文档。**不许**反过来砍 `docs/rules/`（产品骨架）或锁文件本身。
+  //
+  // FAQ：按症状索引的排障文档，属「查资料」而非「跑流程」；GitHub 仓库里随时可查，
+  // 包内保留的是命令契约 `references/commands.md`（参数/退出码/失败含义）。
+  "references/faq.md",
+  // 端到端走查与它的配套示例：走查是「照抄一遍完整流程」的教学材料，
+  // 它的示例输入指向仓库内的示例文件。同样只在 GitHub 仓库提供。
+  "references/walkthrough.md",
+  "references/example-source.md",
+  "references/example-segment-plan.json",
+  // 打包清单自身：它写在包目录**同级**（仓库根），不是包的内容。
+  // 不排除的话，下一次打包会把它打进包里 —— 包体凭空变大，
+  // 逼近体积上限时甚至会让打包 fail-closed 失败（自指增长）。
+  ".skillhub-pkg.manifest.json",
 ]);
 
-// 平台协议 §8.3 体积与数量上限
-const MAX_FILES = 100;
-// 服务端 publish 请求体实测约 476KB；协议文档的 10MB 与线上不一致。
-// 打包阶段就用 460KB 安全线，避免产出「本地通过、发布必失败」的包。
-const MAX_TOTAL_BYTES = 460 * 1024;
+// preset 目录整组出包（`CONTENT_EXCLUDE_DIRS` 里的 "presets"）：
+// `presets/creative-mode-zh/` 按 A1 是**仓库内的可选 preset**，默认基线是官方
+// `capsule`（见 docs/rules/visual-baseline.md），消费者不需要它也能跑；
+// 需要时从 GitHub 仓库取，`--preset-dir <repo>/presets` 指向即可。
+
+// 「独立通用工具」整组排除：MiniMax 的图片/视频生成脚本不在本仓生产主链上
+// （成片由 HyperFrames 渲染，不是 MiniMax 视频），它们的文档也只服务于自己。
+// 成组排除而不是逐个排除——留一半只会得到「文档描述了包里没有的脚本」。
+// 仓库里全部保留（这是发布边界，不是删除）。
+//
+// 「分发侧工具链」整组排除：**消费者装上技能是为了跑 harness 干活，不是为了
+// 再打包、再发布一次**。这组脚本只服务于「仓库 → 分发包 → 平台」这条链路：
+//   · build-skill-package.mjs —— 产出分发包
+//   · install-skill.sh        —— 把仓库装进本地技能目录
+//   · lib/changelog.mjs       —— 只被 publish-skillhub.mjs 使用
+//   · publish-skillhub.mjs    —— 上传平台（此前已排除）
+// 连带要清掉 package.json 里指向它们的 npm script，否则包里留一个跑不通的入口。
+//
+// 「第三方 API 参考文档」整组排除：MiniMax TTS 的接口格式说明与语音档案，
+// 运行时**不读**它们（脚本里写死了档案参数），它们只服务于维护者。
+const CONTENT_EXCLUDE_PATHS = new Set([
+  "tools/minimax/README.md",
+  "tools/minimax/docs/STANDALONE_API_GUIDE.md",
+  "tools/minimax/scripts/minimax_image.py",
+  "tools/minimax/scripts/minimax_video.py",
+  // 分发侧工具链（见上方说明）
+  "scripts/publish-skillhub.mjs",
+  "scripts/build-skill-package.mjs",
+  "scripts/install-skill.sh",
+  "scripts/lib/changelog.mjs",
+  // 体积口径的共用模块：只被上面两个打包脚本使用，随它们一起出包。
+  "scripts/lib/package-limits.mjs",
+  // 开发期本地预筛工具（frame-guard / css-selector-audit）：不是生产运行时依赖，
+  // 分发包不带。它们也**没有**接入 gate preflight——包里留个入口会让人以为有门禁。
+  // 源码与用法在 GitHub 仓库里。
+  "scripts/frame-guard.mjs",
+  "scripts/css-selector-audit.mjs",
+  // MiniMax 的第三方 API 参考文档与请求样例：运行时不需要
+  "tools/minimax/docs/HF_AUDIO_SUBTITLE_FORMAT.md",
+  "tools/minimax/docs/VOICE_PROFILE.md",
+  "tools/minimax/examples/tts_request.example.json",
+  // 通用 API 配置样例：它描述的是 music / image / video 那几个**已排除**的独立通用工具，
+  // TTS 脚本的语音档案是写死在代码里的（不读这个文件）。
+  "tools/minimax/minimax.config.example.json",
+]);
+
+// 平台协议 §8.3 体积与数量上限。
+//
+// 【体积闸改成「按真实请求体」判】
+// 此前这里按「文件字节和」判、线在 470KB，而 publish-skillhub.mjs 按「真实 multipart
+// 请求体」判、线在 460KB —— 两个口径不一样，而请求体比文件字节和大十几 KB
+// （multipart 头 + changelog 字段 + 其它字段）。于是「打包通过、发布必失败」。
+// 实测：47 个文件、文件字节和 451.2KB 时，真实请求体 466.5KB。
+//
+// 现在两处共用 scripts/lib/package-limits.mjs 的同一套算法：
+// 打包期用**估计值**判（fail-closed，不产出超限的包），发布期用**真实 body** 判，
+// 并断言两者相等——不等即说明估计函数与真实构造漂了，同样 fail-closed。
+//
+// **处置顺序**（逼近上限时按这个次序，不要一上来就调上限）：
+//   ① 扩内容排除清单（把「使用者跑 harness 干活用不到」的文件移出包）；
+//   ② 把长文档拆到仓库（包只留消费者运行必需的）；
+//   ③ 才谈调整上限——而且必须同时更新 package-limits.mjs 与 CHANGELOG 的数字。
+const MAX_FILES = MAX_FILES_LIMIT;
 const MAX_FILE_BYTES = 1 * 1024 * 1024;
 
 const root = resolve(get("root") ?? "..");
-const outDir = resolve(get("out") ?? join(root, ".skillhub-pkg"));
+// 包产物落在 .skillhub-pkg/pkg/：**与同级的临时产物目录分开**。
+// .skillhub-pkg/ 既是本仓的 gitignore 临时区，也是包产物区；两者混在一处时，
+// 临时脚本/对照素材会被 install-skill.sh 一并装进技能目录。
+const outDir = resolve(get("out") ?? join(root, ".skillhub-pkg", "pkg"));
 if (get("root") === undefined && get("out") === undefined) {
   throw new Error("必须显式指定 --root 与 --out，不设默认值以免误打包整个仓库");
 }
@@ -86,6 +200,24 @@ if (!existsSync(join(root, "SKILL.md"))) {
 const included = [];
 const excluded = [];
 
+/**
+ * rel 是否落在内容排除目录下（按**目录前缀**逐级匹配）。
+ * "docs/architecture/audit.md" 命中 "docs/architecture"；
+ * "tests/x.test.mjs" 命中 "tests"；
+ * "docs/rules/x.md" 不命中（它必须进包）。
+ *
+ * 逐级前缀而不是只比顶层名或整条路径：只比顶层名时 "docs/architecture"
+ * 这种二级目录永远匹配不上；只比整条路径时目录条目本身能不能被排除
+ * 就取决于调用顺序。逐级前缀两种情形都对。
+ */
+function isExcludedDirPath(rel) {
+  const parts = rel.split("/");
+  for (let i = 1; i <= parts.length; i++) {
+    if (CONTENT_EXCLUDE_DIRS.has(parts.slice(0, i).join("/"))) return true;
+  }
+  return false;
+}
+
 function walk(dir) {
   for (const name of readdirSync(dir).sort()) {
     const abs = join(dir, name);
@@ -94,12 +226,14 @@ function walk(dir) {
     if (EXCLUDE_NAMES.has(name)) { excluded.push({ path: rel, reason: "系统文件" }); continue; }
     // 发布包的内容清单（按路径）：治理文档、变更历史、内部架构记录与本仓门禁用例
     // 不属于「使用者运行 harness 所需的那一层」。
-    const top = rel.split("/")[0];
-    if (CONTENT_EXCLUDE_DIRS.has(top) || CONTENT_EXCLUDE_DIRS.has(rel)) {
+    // 排除在**目录条目**这一层就生效——walk 遇到 "docs/architecture" 就不再递归，
+    // 里面的文件自然一个都不进包。
+    if (isExcludedDirPath(rel)) {
       excluded.push({ path: rel, reason: "不在发布包内容清单内" });
       continue;
     }
     if (CONTENT_EXCLUDE_FILES.has(rel)) { excluded.push({ path: rel, reason: "不在发布包内容清单内" }); continue; }
+    if (CONTENT_EXCLUDE_PATHS.has(rel)) { excluded.push({ path: rel, reason: "独立通用工具，不在生产主链上" }); continue; }
     const st = lstatSync(abs);
     if (st.isSymbolicLink()) { excluded.push({ path: rel, reason: "软连接不打包" }); continue; }
     if (st.isDirectory()) { walk(abs); continue; }
@@ -124,13 +258,62 @@ included.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 const totalBytes = included.reduce((n, f) => n + f.size, 0);
 const violations = [];
 if (included.length > MAX_FILES) violations.push(`文件数 ${included.length} 超过上限 ${MAX_FILES}`);
-if (totalBytes > MAX_TOTAL_BYTES) violations.push(`总包 ${totalBytes} 字节超过上限 ${MAX_TOTAL_BYTES}`);
 const oversized = included.filter((f) => f.size > MAX_FILE_BYTES);
 if (oversized.length) violations.push(`${oversized.length} 个文件超过单文件上限 1MB：${oversized.map((f) => f.rel).join(", ")}`);
 if (!included.some((f) => f.rel.toLowerCase() === "skill.md")) violations.push("包内缺少 SKILL.md");
+
+// 体积闸：按**真实请求体**估计（与 publish 脚本同一套算法，见 scripts/lib/package-limits.mjs）。
+// 这里估的是请求体，不是文件字节和——两者差十几 KB，按后者判会放过一个发布必失败的包。
+//
+// 估算必须用**写盘后的字节**：package.json 在包内会被改写（去掉指向包外文件的 script），
+// 用源文件大小算会与发布期的真实 body 有差值——发布脚本会用真实长度对账，不等即拒发。
+const plannedFiles = included.map((f) => ({
+  rel: f.rel,
+  bytes: f.rel === "package.json"
+    ? Buffer.byteLength(renderPackageJson(readFileSync(f.abs, "utf8")), "utf-8")
+    : f.size,
+}));
+const skillMeta = parseSkillFrontmatter(readFileSync(join(root, "SKILL.md"), "utf8"));
+const changelogText = readChangelogForVersion(root, skillMeta.version, extractChangelog);
+const bodyCheck = checkPackageBodySize(plannedFiles, skillMeta, changelogText);
+if (!bodyCheck.ok) {
+  violations.push(
+    `请求体估计 ${bodyCheck.bytes} 字节（${(bodyCheck.bytes / 1024).toFixed(1)} KB）超过发布闸 ` +
+      `${bodyCheck.limit} 字节（${(bodyCheck.limit / 1024).toFixed(0)} KB）`,
+  );
+}
 if (violations.length) {
   console.error("拒绝产出——包不满足平台协议约束：");
   for (const v of violations) console.error(`  · ${v}`);
+  console.error(`  （文件字节和 ${totalBytes}，${included.length} 个文件；请求体另含 multipart 头与 changelog 字段）`);
+  process.exit(1);
+}
+
+// 包内链接自检：随包分发的 .md 若指向**包内不存在**的文件，就是死链。
+// 在写盘前用「计划清单」判定 —— 失败即 fail-closed，绝不产出带死链的包。
+//
+// 为什么必须有：排除清单（治理文档 / 独立通用工具）会移走文件，
+// 而被移走的文件常常被别人用链接指着。仓库内的死链由 tests/docs-links.test.mjs 管，
+// 但**包内**的死链没人管——它只在分发后才暴露，而那时已经无法 fail-closed。
+const planned = new Set(included.map((f) => f.rel));
+planned.add("README.md"); // README.package.md 以 README.md 的形态入包
+const deadLinks = [];
+for (const f of included) {
+  if (!f.rel.toLowerCase().endsWith(".md")) continue;
+  const text = readFileSync(f.abs, "utf8");
+  const base = dirname(f.rel);
+  for (const m of text.matchAll(/\[[^\]]*\]\(([^)]+)\)/gu)) {
+    const link = m[1];
+    if (/^(https?:|mailto:|#)/u.test(link)) continue;
+    const target = link.split("#")[0];
+    if (!target) continue;
+    const rel = join(base, target).split(sep).join("/");
+    if (!planned.has(rel) && !planned.has(`${rel}/`)) deadLinks.push(`${f.rel} → ${link}`);
+  }
+}
+if (deadLinks.length) {
+  console.error("拒绝产出——包内存在死链：");
+  for (const d of deadLinks) console.error(`  · ${d}`);
   process.exit(1);
 }
 
@@ -140,8 +323,12 @@ const files = [];
 for (const f of included) {
   const dest = join(outDir, f.rel);
   mkdirSync(join(dest, ".."), { recursive: true });
-  writeFileSync(dest, readFileSync(f.abs));
-  files.push({ path: f.rel, bytes: f.size, sha256: sha256File(dest) });
+  if (f.rel === "package.json") {
+    writeFileSync(dest, renderPackageJson(readFileSync(f.abs, "utf8")));
+  } else {
+    writeFileSync(dest, readFileSync(f.abs));
+  }
+  files.push({ path: f.rel, bytes: statSync(dest).size, sha256: sha256File(dest) });
 }
 
 const manifest = {
@@ -149,7 +336,14 @@ const manifest = {
   slug: "zwhyperframes-harness",
   fileCount: files.length,
   totalBytes,
-  limits: { maxFiles: MAX_FILES, maxTotalBytes: MAX_TOTAL_BYTES, maxFileBytes: MAX_FILE_BYTES },
+  // 请求体口径：打包期的门禁判的是它，发布期用真实 body 复核（两者必须相等）。
+  estimatedBodyBytes: bodyCheck.bytes,
+  limits: {
+    maxFiles: MAX_FILES,
+    maxBodyBytes: bodyCheck.limit,
+    maxFileBytes: MAX_FILE_BYTES,
+    serverMaxBodyBytes: SERVER_MAX_BODY_BYTES,
+  },
   files,
   excluded,
 };

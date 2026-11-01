@@ -11,7 +11,7 @@
 | | 性质 | 做什么 |
 | --- | --- | --- |
 | **保流程** | 强制 | 把「应该按官方 `faceless-explainer` Step 0–6 + review-loop」变成「不按就过不去」 |
-| **强制能力** | 强制 | pitch-round / animation-map / check --strict 有本仓机器门禁（final-look 前置）；官方 CLI 能力（presets / on-device catalog / carve / keyframes / compare / publish）由流程保证真实执行，本仓只读取退出码，不假装有门禁 |
+| **强制能力** | 强制 | pitch-round / animation-map / check --strict 有本仓机器门禁（final-look 前置）；**成片内容门禁**（`gate mp4` + `set-mp4`：有视频轨 + 有音频轨 + 音频非静音 + 无持续 ≥1s 的全黑区间）拦住「0 clip 空壳渲染」的黑屏无声片；官方 CLI 能力（presets / on-device catalog / carve / keyframes / compare / publish）由流程保证真实执行，本仓只读取退出码，不假装有门禁 |
 | **补缺口** | 补件 | 少数官方确实没有的管理件：锁定稿分段、MiniMax 词级时间注入（官方 `audio_meta.json` 形状）、master 拼接、状态与授权记录。**这是副产品，不是主命题** |
 
 **不重造轮子是边界，不是目的**：核心能力 100% 来自官方，一律不重写。不得自建 composition、装配、转场、字幕渲染、check、渲染能力；不得把脚本写成 agent 执行层（脚本零 agent 调用）。
@@ -22,12 +22,13 @@
 | --- | --- |
 | `docs/rules/production-workflow-rules.md` | 生产流程唯一所有者：官方 Step 0–6 落点、用户决策门、强制质量能力清单、交接与问题账本 |
 | `docs/rules/visual-production-rulebook.md` | 视觉质量底线（官方 worker 合同优先 + 项目要求） |
+| `docs/rules/visual-baseline.md` | **模板/调色板/音色默认基线**唯一所有者：官方资产索引（13 preset + recipe/prefs 机制）、本项目默认偏好（偏好非排他）、字号口径裁决、机器门禁分工 |
 | `docs/rules/captions-contract.md` | 字幕合同唯一所有者（要求不可变更） |
 | `docs/rules/segment-production-rules.md` | 锁定稿冻结与分段规则 |
 | `references/faq.md` | 常见问题、错误索引与反模式（排障入口） |
-| `references/walkthrough.md` | 从资料包到 master 的端到端最小走查 |
+| `references/walkthrough.md` | 从资料包到 master 的端到端最小走查（**只在仓库里**，分发包不含） |
 | `references/commands.md` | 命令契约：参数、成功输出、失败含义 |
-| `presets/creative-mode-zh/` | **中文无真人出镜知识视频专用的 creative-mode zh 适配 preset**（`FRAME.md` + `caption-skin.html`）。官方 `creative-mode` preset 是英文版：色板为暖奶油 `#EFE9D9`、字体 Archivo Black / JetBrains Mono、字幕是带描边卡片 + 逐词黄色高亮块——中文场景下会出现「字幕带背景」「中文掉字体」「与上一段调色板不一致」。**中文段一律用本 preset，不得直接用官方 `creative-mode`。** 用法见 `references/commands.md` §4.1 |
+| `presets/creative-mode-zh/` | **仓库自带的中文可选 preset**（`FRAME.md` + `caption-skin.html`）：官方 `creative-mode` 是英文版（暖奶油 `#EFE9D9`、Archivo Black / JetBrains Mono、字幕带描边卡片 + 逐词黄色高亮块），中文场景直用会踩「字幕带背景」「中文掉字体」「段间调色板不一致」。本 preset 是它的 zh 适配版，**显式指名才用，不是默认**（默认基线见 `docs/rules/visual-baseline.md`：官方 `capsule` + `Noto Sans SC`）。用法见 `references/commands.md` §4.1 |
 
 冲突裁决顺序：用户当前指令 > AGENTS.md > `docs/rules/` > 官方 HF 合同（以锁定 commit 下 `vendor/skills/` 的官方原文为准）。
 
@@ -39,6 +40,10 @@
 - **官方 skills 只能来自锁定 commit。** `hyperframes skills update` 把「latest」硬编码为上游 main 的实时 HEAD，无法固定，且会「移除任何不再发布的 skill」——本仓依赖的 `faceless-explainer` 已被上游撤下，跑它会直接失败。`npx skills add owner/repo@<sha>` 同样不可靠：实测它只在发现阶段认 sha，实际装出来的内容逐字节等于 main HEAD。因此取回一律走 `bootstrap.sh` 的 git 按 SHA 路径。
 - **网络策略唯一所有者是 `scripts/net-env.sh`**（被 `bootstrap.sh` 与 `hf-env.sh` source）：下载优先中国大陆源（npm → `registry.npmmirror.com`）；GitHub/npm 代理**默认探测 `127.0.0.1:7890`，可达才启用**（不可达则直连，避免把流量指向不存在的本地端口导致静默挂死）；MiniMax 直连 `api.minimaxi.com`（`no_proxy` 豁免 + `tools/minimax` 内主动清代理，双保险）。
   - 覆盖：`HARNESS_NO_PROXY=1` 强制关闭；`HARNESS_PROXY=<地址>` 显式指定（跳过探测）；`HARNESS_NPM_REGISTRY=<地址>` 覆盖默认 npm 镜像。探测必须带硬超时，不得用 `nc` 或 bash `/dev/tcp`（静默丢包时二者自身会挂死）。
+- **官方 skill 脚本的依赖与版本由 `scripts/lib/official-deps.mjs` 钉死**（唯一真源）。官方 `animation-map.mjs` **自带依赖解析**：它要 `@hyperframes/producer` / `@hyperframes/core`（不在 hyperframes CLI 包里），而官方 loader 的两条退路都不可接受——缺包时装到 tmp 目录、跑完即删（**每跑一次就重下 ~100MB**）；推不出版本时**默认用 `@latest`**（实测上游 latest 已是 0.8.223，与锁定值差 187 个补丁版，且**只打印一行 stderr**，属静默漂移）。
+  - `bootstrap.sh` 按锁定版本把依赖装进**仓库** `node_modules`（`--no-save --no-package-lock --ignore-scripts`：不进 `package.json`、不动锁文件、不执行生命周期脚本——puppeteer 因此不会下载第二份 Chromium，浏览器用官方 CLI 缓存的 `chrome-headless-shell`）；传递依赖逐个钉版本（producer 声明 `^0.8.36`，范围会飘到 0.8.223）。
+  - `hf-env.sh` 导出 `HYPERFRAMES_SKILL_PKG_VERSION=0.8.36`，官方 loader 从此没有 `@latest` 退路。
+  - `node scripts/lib/official-deps.mjs` 单独核对，缺包或漂移即 exit 1（fail-closed）。
 - **生产离线可跑（最低要求，非网络禁令）**：P0 一次性准备完成后，**脚手架、字幕、装配、check 与渲染可离线完成**；TTS 与 BGM 检索仍需联网窗口（或在 P0 预生成全部段语音）。这约束的是"依赖"，不是"禁止联网"——按需能力（素材检索、catalog 检索、模型下载等）仍可联网，只是不许成为生产主链的前置条件。
   - 唯一强制点：官方 `hyperframes init` 默认联网 `git clone` skills。段脚手架（`new-video.mjs segment`）以官方逃生口 `HYPERFRAMES_SKIP_SKILLS=1` 跳过——官方 skills 已由 `bootstrap.sh` 在 P0 刷新。`hf-env.sh` 亦导出该变量，可覆盖。
   - 该底线由 `tests/pipeline-e2e.test.mjs` 的离线用例机器验证（黑洞代理下跑通 init+segment）。
@@ -50,5 +55,16 @@
 - 生产模式 autonomous（`flow: automation`、`storyboard: no`）；用户决策门只有四个：每段「开始授权」、每段「final look 渲染授权」、master「final look」、全项目「收尾审批」。文字分镜不送审。
 - 字幕要求不变：锁定稿逐字一致、标点语块切分、单行显示、无动效、仅当前行高亮；渲染永远走官方 captions。
 - 官方质量能力清单（`production-workflow-rules.md` §3）每支视频必须执行，机器命令可门禁。
-- API Key 只来自环境变量或 macOS Keychain，不入仓、不入日志。
+- API Key 只来自环境变量或 macOS Keychain，不入仓、不入日志。（Keychain 是 macOS 专有机制；Windows / Linux 只有环境变量一条路。**不引入第三种凭证形态**。）
 - 修改规则/脚本/schema 后必须运行 `npm test`。
+
+## 跨平台
+
+- **支持 macOS / Linux / Windows。** Node 脚本（`scripts/*.mjs`）跨平台原生可跑；shell 脚本（`hf-env.sh`、`scripts/bootstrap.sh`、`scripts/doctor.sh`、`scripts/install-skill.sh`、`scripts/net-env.sh`、`scripts/platform-compat.sh`）需 bash——**Windows 上用 Git Bash，不要用 PowerShell**（PowerShell 无 `source` 与 POSIX 语义）。
+- **CLI 入口唯一真源是包内真实入口**（`node_modules/hyperframes/bin/hyperframes.mjs`，由 `scripts/lib/harness.mjs` 的 `hfCliEntry()` 从 `package.json` 的 `bin` 字段解析）。**不要用 `node node_modules/.bin/hyperframes`**——那是 npm 生成的 sh 包装脚本，用 node 执行会 `SyntaxError`。
+- **Python 解释器必须解析，不能硬编码 `python3`**：Windows 上 `python3` 常是 Microsoft Store 存根（执行即非零退出、无输出）。`scripts/platform-compat.sh` 的 `resolve_python()` 依次尝试 `MINIMAX_PYTHON` → `HARNESS_PYTHON`（历史别名）→ `python3` → `python`，且**必须真跑一次最小导入**才算通过；也可用 `MINIMAX_PYTHON` 指定。**变量名以 `MINIMAX_PYTHON` 为准**——bash 侧与 Node 侧曾各读各的（`HARNESS_PYTHON` vs `MINIMAX_PYTHON`），按文档设了 `MINIMAX_PYTHON` 后 bash 侧解析失败 → 代理被静默清空 + doctor 假告警，而 TTS 照常工作。
+- **仓库内路径一律用相对仓库根的相对路径**（本仓总约定）：原生程序（node/git/npm）在 Windows 上不认 MSYS 的 POSIX 绝对路径；**登录 shell 预置 `MSYS_NO_PATHCONV=1`，参数转换被关闭** → `/d/foo` 原样送达 → node 解析成 `<当前盘>\d\foo`（实测 `MODULE_NOT_FOUND`）。相对路径既不带盘符也不以 `/` 开头，任何形态下都不会被改写。给原生程序时用 `scripts/platform-compat.sh` 的 `hf_node()` / `hf_cli()`（cwd=仓库根 + 相对路径）；**仓库外**的路径（用户发现目录、产品段目录、临时目录）才走 `native_path()` / `cygpath -m`。MSYS 自带工具（cp/mv/find/ln）继续用 POSIX 路径。git pathspec 走 `--stdin`（命令行 pathspec 会被 MSYS 改写）。
+- **shell 脚本必须在登录与非登录两种形态下都成立**：Git Bash 的登录 shell 读 `/etc/profile`，非登录不读——两者环境不同（`MSYS_NO_PATHCONV` 就是这么来的）。`tests/platform-paths.test.mjs` 用 `bash -lc` / `bash -c` 两种形态各跑一遍 `doctor.sh` 与 `install-skill.sh` 并比对结论，这是本仓唯一能挡住这类「只在一种 shell 下发作」的回归锁。
+- **行尾**：仓库根 `.gitattributes` 固定 `* text=auto eol=lf`。历史文件若已被 CRLF 污染，执行 `git add --renormalize .` 后重新检出。
+- **`hf` 命令在 Windows 上可能撞名**：Python 装的 HuggingFace Hub CLI 提供同名命令。不 `source hf-env.sh` 就直接调它，会拿到错误版本。
+- 详细排障见 `references/faq.md` §5.4。

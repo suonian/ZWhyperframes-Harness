@@ -5,10 +5,12 @@
 //   approve --kind start|final-look    段落授权（actor=user）
 //   set-mp4 --mp4 <路径>               段渲染产物绑定（SHA-256 + ffprobe 时长）
 //   master --kind final-look|close     master 决策
-import { existsSync, readFileSync, copyFileSync, mkdirSync, renameSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { sha256File, readState, writeState, segmentEntry, resolveSegmentDir, nowIso, HARNESS_ROOT, isUserApproval, MASTER_RENDERS_DIR, writeJson } from "./lib/harness.mjs";
+import { sha256File, readState, writeState, segmentEntry, resolveSegmentDir, nowIso, HARNESS_ROOT, isUserApproval, MASTER_RENDERS_DIR, writeJson, probeDurationSeconds, replaceFileSync } from "./lib/harness.mjs";
+import { storyboardDurationFacts } from "./lib/storyboard.mjs";
+import { assertMediaContent } from "./lib/media-probe.mjs";
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -66,7 +68,7 @@ function publishFinalRender(projectRoot, state) {
     copyFileSync(candidate.path, tmpPath);
     const finalSha = sha256File(tmpPath);
     if (finalSha !== candidate.sha256) throw new Error("final.mp4 拷贝后的哈希与 candidate 不一致");
-    renameSync(tmpPath, finalPath);
+    replaceFileSync(tmpPath, finalPath);
     const manifest = {
       version: 1,
       project_id: state.project_id,
@@ -161,19 +163,34 @@ function runSetMp4() {
   runRenderReady(projectRoot, segment);
   const mp4 = resolve(mp4Path);
   if (!existsSync(mp4)) throw new Error(`MP4 不存在：${mp4}`);
-  const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", mp4], { encoding: "utf8", timeout: 10 * 60 * 1000 });
-  const duration = Number(probe.stdout.trim());
-  if (probe.status !== 0 || !Number.isFinite(duration) || duration <= 0) throw new Error(`MP4 时长探测失败：${mp4}`);
+  const probed = probeDurationSeconds(mp4);
+  if (!probed.ok) throw new Error(`MP4 时长探测失败：${probed.reason}`);
+  const duration = probed.seconds;
+  if (duration <= 0) throw new Error(`MP4 时长探测失败：${mp4}`);
   const segmentDir = resolveSegmentDir(projectRoot, segment);
   const storyboardPath = join(segmentDir, "STORYBOARD.md");
   if (existsSync(storyboardPath)) {
-    const durations = [...readFileSync(storyboardPath, "utf8").matchAll(/^- duration:\s*(.+?)\s*$/gmu)]
-      .map((match) => Number.parseFloat(String(match[1]).replace(/s$/u, "")))
-      .filter((n) => Number.isFinite(n) && n > 0);
-    const expected = durations.reduce((sum, n) => sum + n, 0);
-    if (expected > 0 && Math.abs(duration - expected) > 1) {
-      throw new Error(`MP4 时长 ${duration.toFixed(2)}s 与 STORYBOARD 总时长 ${expected.toFixed(2)}s 不一致`);
+    // 时长必须用**结构化解析**（与 gate.mjs 同一套 storyboardDurationFacts），
+    // 理由与实测缺陷见 scripts/lib/storyboard.mjs 的注释。
+    const facts = storyboardDurationFacts(segmentDir);
+    if (facts.malformed.length > 0) {
+      throw new Error(
+        `STORYBOARD 的 duration 行无法解析（拒绝在无法比对的情况下绑定）：\n  · ` +
+          facts.malformed.map((frame) => `帧 ${frame.number}：duration=${frame.raw}`).join("\n  · "),
+      );
     }
+    if (facts.expected > 0 && Math.abs(duration - facts.expected) > 1) {
+      throw new Error(`MP4 时长 ${duration.toFixed(2)}s 与 STORYBOARD 总时长 ${facts.expected.toFixed(2)}s 不一致`);
+    }
+  }
+  // 成片**内容**门禁：0 clip 空壳渲染出来的 MP4 存在、非空、哈希正常、时长也对得上
+  // STORYBOARD，但它整片全黑且没有音频轨。绑定是渲染后的第一道机器检查，这种片
+  // 必须在这里被挡住，不能流进 master 链条。
+  const media = assertMediaContent(mp4);
+  if (!media.ok) {
+    throw new Error(
+      `MP4 内容门禁未通过（拒绝绑定黑屏/无声片）：\n  · ${media.findings.join("\n  · ")}\n  · ${mp4}`,
+    );
   }
   const hash = sha256File(mp4);
   // 旧 final-look 只在「本段已绑定过、且这次绑的不是同一片」时作废。

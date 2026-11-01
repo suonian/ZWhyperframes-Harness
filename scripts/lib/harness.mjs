@@ -1,11 +1,35 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, renameSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, renameSync, chmodSync } from "node:fs";
 import { join, resolve, relative } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-export const PRODUCTS_ROOT_DEFAULT = join(homedir(), "Documents", "ZWhyperframes-products");
+/**
+ * 产品根目录：默认 `~/Documents/ZWhyperframes-products`。
+ *
+ * Windows 上「文档」常被 OneDrive 重定向（Known Folder 的 Personal 变成
+ * %USERPROFILE%\OneDrive\文档），此时 homedir()/Documents 指向的是**另一个**目录：
+ * 要么项目被写到用户看不见的地方，要么被「项目必须在产品根内」的守卫拦下。
+ * 这里按 Known Folder 读真实路径；读不到、或该目录不存在，就回落到 homedir()/Documents。
+ */
+function defaultProductsRoot() {
+  const fallback = join(homedir(), "Documents", "ZWhyperframes-products");
+  if (process.platform !== "win32") return fallback;
+  const r = spawnSync(
+    "reg",
+    ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", "Personal"],
+    { encoding: "utf8", timeout: 10_000 },
+  );
+  if (r.status !== 0) return fallback;
+  const m = (r.stdout ?? "").match(/Personal\s+REG_(?:EXPAND_)?SZ\s+(.+)/u);
+  if (!m) return fallback;
+  const docs = m[1].trim().replace(/%USERPROFILE%/gu, homedir()).replace(/[\\/]+$/u, "");
+  if (!docs || !existsSync(docs)) return fallback;
+  return join(docs, "ZWhyperframes-products");
+}
+
+export const PRODUCTS_ROOT_DEFAULT = defaultProductsRoot();
 export const CONTROL_DIR = "00-项目总控";
 export const MASTER_DIR = "99-最终合成";
 export const MASTER_RENDERS_DIR = join(MASTER_DIR, "renders");
@@ -34,18 +58,39 @@ export function harnessIdentity() {
   };
 }
 
-/** 解析 HyperFrames 真正的 Node 入口；不要用 .bin/ 里的 shell 包装（Windows 上是 cmd/sh）。 */
-function resolveHfBin() {
-  const pkgPath = join(HARNESS_ROOT, "node_modules", "hyperframes", "package.json");
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-  const rel = typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.hyperframes;
-  if (!rel) throw new Error("hyperframes package.json 未声明 bin.hyperframes");
-  return join(HARNESS_ROOT, "node_modules", "hyperframes", rel);
+/**
+ * 解析 harness 锁定的 HyperFrames CLI 真实入口（包内 .mjs）。
+ *
+ * 为什么不用 node_modules/.bin/hyperframes：
+ *   Linux/macOS 上它是指向包内 .mjs 的符号链接，`node <bin>` 可以直接执行；
+ *   Windows 上 npm 无法创建符号链接（core.symlinks=false），只能生成 POSIX sh
+ *   包装脚本（#!/bin/sh + basedir=...），node 会把 shell 语法当 JS 解析并抛
+ *   SyntaxError: missing ) after argument list。
+ *   故统一解析到包内真实入口；入口路径从包的 package.json 的 bin 字段取，
+ *   不写死版本化的相对路径（上游改名时这里会显式失败，而不是运行到一半才炸）。
+ */
+export function hfCliEntry() {
+  const pkgDir = join(HARNESS_ROOT, "node_modules", "hyperframes");
+  try {
+    const pkg = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8"));
+    const bin = typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.hyperframes;
+    return bin ? join(pkgDir, bin) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** 运行 harness 本地锁定的 HyperFrames CLI（唯一入口，禁止全局 hyperframes）。 */
 export function runHf(args, { cwd, env = {} } = {}) {
-  const bin = resolveHfBin();
+  const bin = hfCliEntry();
+  if (!bin) {
+    // 缺依赖时给出可执行的提示，而不是让调用方拿到一段 spawn 错误。
+    return {
+      status: 1,
+      stdout: "",
+      stderr: "HyperFrames CLI 未安装（node_modules/hyperframes 缺失或缺少 bin 字段）；先运行 ./scripts/bootstrap.sh",
+    };
+  }
   const result = spawnSync("node", [bin, ...args], {
     cwd,
     encoding: "utf8",
@@ -62,6 +107,34 @@ export function assertHfVersion() {
   if (r.status !== 0 || actual !== HF_EXPECTED_VERSION) {
     throw new Error(`HF CLI 版本不匹配：期望 ${HF_EXPECTED_VERSION}，实际 ${actual || "未找到"}。先运行 ./scripts/bootstrap.sh`);
   }
+}
+
+/**
+ * 探测媒体时长（秒）。
+ *
+ * 为什么收口到这里：spawnSync 在**外部命令不存在**时返回 status=null、stdout=undefined，
+ * 直接读 stdout.trim() 会抛 "TypeError: Cannot read properties of undefined"——
+ * 把「ffprobe 没装/不在 PATH」伪装成代码 bug。Windows 上 ffmpeg 需手工安装并入 PATH，
+ * 这是首次运行最常见的失败点，错误信息必须直指原因。
+ *
+ * 返回 {ok:true, seconds} 或 {ok:false, reason}：调用方各自的失败处理方式不同
+ * （有的 throw、有的记门禁失败），由调用方决定怎么表达。
+ */
+export function probeDurationSeconds(path) {
+  const r = spawnSync(
+    "ffprobe",
+    ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", path],
+    { encoding: "utf8", timeout: 10 * 60 * 1000 },
+  );
+  if (r.error) {
+    return { ok: false, reason: `无法运行 ffprobe（未安装或不在 PATH）：${r.error.code ?? ""} ${r.error.message ?? ""}`.trim() };
+  }
+  if (r.status !== 0) {
+    return { ok: false, reason: `ffprobe 探测失败（退出码 ${r.status}）：${(r.stderr ?? "").trim()}` };
+  }
+  const seconds = Number((r.stdout ?? "").trim());
+  if (!Number.isFinite(seconds)) return { ok: false, reason: `ffprobe 未返回有效时长：${path}` };
+  return { ok: true, seconds };
 }
 
 export function sha256File(path) {
@@ -81,12 +154,39 @@ export function readJsonIfPresent(path) {
   }
 }
 
+/**
+ * 原子替换目标文件（Windows 安全）。
+ *
+ * POSIX 的 rename() 无条件替换目标；Windows 的 MoveFileEx 带 REPLACE_EXISTING 时，
+ * **目标带只读属性会直接 EPERM**（实测：`EPERM: operation not permitted, rename ...`）。
+ * 本仓的产物（state.json、绑定 JSON、final.mp4）可能来自只读介质、或被复制成只读，
+ * 直接 rename 会把一次正常写入变成硬崩。
+ *
+ * 这里只在第一次 rename 命中 EPERM/EACCES 时才去掉只读属性再试一次；
+ * 其他错误码原样抛出（不吞错、不伪装成功）。
+ */
+export function replaceFileSync(tmpPath, targetPath) {
+  try {
+    renameSync(tmpPath, targetPath);
+    return;
+  } catch (error) {
+    const code = error?.code;
+    if (code !== "EPERM" && code !== "EACCES") throw error;
+  }
+  try {
+    chmodSync(targetPath, 0o666);
+  } catch {
+    // 目标不存在或改不动——留给下面的 rename 自己报错，信息更准。
+  }
+  renameSync(tmpPath, targetPath);
+}
+
 export function writeJson(path, value) {
   const dir = resolve(path, "..");
   mkdirSync(dir, { recursive: true });
   const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
   writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`);
-  renameSync(tmp, path);
+  replaceFileSync(tmp, path);
 }
 
 // ── final-look receipt 的绑定契约（唯一真源） ─────────────────────────────

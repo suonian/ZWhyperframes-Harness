@@ -24,14 +24,16 @@ tools/minimax/scripts/minimax_video.py
 - 默认请求 `https://api.minimaxi.com`。
 - 调用前清除 `HTTP_PROXY`、`HTTPS_PROXY` 和 `ALL_PROXY`，MiniMax 国内 API 直连。
 - 优先读取环境变量 `MINIMAX_API_KEY`。
-- 没有环境变量时，macOS 版本会尝试读取项目专用 Keychain 条目。
+- 没有环境变量时，macOS 版本会尝试读取项目专用 Keychain 条目（Keychain 是 macOS 专有机制；Windows / Linux 上环境变量是唯一通道）。
 - 保存本地产物、脱敏响应和 manifest，不把 API Key、Base64 原文或临时签名 URL写入记录。
 
-跨项目使用时，推荐只配置环境变量，避免依赖本项目的 Keychain 名称：
+跨项目使用时，推荐只配置环境变量，避免依赖本项目的 Keychain 名称（这也是 Windows / Linux 上唯一可行的方式）：
 
 ```bash
 export MINIMAX_API_KEY="你的 API Key"
 ```
+
+Windows PowerShell 用 `$env:MINIMAX_API_KEY="..."`（当前会话）或 `[Environment]::SetEnvironmentVariable("MINIMAX_API_KEY","...","User")`（用户级持久）。
 
 不要把这一行及真实密钥提交到仓库。
 
@@ -331,7 +333,7 @@ manifest 可以按项目审计要求决定是否纳入版本控制，但必须�
 - `minimax_image.py`：通用，可直接复制。
 - `minimax_video.py`：通用图生视频脚本，可直接复制；目前不封装纯文生视频、首尾帧和主体参考视频。
 - `minimax_tts.py`：调用方式通用，但默认音色、速度和音频参数属于本项目；其他项目应替换 `VOICE_PROFILE`。
-- 三个脚本的 Keychain fallback 名称属于本项目；其他项目优先设置 `MINIMAX_API_KEY`，或者自行修改 Keychain 常量。
+- 三个脚本的 Keychain fallback 名称属于本项目；其他项目优先设置 `MINIMAX_API_KEY`，或者自行修改 Keychain 常量。（Keychain 仅 macOS；Windows / Linux 只能靠环境变量。）
 - MiniMax 临时 URL 会过期，任何项目都应立即下载，不应把 URL 当作长期产物地址。
 
 ## 9. 相关文件

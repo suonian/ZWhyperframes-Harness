@@ -9,9 +9,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 > The files under `docs/rules/` referenced below are maintained in **Chinese only**; Chinese is authoritative for their normative requirements.
 
-## [Unreleased]
+## [0.2.10] — 2026-11-01
 
-Nothing yet.
+**A1 integration branch**: `v0.2.9` (`53c456c`) as the trunk, absorbing the Windows platform fixes, visual-baseline gates, output-quality gates and the full test suite from `feat/visual-baseline-and-windows-hardening`, while keeping main's final-delivery contract, the frame tools (`frame-guard` / `css-selector-audit`) and the in-repo `creative-mode-zh` preset. **Default visual baseline = official `capsule` + `Noto Sans SC`; `creative-mode-zh` is an explicitly-selectable optional preset, no longer mandatory.** Exactly one default policy is allowed.
+
+### Changes (summary)
+
+- **Visual-baseline gate `gate.mjs baseline`** (only where the official check has no coverage): in-frame colors must stay inside `frame.md`'s `colors:`; carrying text ≥28px (official chrome tokens exempt); `frame.md` carrying px tokens ≥28px; per-segment TTS manifest `voice_profile` must match the single source. Wired into `preflight`; `docs/rules/visual-baseline.md` is the sole owner of the policy.
+- **Output gates**: `gate.mjs mp4` / `state set-mp4` check track structure (video + audio), loudness (not silent) and black frames (no ≥1s fully-black stretch); `gate.mjs quality` checks first-frame legibility and per-Scene visual change; `gate.mjs motion-spec` plus the official `check` require `data-motion-role="hero"` on the subject, fail-closed otherwise.
+- **Render-input integrity**: `gate.mjs render-ready` re-hashes every byte the render reads (frames, `index.html`, captions, `audio_meta`, voice, fonts, BGM, SFX) before `set-mp4`; receipt v3.
+- **Windows hardening**: `scripts/platform-compat.sh` (`hf_node` / `hf_cli` / `native_path` / `resolve_python`); bootstrap now uses `cd` + relative paths (a login Git Bash no longer hands POSIX paths to npm); `new-video` archives with `cpSync(..., { filter })` (Node 22 + Windows non-ASCII target dirs); `tests/lib/shell.mjs` probes bash/zsh per platform; CI gains `test-windows` (Git Bash + **full bootstrap** + Node 22/24).
+- **main's final-delivery contract kept**: `state master --kind close` produces `99-最终合成/renders/final.mp4` + `final-render.json` and binds `state.master.final_render`; `gate final-delivery` asserts final and candidate share the exact SHA-256.
+- **A1 preset policy applied**: `AGENTS.md` / `docs/rules/visual-baseline.md` / `references/commands.md` / `references/walkthrough.md` all say "default official `capsule` + `Noto Sans SC`; `creative-mode-zh` only when named explicitly".
+
+### Distribution and size (460KB hard limit)
+
+- The publish gate is now a **machine-enforced 460KB hard limit** (`scripts/lib/package-limits.mjs` is the single source): the build estimates the request body and refuses to produce an oversize package, the publisher measures the real body and reconciles it with the estimate — either failure is fail-closed, no manual discipline required.
+- **`package-lock.json` must ship inside the package**: `package.json` pins only `hyperframes@0.8.36`, not its transitive dependencies. Dropping the lock would let a consumer's `npm install` drift away from CI — a violation of the dependency-locking reproducibility baseline.
+- To keep both the lock and every `docs/rules/` file under 460KB, these become **repo-only** (available on GitHub): `references/faq.md` and `presets/creative-mode-zh/` (`references/walkthrough.md` was already excluded). `references/commands.md`, `SKILL.md`, `AGENTS.md`, `scripts/` and `tools/minimax/` stay in the package.
+- `frame-guard.mjs` / `css-selector-audit.mjs` stay repo-only (development-time pre-screening; not shipped, not wired into `gate preflight`).
+
+### Verification
+
+- Local (Windows 10 + Git Bash 5.2.37 + Node 24.16): `npm test` **133 cases (132 pass / 0 fail / 1 skip)** — the skip is the cross-shell case that needs zsh; login-shell `npm run bootstrap` idempotent; `new-video` directory archiving byte-identical to the source (Chinese directory names and binary files included); official CLI `0.8.36`; `npm run doctor` fails only on the missing `MINIMAX_API_KEY`.
+- Package: **45 files / 446.2 KB of file bytes / 458.0 KB request body** (under the 460 KB hard limit). `package-lock.json` ships inside; FAQ / walkthrough / preset do not — all asserted by `tests/packaging.test.mjs`.
+- CI: `windows-smoke` + `test-windows` (Git Bash, **full bootstrap**, Node 22/24) + ubuntu / macOS (Node 22/24) — **7 checks green**.
+- The cross-shell consistency case is now normalized: it compares required-item verdicts only and drops the path display of optional tools (whisper-cpp / TTS / BGM / Docker) — otherwise a macOS dev machine with whisper-cpp installed would fail on `$HOME/...` vs `/opt/homebrew/...`.
 
 ## [0.2.9] — 2026-10-31
 
@@ -30,8 +53,6 @@ Real Windows / Git Bash path compatibility fixes, plus a Windows CI smoke job.
 
 ## [0.2.8] — 2026-10-31
 
-## [0.2.8] — 2026-10-31
-
 Chinese preset, Windows support boundary, and distribution-boundary fixes. No compatibility is promised for already delivered projects.
 
 ### Fixed
@@ -44,8 +65,6 @@ Chinese preset, Windows support boundary, and distribution-boundary fixes. No co
 - README, SKILL, and preset README now document the Windows boundary and preset.
 - Added `tests/frame-tools.test.mjs` for frame-guard / css-selector-audit / preset regressions; test count 78.
 - SkillHub package: 50 files / 439.3KB / request body 456.2KB (under the 460KB limit).
-
-## [0.2.7] — 2026-10-25
 
 ## [0.2.7] — 2026-10-25
 

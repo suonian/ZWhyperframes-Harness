@@ -80,9 +80,12 @@
 
 ## 本机密钥保存方式
 
-MiniMax API Key 已保存到本机 macOS Keychain，不写入仓库：
+macOS 上 MiniMax API Key 可保存到本机 Keychain，不写入仓库：
 
 - account: `minimax`
 - service: `MINIMAX_API_KEY`
 
 脚本应优先读取环境变量 `MINIMAX_API_KEY`，没有环境变量时再读取该 Keychain 条目。
+
+> **Windows / Linux 没有 Keychain。** 这两个平台上环境变量 `MINIMAX_API_KEY` 是唯一通道——脚本在没有环境变量、且系统不是 macOS 时会明确报错退出，不会静默继续。
+> Windows PowerShell 设置方式：`$env:MINIMAX_API_KEY="..."`（当前会话）或 `[Environment]::SetEnvironmentVariable("MINIMAX_API_KEY","...","User")`（用户级持久）。
