@@ -111,7 +111,7 @@ skillhub install zwhyperframes-harness --dir ~/.agents/skills
 node scripts/build-skill-package.mjs --root . --out <产物目录>
 ```
 
-该脚本按平台准入规则过滤并逐项 fail-closed 校验（文件数 ≤100、单文件 ≤1MB、必须含 `SKILL.md`），并按**真实 multipart 请求体**判体积（服务端实测约 476KB：475KB 可通过、480KB 被断开；本仓自设发布闸 476KB）——请求体比文件字节和多十几 KB（multipart 头 + changelog 字段），按后者判会放过一个「本地过、线上炸」的包。产出含每个文件 SHA-256 的清单 `<out>.manifest.json`（写在包目录同级，不放进包内）。
+该脚本按平台准入规则过滤并逐项 fail-closed 校验（文件数 ≤100、单文件 ≤1MB、必须含 `SKILL.md`），并按**真实 multipart 请求体**判体积——**发布闸 460KB 是机器硬性限制**（服务端实测上限约 476KB，本仓在其下留 15KB 余量）。请求体比文件字节和多十几 KB（multipart 头 + changelog 字段），按后者判会放过一个「本地过、线上炸」的包。产出含每个文件 SHA-256 的清单 `<out>.manifest.json`（写在包目录同级，不放进包内）。
 
 ## 前置条件
 
@@ -129,7 +129,7 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills（需联网）
 npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
-npm test             # 131 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
+npm test             # 133 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
 ```
 
 **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 13 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。

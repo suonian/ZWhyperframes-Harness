@@ -24,6 +24,14 @@ function makeFixture() {
   writeFileSync(join(root, "RELEASE-HANDBOOK.md"), "local only\n");
   writeFileSync(join(root, "README.md"), "[dead](CHANGELOG.md)\n");
   writeFileSync(join(root, "README.package.md"), "# package readme\n");
+  // 锁文件：必须在包内（依赖可复现是核心交付契约）。
+  writeFileSync(join(root, "package-lock.json"), "{}\n");
+  // 长文档：repo-only（为 460KB 硬线腾位置）。
+  mkdirSync(join(root, "references"), { recursive: true });
+  writeFileSync(join(root, "references", "faq.md"), "# faq\n");
+  writeFileSync(join(root, "references", "walkthrough.md"), "# walkthrough\n");
+  writeFileSync(join(root, "references", "commands.md"), "# commands\n");
+  // preset：仓库可选件，不随包分发。
   mkdirSync(join(root, "presets", "creative-mode-zh"), { recursive: true });
   writeFileSync(join(root, "presets", "creative-mode-zh", "FRAME.md"), "# zh preset\n");
   mkdirSync(join(root, "scripts"), { recursive: true });
@@ -63,7 +71,17 @@ test("打包排除 vendor/：上游产物树不得进入技能包", () => {
     assert.ok(rel.includes("README.md"), "产物缺少 README");
     assert.match(readFileSync(join(out, "README.md"), "utf8"), /package readme/u);
     assert.ok(!rel.includes("README.package.md"), "README.package.md 只作为映射源，不应原样入包");
-    assert.ok(rel.includes("presets/creative-mode-zh/FRAME.md"), "中文 preset 必须进入分发包");
+    // 0.2.10 起：preset 改为 repo-only（为 460KB 硬线腾位置，锁文件不可移除）。
+    assert.ok(
+      !rel.some((p) => p.startsWith("presets/")),
+      `可选 preset 不应进入分发包：\n${rel.filter((p) => p.startsWith("presets/")).join("\n")}`,
+    );
+    // 锁文件必须在包内：package.json 只钉住 CLI 版本，钉不住传递依赖。
+    assert.ok(rel.includes("package-lock.json"), "package-lock.json 必须在分发包内（依赖可复现）");
+    // 长文档 repo-only；命令契约仍在包内。
+    assert.ok(!rel.includes("references/faq.md"), "FAQ 为 repo-only，不应入包");
+    assert.ok(!rel.includes("references/walkthrough.md"), "walkthrough 为 repo-only，不应入包");
+    assert.ok(rel.includes("references/commands.md"), "命令契约必须在包内");
     assert.ok(!rel.includes("scripts/frame-guard.mjs") && !rel.includes("scripts/css-selector-audit.mjs"), "开发期预筛脚本不应进入分发包");
     assert.ok(!rel.includes("RELEASE-HANDBOOK.md"), "本地专用手册不得进入发布包");
     // 清单是**关于**包的元数据，不是包的内容：它写在包目录的同级，
@@ -175,9 +193,15 @@ test("打包期与发布期的体积口径必须一致（估计值 == 真实请�
       readFileSync(join(dirname(out), `${basename(out)}.manifest.json`), "utf-8"),
     );
     assert.ok(manifest.estimatedBodyBytes > 0, "清单必须记录请求体估计值");
+    assert.equal(manifest.limits.maxBodyBytes, 460 * 1024, "清单里的发布闸必须是 460KB");
     assert.ok(
       manifest.estimatedBodyBytes <= manifest.limits.maxBodyBytes,
       `清单里的请求体估计 ${manifest.estimatedBodyBytes} 超过发布闸 ${manifest.limits.maxBodyBytes}`,
+    );
+    // 本仓当下的真实包必须真的在 460KB 以内（不是「闸设了但包超了却没测到」）。
+    assert.ok(
+      manifest.estimatedBodyBytes <= 460 * 1024,
+      `本仓请求体 ${(manifest.estimatedBodyBytes / 1024).toFixed(1)}KB 超过 460KB 硬线`,
     );
 
     const publish = spawnSync("node", [PUBLISHER, "--root", REPO, "--dry-run"], { encoding: "utf-8" });
@@ -192,6 +216,40 @@ test("打包期与发布期的体积口径必须一致（估计值 == 真实请�
     );
   } finally {
     rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test("package-lock.json 不得出现在内容排除清单里（结构式守卫）", () => {
+  // 锁文件承载「生产依赖可复现」，是核心交付契约：任何把它写进排除清单的改动
+  // 都必须当场变红，而不是等 dry-run 时才被人发现。
+  const source = readFileSync(BUILDER, "utf-8");
+  const start = source.indexOf("const CONTENT_EXCLUDE_FILES = new Set([");
+  assert.ok(start >= 0, "未找到 CONTENT_EXCLUDE_FILES 声明");
+  const end = source.indexOf("]);", start);
+  assert.ok(end > start, "CONTENT_EXCLUDE_FILES 声明未闭合");
+  const block = source.slice(start, end);
+  assert.ok(
+    !/"package-lock\.json"/u.test(block),
+    "package-lock.json 被写进了 CONTENT_EXCLUDE_FILES——它必须在分发包内",
+  );
+  // 反面守卫：长文档与 preset 必须真的在排除清单里，否则打包体积会悄悄膨胀。
+  assert.match(block, /"references\/faq\.md"/u, "FAQ 应显式列在排除清单里");
+  assert.match(block, /"references\/walkthrough\.md"/u, "walkthrough 应显式列在排除清单里");
+  assert.match(source, /CONTENT_EXCLUDE_DIRS = new Set\(\[[^\]]*"presets"/u, "presets 目录应整组排除");
+});
+
+test("发布闸是 460KB 机器硬性限制（唯一真源）", async () => {
+  const limits = await import("../scripts/lib/package-limits.mjs");
+  assert.equal(limits.PUBLISH_MAX_BODY_BYTES, 460 * 1024, "发布闸必须是 460KB 硬线");
+  assert.ok(
+    limits.PUBLISH_MAX_BODY_BYTES < limits.SERVER_MAX_BODY_BYTES,
+    "本仓闸必须低于服务端实测上限（留余量）",
+  );
+  // 打包脚本与发布脚本共用同一常量：两者都不得自建一份体积上限。
+  for (const file of ["scripts/build-skill-package.mjs", "scripts/publish-skillhub.mjs"]) {
+    const src = readFileSync(join(REPO, file), "utf-8");
+    assert.match(src, /package-limits\.mjs/u, `${file} 必须从 package-limits.mjs 取体积口径`);
+    assert.doesNotMatch(src, /PUBLISH_MAX_BODY_BYTES\s*=\s*\d/u, `${file} 不得自带一份上限常量`);
   }
 });
 

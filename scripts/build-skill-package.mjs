@@ -63,15 +63,12 @@ const EXCLUDE_NAMES = new Set([".DS_Store", "Thumbs.db"]);
 // 治理文档、变更历史、英文镜像、内部架构记录与本仓自身的门禁用例都不属于
 // 那一层——它们在 GitHub 仓库里随时可查，且对「用这个 harness 做视频」无用。
 //
-// **package-lock.json 不入包（0.2.10 起）**：它是 94KB 的构建/安装产物，占整个包的
-// 18%，却是唯一「消费者不装也能跑」的大文件——`bootstrap.sh` 用的是 `npm install`
-// （不是 `npm ci`），没有锁文件照样装得出；CLI 版本由 package.json 精确钉死
-// （`hyperframes: "0.8.36"`），官方 skill 的 helper 依赖由 `scripts/lib/official-deps.mjs`
-// 在 bootstrap 期逐个钉死。仓库与 CI 仍保留并使用该锁文件（`npm ci` + 可复现构建），
-// 丢的只是「分发副本里的传递依赖快照」。
-// 为什么值得丢：不丢它，要在 460KB 安全线内就只能砍规则文档或 preset（那是产品的骨架）；
-// 丢它，460KB 以内还剩约 40KB 余量。这是体积约束下伤害最小的一刀。
-const CONTENT_EXCLUDE_DIRS = new Set(["tests", "docs/architecture", "docs/plans"]);
+// **package-lock.json 必须入包（0.2.10 的裁决，不可再动）**：它承载「生产依赖可复现」
+// 这一核心性质——`package.json` 只钉住 `hyperframes@0.8.36` 这一层，钉不住它的传递
+// 依赖；没有锁文件，消费者侧 `npm install` 会重新解析，装出来的东西与 CI 不同。
+// 体积压力一律靠**内容取舍**解决（见下方「为锁文件腾位置的排除项」），
+// 不许在核心交付契约上让步。
+const CONTENT_EXCLUDE_DIRS = new Set(["tests", "docs/architecture", "docs/plans", "presets"]);
 
 /**
  * 包内 package.json 的最终内容。
@@ -104,13 +101,16 @@ const CONTENT_EXCLUDE_FILES = new Set([
   "SECURITY.md", "SECURITY.en.md",
   "CODE_OF_CONDUCT.md", "CODE_OF_CONDUCT.en.md",
   "package-manifest.json",
-  // 传递依赖快照不入包（理由见上方「package-lock.json 不入包」）。
-  // 仓库与 CI 照旧使用它；消费者用 package.json 的精确版本 + bootstrap 的钉死逻辑。
-  "package-lock.json",
+  // ── 为 package-lock.json 腾位置的排除项（0.2.10）──────────────────────────
+  // 锁文件（约 94KB）必须入包；460KB 硬线要容下它，只能把「非生产运行时必需」的
+  // 长文档移出包。取舍顺序由用户裁决：FAQ → walkthrough → preset（repo-only）→
+  // 其它长文档。**不许**反过来砍 `docs/rules/`（产品骨架）或锁文件本身。
+  //
+  // FAQ：按症状索引的排障文档，属「查资料」而非「跑流程」；GitHub 仓库里随时可查，
+  // 包内保留的是命令契约 `references/commands.md`（参数/退出码/失败含义）。
+  "references/faq.md",
   // 端到端走查与它的配套示例：走查是「照抄一遍完整流程」的教学材料，
-  // 它的示例输入指向仓库内的示例文件。包内保留的是**运行与排障**所需的
-  // references/faq.md（按症状索引）与 references/commands.md（命令契约），
-  // 走查本身在 GitHub 仓库里随时可查。
+  // 它的示例输入指向仓库内的示例文件。同样只在 GitHub 仓库提供。
   "references/walkthrough.md",
   "references/example-source.md",
   "references/example-segment-plan.json",
@@ -119,6 +119,11 @@ const CONTENT_EXCLUDE_FILES = new Set([
   // 逼近体积上限时甚至会让打包 fail-closed 失败（自指增长）。
   ".skillhub-pkg.manifest.json",
 ]);
+
+// preset 目录整组出包（`CONTENT_EXCLUDE_DIRS` 里的 "presets"）：
+// `presets/creative-mode-zh/` 按 A1 是**仓库内的可选 preset**，默认基线是官方
+// `capsule`（见 docs/rules/visual-baseline.md），消费者不需要它也能跑；
+// 需要时从 GitHub 仓库取，`--preset-dir <repo>/presets` 指向即可。
 
 // 「独立通用工具」整组排除：MiniMax 的图片/视频生成脚本不在本仓生产主链上
 // （成片由 HyperFrames 渲染，不是 MiniMax 视频），它们的文档也只服务于自己。

@@ -17,8 +17,9 @@
 //
 // 上限与体积估算都在 scripts/lib/package-limits.mjs（打包脚本共用同一套）：
 // 打包期按**估计的请求体**判、发布期按**真实 body** 判，两处口径一致。
-// 本脚本的发布闸在 476KB（实测 475KB 可通过，故 ≤475KB 可证安全），并 fail-closed：宁可明确报错，也不让服务端
-// 静默断连（客户端侧只看到 Broken pipe，没有任何可读信息）。
+// 发布闸是 **460KB 机器硬性限制**（服务端实测上限约 476KB，本仓在其下留 15KB 余量），
+// 并 fail-closed：宁可明确报错，也不让服务端静默断连（客户端侧只看到 Broken pipe，
+// 没有任何可读信息）。
 //
 // 字段与文件收集规则与 SkillHub CLI（skills_store_cli.py 的
 // parse_skill_md_frontmatter / _collect_skill_files / _post_publish_multipart）保持一致。

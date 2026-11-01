@@ -142,7 +142,10 @@ cd <segment-dir> && node <harness>/vendor/skills/faceless-explainer/scripts/buil
 | `--preset-dir` | preset 根目录绝对路径。官方 preset 在 `vendor/skills/hyperframes-creative/frame-presets`（锁定 commit，**只读，不得修改**）；本仓可选 preset 在 `presets/` |
 | `--hyperframes` | 段目录 |
 
-**什么时候选 `creative-mode-zh`**：官方 `creative-mode` 是英文版预设——暖奶油底 `#EFE9D9`、Archivo Black / JetBrains Mono 字体、字幕是「奶油卡片 + 4px 描边 + 橙色硬阴影 + 逐词黄色高亮块」。中文场景直用它会在字幕形态与字形上翻车。`presets/creative-mode-zh/` 是本仓的 zh 适配版（色板 `#F7F7F5` / `#F97316` / `#FACC15` / `#2F6BFF` / `#12B76A` / `#F5539E`，字体 Noto Sans SC + Space Grotesk + Inter，字幕为无盒子纯墨黑文字）。**它是可选件，不是默认**——默认仍走 `capsule`+`Noto Sans SC`。
+**什么时候选 `creative-mode-zh`**：官方 `creative-mode` 是英文版预设——暖奶油底 `#EFE9D9`、Archivo Black / JetBrains Mono 字体、字幕是「奶油卡片 + 4px 描边 + 橙色硬阴影 + 逐词黄色高亮块」。中文场景直用它会在字幕形态与字形上翻车。`presets/creative-mode-zh/` 是本仓的 zh 适配版（色板 `#F7F7F5` / `#F97316` / `#FACC15` / `#2F6BFF` / `#12B76A` / `#F5539E`，字体 Noto Sans SC + Space Grotesk + Inter，字幕为无盒子纯墨黑文字）。
+
+> **它是可选件，不是默认**——默认仍走 `capsule`+`Noto Sans SC`。
+> **且它不随分发包分发**（`presets/` 为 repo-only，为在 460KB 发布硬线内保住 `package-lock.json` 与全部规则文档）：如果你装的是技能包，需从 GitHub 仓库取该目录，再以 `--preset-dir <仓库>/presets` 指向。
 
 **同一项目的所有段必须用同一个 preset**——`frame.md` 是 `captions-zh.mjs` 注入 `:root` token 的唯一来源，换 preset 会让字幕底色/字体与画面脱节。
 

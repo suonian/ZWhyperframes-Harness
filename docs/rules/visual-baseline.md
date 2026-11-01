@@ -28,7 +28,7 @@
 
 **preset 清单（13 套）**：`biennale-yellow`、`blockframe`、`blue-professional`、`bold-poster`、`broadside`、`capsule`、`cartesian`、`cobalt-grid`、`code-editorial`、`coral`、`creative-mode`、`daisy-days`、`editorial-forest`。
 
-**本仓自带的可选 preset（第 14 套，非官方）**：`presets/creative-mode-zh/`——官方 `creative-mode` 的中文适配版（无字幕背景、Noto Sans SC 字形、五强调色）。**显式指名才用**（`--preset creative-mode-zh --preset-dir <harness>/presets`），**不是默认**；默认仍是官方 `capsule`（见 §2）。它与官方 13 套同属「合法可用」，本仓不做 allow-list 阻断。
+**本仓自带的可选 preset（第 14 套，非官方）**：`presets/creative-mode-zh/`——官方 `creative-mode` 的中文适配版（无字幕背景、Noto Sans SC 字形、五强调色）。**显式指名才用**（`--preset creative-mode-zh --preset-dir <harness>/presets`），**不是默认**；默认仍是官方 `capsule`（见 §2）。它与官方 13 套同属「合法可用」，本仓不做 allow-list 阻断。**该目录 repo-only、不随分发包分发**（为在 460KB 发布硬线内保住 `package-lock.json` 与全部规则文档），技能包用户需从 GitHub 仓库取。
 
 > **官方无强制点**：官方 `build-frame.mjs` 只校验 `--preset` 非空且 `FRAME.md` 存在（`:55-72`），**无 allow-list、无默认值、无按项目强制映射**。所以「本项目默认用哪一套」只能由本仓声明——这正是本文件存在的理由。
 

@@ -36,9 +36,9 @@ HARNESS_NPM_REGISTRY=https://registry.npmjs.org npm run bootstrap
 
 bootstrap 有回滚：旧 `vendor/` 被换回，失败不写 commit stamp。修好网络后重跑即可。### 1.7 分发包里有什么、没有什么
 
-**有**：`SKILL.md`、`AGENTS.md`、`docs/rules/`（规范合同）、`references/`（本速查 + 命令契约）、`scripts/`、`tools/minimax/`、`package.json`、`presets/creative-mode-zh/`。
+**有**：`SKILL.md`、`AGENTS.md`、`docs/rules/`（全部规范合同）、`references/commands.md`（命令契约）、`scripts/`、`tools/minimax/`、`package.json` + **`package-lock.json`**（依赖可复现是核心性质，必须入包）、`README.md`。
 
-**没有**：`tests/`、`vendor/`、`docs/architecture/`、`references/walkthrough.md`、打包/发布工具链、`package-lock.json`（0.2.10 起：传递依赖快照留在仓库与 CI；包内 CLI 版本由 `package.json` 精确钉死）、`assets/wechat-qr.jpg`（平台拒收该类型）。完整清单见仓库 `README.package.md`。
+**没有（GitHub 仓库里查）**：`references/faq.md`（本文件）、`references/walkthrough.md`、`presets/creative-mode-zh/`（可选 preset，repo-only）、`tests/`、`vendor/`、`docs/architecture/`、打包/发布工具链、`assets/wechat-qr.jpg`（平台拒收该类型）。取舍原因：发布闸是 **460KB 硬性限制**，而锁文件（约 94KB）不可移除——只能让长文档与 preset 出包。完整清单见仓库 `README.package.md`。
 
 ## 2. 项目输入与分段
 
