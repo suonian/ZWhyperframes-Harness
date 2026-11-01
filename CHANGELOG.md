@@ -29,8 +29,10 @@
 
 ### 验证
 
-- 本地（Windows 10 + Git Bash 5.2.37 + Node 24）：`npm test` 131 例（130 pass / 0 fail / 1 skip，跳过的是缺 zsh 的跨 shell 用例）；登录 shell `npm run bootstrap` 幂等；`new-video` 目录归档与源逐文件一致；官方 CLI `0.8.36`；`npm run doctor` 仅缺 `MINIMAX_API_KEY`。
-- 分发包实测与 CI 结果见下方「分发与体积」与 PR 记录；`package-lock.json` 入包、FAQ / walkthrough / preset 出包均有 `tests/packaging.test.mjs` 断言。
+- 本地（Windows 10 + Git Bash 5.2.37 + Node 24.16）：`npm test` **133 例（132 pass / 0 fail / 1 skip）**——skip 的是缺 zsh 的跨 shell 用例；登录 shell `npm run bootstrap` 幂等；`new-video` 目录归档与源逐文件一致（含中文目录与二进制文件）；官方 CLI `0.8.36`；`npm run doctor` 仅缺 `MINIMAX_API_KEY`。
+- 分发包：**45 个文件 / 文件字节 446.2 KB / 请求体 458.0 KB**（≤460 KB 硬线）。`package-lock.json` 入包，FAQ / walkthrough / preset 出包，均有 `tests/packaging.test.mjs` 断言。
+- CI：`windows-smoke` + `test-windows`（Git Bash，**完整 bootstrap**，Node 22/24）+ ubuntu / macOS（Node 22/24）共 **7 个 check 全绿**。
+- 跨 shell 一致性用例已归一化：只比必需项结论、剔除可选工具（whisper-cpp / TTS / BGM / Docker）的路径展示——否则装了 whisper-cpp 的 macOS 开发机会因 `$HOME/...` 与 `/opt/homebrew/...` 的展示差异而误红。
 
 ## [0.2.9] — 2026-10-31
 

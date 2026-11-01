@@ -31,8 +31,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Verification
 
-- Local (Windows 10 + Git Bash 5.2.37 + Node 24): `npm test` 131 cases (130 pass / 0 fail / 1 skip — the cross-shell case needs zsh); login-shell `npm run bootstrap` idempotent; `new-video` directory archiving byte-identical to the source; official CLI `0.8.36`; `npm run doctor` fails only on the missing `MINIMAX_API_KEY`.
-- Package measurement and CI results are recorded in the PR; "lock in, FAQ / walkthrough / preset out" is asserted by `tests/packaging.test.mjs`.
+- Local (Windows 10 + Git Bash 5.2.37 + Node 24.16): `npm test` **133 cases (132 pass / 0 fail / 1 skip)** — the skip is the cross-shell case that needs zsh; login-shell `npm run bootstrap` idempotent; `new-video` directory archiving byte-identical to the source (Chinese directory names and binary files included); official CLI `0.8.36`; `npm run doctor` fails only on the missing `MINIMAX_API_KEY`.
+- Package: **45 files / 446.2 KB of file bytes / 458.0 KB request body** (under the 460 KB hard limit). `package-lock.json` ships inside; FAQ / walkthrough / preset do not — all asserted by `tests/packaging.test.mjs`.
+- CI: `windows-smoke` + `test-windows` (Git Bash, **full bootstrap**, Node 22/24) + ubuntu / macOS (Node 22/24) — **7 checks green**.
+- The cross-shell consistency case is now normalized: it compares required-item verdicts only and drops the path display of optional tools (whisper-cpp / TTS / BGM / Docker) — otherwise a macOS dev machine with whisper-cpp installed would fail on `$HOME/...` vs `/opt/homebrew/...`.
 
 ## [0.2.9] — 2026-10-31
 
