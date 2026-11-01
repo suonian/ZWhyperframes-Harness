@@ -82,6 +82,41 @@ export async function readFrameColors(frameMd) {
   return parseColors(frameMd);
 }
 
+// 主题指纹 = colors 块的键名集合（排序）。官方 --tokens remix 只改值不改键，
+// 且 13 套 preset 的键名两两不同，所以「用了哪个主题」可从 frame.md 反推。
+export function colorKeySet(md) {
+  const lines = String(md ?? "").split(/\r?\n/u);
+  const start = lines.findIndex((l) => /^colors:\s*$/u.test(l));
+  if (start < 0) return [];
+  const keys = [];
+  for (const line of lines.slice(start + 1)) {
+    if (!/^\s/u.test(line)) break; // colors 块结束
+    const m = /^\s{2}([\w-]+):/u.exec(line);
+    if (m) keys.push(m[1]);
+  }
+  return keys.sort();
+}
+
+// 声明主题与本段 frame.md 是否同一套：键集合必须完全一致（缺/多键都说明换了 preset）。
+export function checkDeclaredTheme(declaredKeys, frameMd) {
+  const actual = colorKeySet(frameMd);
+  const declared = Array.isArray(declaredKeys) ? [...declaredKeys].sort() : [];
+  if (!declared.length) {
+    return { ok: false, actual, violations: ["visual.json 缺少主题色键指纹（重新声明主题）"] };
+  }
+  const missing = declared.filter((k) => !actual.includes(k));
+  const extra = actual.filter((k) => !declared.includes(k));
+  if (!missing.length && !extra.length) return { ok: true, actual, violations: [] };
+  return {
+    ok: false,
+    actual,
+    violations: [
+      `frame.md 的 colors 键不是声明的主题（缺：${missing.join("、") || "无"}；多：${extra.join("、") || "无"}）` +
+        `—— 请用声明的 preset 重跑官方 Step 2（\`build-frame.mjs --preset <主题>\`），不要换 preset 或手改键名`,
+    ],
+  };
+}
+
 /**
  * 取出 frame.md typography 块里所有 **chrome 语义**的 px 固定值集合。
  *

@@ -6,9 +6,37 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, cpSync, statSync, rmSync } from "node:fs";
 import { join, resolve, relative, isAbsolute, basename } from "node:path";
 import {
-  PRODUCTS_ROOT_DEFAULT, CONTROL_DIR, MASTER_DIR, MASTER_RENDERS_DIR, STATE_VERSION,
+  HARNESS_ROOT, PRODUCTS_ROOT_DEFAULT, CONTROL_DIR, MASTER_DIR, MASTER_RENDERS_DIR, STATE_VERSION,
   sha256File, sha256Text, writeJson, readState, writeState, runHf, assertHfVersion, nowIso, harnessIdentity,
 } from "./lib/harness.mjs";
+import { colorKeySet } from "./lib/visual-baseline.mjs";
+
+// ── 视觉主题（0.2.11 起必须先声明）────────────────────────────────────────────
+// 公开项目里不同使用者要不同模板：生产前声明 preset，写进 00-项目总控/visual.json
+// 并记下 colors 键名指纹，供 gate baseline 反查（--tokens 只改值不改键）。
+const PRESET_DIRS = [
+  ["official", join(HARNESS_ROOT, "vendor", "skills", "hyperframes-creative", "frame-presets")],
+  ["repo", join(HARNESS_ROOT, "presets")],
+];
+
+function listThemes() {
+  const out = [];
+  for (const [source, dir] of PRESET_DIRS) {
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir)) {
+      if (existsSync(join(dir, name, "FRAME.md"))) out.push(`${name}（${source}）`);
+    }
+  }
+  return out;
+}
+
+function resolveTheme(id) {
+  for (const [source, dir] of PRESET_DIRS) {
+    const frameMd = join(dir, id, "FRAME.md");
+    if (existsSync(frameMd)) return { theme: id, source, dir, md: readFileSync(frameMd, "utf8") };
+  }
+  return null;
+}
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -88,6 +116,21 @@ function runInit() {
   const projectDir = resolve(get("project") ?? ".");
   const sourceArg = get("source");
   if (!sourceArg) throw new Error("init 需要 --source <资料包文件或目录>");
+  // 主题必须先声明（公开项目：不同人用不同模板）。缺失即用法错误（exit 2），
+  // 并把可选主题逐条列出来，避免「随便猜一个」。
+  const themeId = get("theme");
+  if (!themeId) {
+    console.error("init 需要 --theme <preset>：生产前必须先声明视觉主题");
+    const all = listThemes();
+    console.error(`可选主题：${all.length ? all.join("、") : "（未发现任何 preset：先跑 bootstrap）"}`);
+    process.exit(2);
+  }
+  const theme = resolveTheme(themeId);
+  if (!theme) {
+    console.error(`未知主题：${themeId}`);
+    console.error(`可选主题：${listThemes().join("、") || "（未发现任何 preset：先跑 bootstrap）"}`);
+    process.exit(2);
+  }
   const source = resolve(sourceArg);
   const productsRoot = resolve(get("products-root") ?? PRODUCTS_ROOT_DEFAULT);
   if (!existsSync(source)) throw new Error(`来源不存在：${source}`);
@@ -121,6 +164,15 @@ function runInit() {
   }
   const scriptPath = join(controlDir, "锁定口播稿.md");
   writeFileSync(scriptPath, lockedScript);
+  // 主题声明：留痕 + 指纹，供 gate baseline 反查（换 preset 或手改键名会被拦）。
+  writeJson(join(controlDir, "visual.json"), {
+    version: 1,
+    theme: theme.theme,
+    source: theme.source,
+    preset_dir: relative(HARNESS_ROOT, theme.dir).split("\\").join("/"),
+    color_keys: colorKeySet(theme.md),
+    declared_at: nowIso(),
+  });
   mkdirSync(join(projectDir, MASTER_DIR, "candidates"), { recursive: true });
   mkdirSync(join(projectDir, MASTER_RENDERS_DIR), { recursive: true });
   const harness = harnessIdentity();
@@ -145,6 +197,7 @@ function runInit() {
     throw error;
   }
   console.log(`项目初始化完成：${projectDir}`);
+  console.log(`视觉主题：${theme.theme}（${theme.source}；色键 ${colorKeySet(theme.md).length} 个，已写入 00-项目总控/visual.json）`);
   console.log("下一步：主智能体语义分段后写 00-项目总控/segment-plan.json，再执行 new-video.mjs segment");
 }
 
@@ -250,7 +303,7 @@ try {
   if (command === "init") runInit();
   else if (command === "segment") runSegment();
   else {
-    console.error("用法: node new-video.mjs init --project <dir> --source <资料包文件或目录> [--products-root <dir>]");
+    console.error("用法: node new-video.mjs init --project <dir> --source <资料包文件或目录> --theme <preset> [--products-root <dir>]");
     console.error("      node new-video.mjs segment --project <dir> --plan <segment-plan.json> --id <NN>");
     process.exit(2);
   }

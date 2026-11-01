@@ -9,14 +9,19 @@
 
 ## [0.2.11] — 2026-11-01
 
-**一行自举入口**：新增 `scripts/skill-ready.mjs`——加载技能后一条命令完成准备：自动定位可用 bash（Windows 只认 Git Bash/MSYS，拒收 WSL 存根；非默认盘靠注册表）→ 幂等 bootstrap → 复检 CLI 与 vendor → `READY / NOT_READY`。判定逻辑不复制，仍只在 `bootstrap.sh` 里。
+**一行自举 + 主题须声明**：新增 `scripts/skill-ready.mjs`（自动定位 Git Bash → 幂等 bootstrap → 复检 → `READY/NOT_READY`），判定逻辑仍只在 `bootstrap.sh`；`new-video init --theme` 改为必填，声明写入 `00-项目总控/visual.json`，`gate baseline` 按色键指纹反查。
 
 ### 新增
-- `scripts/skill-ready.mjs`：`--check-only`（只检查）、`--doctor`（连体检）、`--json`（机读）；`HARNESS_BASH` 可显式指定 bash；退出码 0=READY / 1=NOT_READY。
-- `tests/skill-ready.test.mjs`（3 例）+ `references/commands.md` §0.1 + `SKILL.md` 快速开始改为先跑这一条。
+- `scripts/skill-ready.mjs`（`--check-only` / `--doctor` / `--json`；`HARNESS_BASH` 可指定 bash）+ 3 例测试 + 命令契约 §0.1。
+
+### 新增（主题必须先声明）
+- `new-video.mjs init --theme <preset>` **必填**：缺省 exit 2 并列出可选主题（13 套官方 + 仓库 presets）。声明写入 `00-项目总控/visual.json`（preset id、来源 official/repo、`colors:` 键名指纹）。
+- `gate baseline` 增加主题校验：段内 `frame.md` 的 colors 键集合必须等于声明时的指纹（官方 `--tokens` 只改值不改键，故换色不误伤；换 preset 或手改键名当场 fail-closed）。
+- `tests/theme.test.mjs`（4 例）；规则归属 `docs/rules/visual-baseline.md` §2.1，`AGENTS.md` 与 `references/commands.md` 同步。
 
 ### 变更
-- 版本 0.2.11；分发包 46 个文件（新增该脚本），请求体仍在 460KB 硬线内。
+- 版本 0.2.11；分发包 46 个文件（新增 skill-ready），请求体仍在 460KB 硬线内。
+- 英文免责声明镜像 `DISCLAIMER.en.md` 出包（仓库保留）：为新增脚本与门禁腾体积；包内 `SKILL.md` 只链接中文版 `DISCLAIMER.md`，不产生死链。
 - `README.package.md` 精简为分包边界说明（锁在包内；FAQ / walkthrough / preset 在 GitHub），为新增脚本腾体积。
 
 ### 验证

@@ -29,17 +29,18 @@ node scripts/skill-ready.mjs --json         # 机读输出
 ### `init`
 
 ```bash
-node scripts/new-video.mjs init --project <dir> --source <file-or-dir> [--products-root <dir>]
+node scripts/new-video.mjs init --project <dir> --source <file-or-dir> --theme <preset> [--products-root <dir>]
 ```
 
 | 参数 | 必填 | 说明 |
 | --- | --- | --- |
 | `--project` | 是 | 目标项目目录；必须位于产品根目录内，非空目录拒绝覆盖 |
 | `--source` | 是 | 资料包文件或目录；必须含唯一 `script:start` / `script:end` 标记块 |
+| `--theme` | 是 | 视觉主题 = 一套官方 preset（13 套）或仓库 `presets/` 下的 preset。缺省即 exit 2 并列出可选主题；声明写进 `00-项目总控/visual.json`（含色键指纹），`gate baseline` 据此反查段内 `frame.md` 是否同一套 |
 | `--products-root` | 否 | 默认 `~/Documents/ZWhyperframes-products`（Windows 走「文档」Known Folder，OneDrive 重定向时自动跟随真实路径） |
 
 成功：写 `00-项目总控/锁定口播稿.md`、资料包副本与 `state.json`，并创建 `99-最终合成/renders/`；`state.harness` 记录版本、commit 与 dirty。stdout 打印下一步。
-失败：缺 `--source`、目录越界/非空、标记缺失/重复、创建过程失败（新建目录会清理）。
+失败：缺 `--source` 或 `--theme`（exit 2）、未知主题、目录越界/非空、标记缺失/重复、创建过程失败（新建目录会清理）。
 
 ### `segment`
 
@@ -95,11 +96,7 @@ node scripts/gate.mjs animation-map --project <root> --segment <NN> --generate
 
 `--out <dir>` 指定输出目录（官方脚本的 `--out` 语义：相对 cwd 解析，本仓传绝对路径）。
 
-**官方脚本自带依赖解析，本仓把它钉死**（`scripts/lib/official-deps.mjs`）：官方脚本要 `@hyperframes/producer` 与 `@hyperframes/core`（**不在** hyperframes CLI 包里），缺包时装到 tmp 跑完即删（每跑一次重下 ~100MB），版本推不出来时**默认 `@latest`**（实测上游 latest 已是 0.8.223，与锁定的 0.8.36 差 187 个补丁版，且**静默**）。
-
-因此 `scripts/bootstrap.sh` 按锁定版本装进**仓库** `node_modules`（不进 `package.json`、不动锁文件、不执行生命周期脚本——puppeteer 因此不会下载第二份 Chromium），传递依赖逐个钉版本（producer 声明 `^0.8.36`，范围会飘）；`hf-env.sh` 导出 `HYPERFRAMES_SKILL_PKG_VERSION=0.8.36`，官方 loader 从此**没有 `@latest` 退路**。单独核对：`node scripts/lib/official-deps.mjs`（缺包或版本漂移即 exit 1）。
-
-> 完整取证（官方 loader 的版本推断机制为何对本仓必然落空）见仓库 `docs/architecture/faq-full.md` §4.2。
+**官方脚本自带依赖解析，本仓把它钉死**（`scripts/lib/official-deps.mjs`）：官方脚本要 `@hyperframes/producer` / `@hyperframes/core`（不在 CLI 包里），缺包时装到 tmp 跑完即删，推不出版本时**静默退回 `@latest`**。因此 `bootstrap.sh` 按锁定版本装进仓库 `node_modules`（不进 `package.json`/锁文件、不执行生命周期脚本），传递依赖逐个钉版本；`hf-env.sh` 导出 `HYPERFRAMES_SKILL_PKG_VERSION=0.8.36`，官方 loader 从此没有 `@latest` 退路。单独核对：`node scripts/lib/official-deps.mjs`。完整取证见仓库 `docs/architecture/faq-full.md` §4.2。
 
 ## 3. `state.mjs`
 
@@ -153,7 +150,7 @@ cd <segment-dir> && node <harness>/vendor/skills/faceless-explainer/scripts/buil
 | `--preset-dir` | preset 根目录绝对路径。官方 preset 在 `vendor/skills/hyperframes-creative/frame-presets`（锁定 commit，**只读，不得修改**）；本仓可选 preset 在 `presets/` |
 | `--hyperframes` | 段目录 |
 
-**什么时候选 `creative-mode-zh`**：官方 `creative-mode` 是英文版预设——暖奶油底 `#EFE9D9`、Archivo Black / JetBrains Mono 字体、字幕是「奶油卡片 + 4px 描边 + 橙色硬阴影 + 逐词黄色高亮块」。中文场景直用它会在字幕形态与字形上翻车。`presets/creative-mode-zh/` 是本仓的 zh 适配版（色板 `#F7F7F5` / `#F97316` / `#FACC15` / `#2F6BFF` / `#12B76A` / `#F5539E`，字体 Noto Sans SC + Space Grotesk + Inter，字幕为无盒子纯墨黑文字）。
+**什么时候选 `creative-mode-zh`**：官方 `creative-mode` 是英文版（暖奶油底、Archivo Black 等无中文字形、字幕带卡片背景与逐词高亮块），中文场景直用会在字幕形态与字形上翻车。`presets/creative-mode-zh/` 是它的 zh 适配版（近白底、Noto Sans SC、无盒子纯墨黑字幕）。
 
 > **它是可选件，不是默认**——默认仍走 `capsule`+`Noto Sans SC`。
 > **且它不随分发包分发**（`presets/` 为 repo-only，为在 460KB 发布硬线内保住 `package-lock.json` 与全部规则文档）：如果你装的是技能包，需从 GitHub 仓库取该目录，再以 `--preset-dir <仓库>/presets` 指向。

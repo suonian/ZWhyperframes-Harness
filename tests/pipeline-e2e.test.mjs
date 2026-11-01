@@ -134,7 +134,7 @@ test("new-video init：锁稿提取 + 状态初始化", () => {
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  const r = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]);
+  const r = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]);
   assert.equal(r.status, 0, r.stderr || r.stdout);
   const state = JSON.parse(readFileSync(join(project, "00-项目总控", "state.json"), "utf8"));
   assert.equal(state.locked_script.line_count, 3);
@@ -150,7 +150,7 @@ test("new-video init：无标记资料包 fail-closed", () => {
   const source = join(root, "nope.md");
   writeFileSync(source, "没有锁定口播标记。\n");
   const project = join(root, "demo");
-  const r = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]);
+  const r = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /未找到锁定口播/u);
   assert.equal(existsSync(project), false, "init 失败不应留下半成品目录");
@@ -159,7 +159,7 @@ test("new-video init：无标记资料包 fail-closed", () => {
 test("new-video init：缺少 --source 拒绝且不创建项目目录", () => {
   const root = TMP();
   const project = join(root, "demo");
-  const r = run("new-video.mjs", ["init", "--project", project, "--allow-outside-products-root"]);
+  const r = run("new-video.mjs", ["init", "--project", project, "--allow-outside-products-root", "--theme", "creative-mode-zh"]);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /需要 --source/u);
   assert.equal(existsSync(project), false);
@@ -173,7 +173,7 @@ test("new-video init：目录资料包——整体归档 + 显式标记锁稿提
   writeFileSync(join(sourceDir, "原稿.md"), "这是原稿全文，但没有标记。\n");
   writeFileSync(join(sourceDir, "证据", "说明.md"), "证据说明。\n");
   writeFileSync(join(sourceDir, "00-锁定口播稿.md"), "locked-script:script:start\n目录包第一行口播。\n目录包第二行口播。\nlocked-script:script:end\n");
-  const r = run("new-video.mjs", ["init", "--project", project, "--source", sourceDir, "--allow-outside-products-root"]);
+  const r = run("new-video.mjs", ["init", "--project", project, "--source", sourceDir, "--allow-outside-products-root", "--theme", "creative-mode-zh"]);
   assert.equal(r.status, 0, r.stderr || r.stdout);
   assert.equal(readFileSync(join(project, "00-项目总控", "锁定口播稿.md"), "utf8"), "目录包第一行口播。\n目录包第二行口播。\n");
 
@@ -230,7 +230,7 @@ test("new-video init：目录资料包无显式标记 fail-closed", () => {
   const sourceDir = join(root, "package");
   mkdirSync(sourceDir, { recursive: true });
   writeFileSync(join(sourceDir, "说明.md"), "## 对应口播稿\n这是路径引用，不是标记。\n");
-  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", sourceDir, "--allow-outside-products-root"]);
+  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", sourceDir, "--allow-outside-products-root", "--theme", "creative-mode-zh"]);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /未找到锁定口播/u);
 });
@@ -241,7 +241,7 @@ test("new-video init：目录资料包多个 script:start 标记 fail-closed", (
   mkdirSync(sourceDir, { recursive: true });
   writeFileSync(join(sourceDir, "a.md"), "locked-script:script:start\nA。\nlocked-script:script:end\n");
   writeFileSync(join(sourceDir, "b.md"), "locked-script:script:start\nB。\nlocked-script:script:end\n");
-  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", sourceDir, "--allow-outside-products-root"]);
+  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", sourceDir, "--allow-outside-products-root", "--theme", "creative-mode-zh"]);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /多个 script:start/u);
 });
@@ -253,7 +253,7 @@ test("new-video init：锁定稿标记命名空间可自定义（向后兼容任
   const sourceDir = join(root, "package");
   mkdirSync(sourceDir, { recursive: true });
   writeFileSync(join(sourceDir, "old-namespace.md"), "legacy-vendor:script:start\n旧命名空间口播。\nlegacy-vendor:script:end\n");
-  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", sourceDir, "--allow-outside-products-root"]);
+  const r = run("new-video.mjs", ["init", "--project", join(root, "demo"), "--source", sourceDir, "--allow-outside-products-root", "--theme", "creative-mode-zh"]);
   assert.equal(r.status, 0, r.stderr || r.stdout);
   assert.equal(readFileSync(join(root, "demo", "00-项目总控", "锁定口播稿.md"), "utf8"), "旧命名空间口播。\n");
 });
@@ -263,7 +263,7 @@ test("new-video segment：段目录越出项目根拒绝", () => {
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
   writePlan(project, [{ id: "01", dir: "../outside", lines: [1, 3] }]);
   const result = run("new-video.mjs", ["segment", "--project", project, "--id", "01"]);
   assert.equal(result.status, 1);
@@ -278,7 +278,7 @@ test("new-video init：非空目录拒绝", () => {
   writeFileSync(join(project, "x.txt"), "x");
   const source = join(root, "s.md");
   writeFileSync(source, PACKAGE);
-  const r = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]);
+  const r = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /非空/u);
 });
@@ -288,7 +288,7 @@ test("new-video segment：官方 init + 段骨架 + 计划连续性校验", () =
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-开场", lines: [1, 2], title: "开场" }, { id: "02", dir: "02-收束", lines: [3, 3], title: "收束" }] };
   writePlan(project, plan.segments);
 
@@ -327,7 +327,7 @@ test("离线底线：黑洞代理下 init + 段脚手架仍可完成（生产中
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  const init = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"], { env: OFFLINE_ENV });
+  const init = run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"], { env: OFFLINE_ENV });
   assert.equal(init.status, 0, init.stderr || init.stdout);
   const plan = { segments: [{ id: "01", dir: "01-开场", lines: [1, 3], title: "开场" }] };
   writePlan(project, plan.segments);
@@ -353,7 +353,7 @@ function makeRenderReadyProject({ withFonts = true, withBgm = false, withSfx = f
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
   const statePath = join(project, "00-项目总控", "state.json");
   const state = JSON.parse(readFileSync(statePath, "utf8"));
   state.segments = [
@@ -500,7 +500,7 @@ test("state/gate/finalize 全链：授权 → MP4 绑定 → master 拼接（开
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
 
   const statePath = join(project, "00-项目总控", "state.json");
   const state = JSON.parse(readFileSync(statePath, "utf8"));
@@ -632,7 +632,7 @@ test("回归：final-look 授权 → set-mp4 绑定后，final-look 必须仍在
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
 
   const statePath = join(project, "00-项目总控", "state.json");
   const state = JSON.parse(readFileSync(statePath, "utf8"));
@@ -666,7 +666,7 @@ test("state approve final-look：preflight 未通过时拒绝写入授权", () =
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-a", lines: [1, 3] }] };
   writePlan(project, plan.segments);
   assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
@@ -683,7 +683,7 @@ test("gate verify：锁稿/TTS 绑定漂移 fail-closed", () => {
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-开场", lines: [1, 3] }] };
   writePlan(project, plan.segments);
   assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
@@ -714,7 +714,7 @@ test("gate verify：STORYBOARD 帧缺 duration 行不得误判漂移（比对必
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-开场", lines: [1, 3] }] };
   writePlan(project, plan.segments);
   assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
@@ -777,7 +777,7 @@ test("gate layout-guard：可见字号 <28px fail-closed；≥28px 通过", () =
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-a", lines: [1, 3], title: "a" }] };
   writePlan(project, plan.segments);
   assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
@@ -815,7 +815,7 @@ test("gate pitch-round：BRIEF.md 的 `## Intent` 胜出概念缺失/为空 fail
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
 
   const brief = join(project, "BRIEF.md");
   // 缺 BRIEF.md
@@ -839,7 +839,7 @@ test("gate animation-map：官方 animation-map.json 产物缺失 fail-closed", 
   const project = join(root, "demo");
   const source = join(root, "package.md");
   writeFileSync(source, PACKAGE);
-  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root"]).status, 0);
+  assert.equal(run("new-video.mjs", ["init", "--project", project, "--source", source, "--allow-outside-products-root", "--theme", "creative-mode-zh"]).status, 0);
   const plan = { segments: [{ id: "01", dir: "01-a", lines: [1, 3], title: "a" }] };
   writePlan(project, plan.segments);
   assert.equal(run("new-video.mjs", ["segment", "--project", project, "--id", "01"]).status, 0);
