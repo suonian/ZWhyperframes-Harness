@@ -1,7 +1,7 @@
 ---
 name: zwhyperframes-harness
 slug: zwhyperframes-harness
-version: 0.2.10
+version: 0.2.11
 displayName: HyperFrames Harness — 中文知识视频生产门禁
 summary: 用 HyperFrames 生产中文无真人出镜知识视频的规则与门禁层：锁定稿、TTS/字幕哈希绑定、final-look 前置检查、master 审批；不重写官方能力。
 description: 当用户要用 HyperFrames 制作中文无真人出镜知识视频、要求锁定口播稿/字幕逐字一致/生产可复现，或需要排查 HyperFrames 生产门禁时使用；它把官方 Step 0–6 与质量能力变成 fail-closed 规则，不重写官方能力。
@@ -111,7 +111,7 @@ skillhub install zwhyperframes-harness --dir ~/.agents/skills
 node scripts/build-skill-package.mjs --root . --out <产物目录>
 ```
 
-该脚本按平台准入规则过滤并逐项 fail-closed 校验（文件数 ≤100、单文件 ≤1MB、必须含 `SKILL.md`），并按**真实 multipart 请求体**判体积——**发布闸 460KB 是机器硬性限制**（服务端实测上限约 476KB，本仓在其下留 15KB 余量）。请求体比文件字节和多十几 KB（multipart 头 + changelog 字段），按后者判会放过一个「本地过、线上炸」的包。产出含每个文件 SHA-256 的清单 `<out>.manifest.json`（写在包目录同级，不放进包内）。
+该脚本按平台准入规则（文件数 ≤100、单文件 ≤1MB、必须含 `SKILL.md`）fail-closed 过滤，并按**真实 multipart 请求体**判体积——**发布闸 460KB 是机器硬性限制**（服务端实测上限约 476KB）。清单 `<out>.manifest.json` 含逐文件 SHA-256，写在包目录同级。
 
 ## 前置条件
 
@@ -123,24 +123,30 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 
 ## 快速开始
 
-技能包**不含 `node_modules`**（平台打包排除），故须先自举：
+技能包**不含 `node_modules` 与 `vendor/`**（平台打包排除）。加载技能后**先跑这一条**——它自动定位 Git Bash、按锁定版本自举、并给出 READY/NOT_READY：
+
+```bash
+node scripts/skill-ready.mjs   # 唯一准备入口；--check-only 只检查，--doctor 连体检
+```
+
+`READY` 后即可生产；`source ./hf-env.sh` 仅在使用 `hf` 命令时需要。仓库内另有完整自举与回归：
 
 ```bash
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills（需联网）
 npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
-npm test             # 133 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
+npm test             # 140 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
 ```
 
 **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 13 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。
 
-上游的 `hyperframes skills update` 与 `npx skills add` **都不可用**（前者把「latest」硬编码为上游 main 的实时 HEAD 且会移除已退役的 `faceless-explainer`，后者实测只认 sha、装出的内容逐字节等于 main HEAD）。依据与完整证据见 <https://github.com/suonian/ZWhyperframes-Harness/blob/main/docs/architecture/hf-contract-audit-2026-10-21.md>。
+上游的 `hyperframes skills update` 与 `npx skills add` **都不可用**（前者锁死上游 main 的实时 HEAD 且会移除已退役的 `faceless-explainer`，后者实测只认 sha、装出的内容仍等于 main HEAD）。取证见 <https://github.com/suonian/ZWhyperframes-Harness/blob/main/docs/architecture/hf-contract-audit-2026-10-21.md>。
 
 ## 如何开工生产
 
 ```bash
 # 开案：资料归档 + 锁定稿提取冻结 + 项目状态初始化
-node scripts/new-video.mjs init --project <产品项目目录> --source <资料包文件或目录>
+node scripts/new-video.mjs init --project <产品项目目录> --source <资料包文件或目录> --theme <preset>
 
 # 逐段：按分段计划执行官方 hyperframes init + 段骨架
 node scripts/new-video.mjs segment --project <产品项目目录> --plan <segment-plan.json> --id <NN>
@@ -189,4 +195,4 @@ node scripts/new-video.mjs segment --project <产品项目目录> --plan <segmen
 
 [Apache-2.0](https://github.com/suonian/ZWhyperframes-Harness/blob/main/LICENSE)，与上游一致，含显式专利授权。本仓库的 `LICENSE` 与 `NOTICE` 不随技能包分发——平台的技能包上传不接受无扩展名文件；完整许可证文本以上述链接为准。
 
-**非官方项目**：与 HeyGen 无隶属、赞助或背书关系；「HyperFrames」是 HeyGen, Inc. 的商标，本项目名称仅用于说明技术依赖关系，Apache-2.0 不授予商标使用权。详见 [DISCLAIMER.md](DISCLAIMER.md)。
+**非官方项目**：与 HeyGen 无隶属、赞助或背书关系；「HyperFrames」是 HeyGen, Inc. 的商标，本项目名称仅用于说明技术依赖关系，Apache-2.0 不授予商标使用权。详见 [DISCLAIMER.md](https://github.com/suonian/ZWhyperframes-Harness/blob/main/DISCLAIMER.md)。

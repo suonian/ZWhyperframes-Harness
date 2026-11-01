@@ -101,6 +101,9 @@ const CONTENT_EXCLUDE_FILES = new Set([
   "SECURITY.md", "SECURITY.en.md",
   "CODE_OF_CONDUCT.md", "CODE_OF_CONDUCT.en.md",
   "package-manifest.json",
+  // 免责声明（中文 + 英文镜像）：法律文本随仓库发布（LICENSE / NOTICE 仍在包内），
+  // 不为 460KB 硬线占用包体积；包内 SKILL.md 以 GitHub 绝对链接指向它。
+  "DISCLAIMER.md", "DISCLAIMER.en.md",
   // ── 为 package-lock.json 腾位置的排除项（0.2.10）──────────────────────────
   // 锁文件（约 94KB）必须入包；460KB 硬线要容下它，只能把「非生产运行时必需」的
   // 长文档移出包。取舍顺序由用户裁决：FAQ → walkthrough → preset（repo-only）→

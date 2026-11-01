@@ -29,7 +29,7 @@ import { parseCheckEnvelope, collectFindings, formatFindings } from "./lib/check
 import { writeMotionSpec } from "./lib/motion-spec.mjs";
 import { analyzeVideoPixels, evaluatePixelQuality } from "./lib/pixel-quality.mjs";
 import {
-  checkPaletteConfinement, checkFontSizeFloor, checkVoiceProfile,
+  checkPaletteConfinement, checkFontSizeFloor, checkVoiceProfile, checkDeclaredTheme, colorKeySet,
   readTtsManifests, readVoiceProfileTruth, readFrameColors, readTypographyPxTokens, MIN_TEXT_PX,
 } from "./lib/visual-baseline.mjs";
 
@@ -637,7 +637,7 @@ function runLayoutGuard() {
 //
 // 三条判定全部 fail-closed：证据缺失或无法判定 = 不通过。猜错等于把检查变成恒绿。
 async function runBaseline() {
-  const { segmentDir } = requireSegment();
+  const { projectRoot, segmentDir } = requireSegment();
   const framesDir = join(segmentDir, "compositions", "frames");
   const frameMdPath = join(segmentDir, "frame.md");
 
@@ -646,6 +646,27 @@ async function runBaseline() {
   }
   const frameMd = readFileSync(frameMdPath, "utf8");
   const declaredColors = await readFrameColors(frameMd);
+
+  // 主题：声明在 00-项目总控/visual.json；校验 frame.md 的 colors 键集合 == 声明指纹
+  //（--tokens 只改值不改键，故换色不误伤；换 preset 或手改键名会被拦）。
+  const themeViolations = [];
+  const declPath = join(projectRoot, "00-项目总控", "visual.json");
+  if (!existsSync(declPath)) {
+    themeViolations.push(
+      "项目未声明视觉主题（缺 00-项目总控/visual.json）：生产前必须 `new-video.mjs init --theme <preset>` 显式声明",
+    );
+  } else {
+    let decl = null;
+    try {
+      decl = JSON.parse(readFileSync(declPath, "utf8"));
+    } catch {
+      themeViolations.push("00-项目总控/visual.json 不可解析（重新声明主题）");
+    }
+    if (decl) {
+      const r = checkDeclaredTheme(decl.color_keys, frameMd);
+      for (const v of r.violations) themeViolations.push(`主题「${decl.theme ?? "未知"}」：${v}`);
+    }
+  }
 
   let width = 1920;
   try {
@@ -701,7 +722,7 @@ async function runBaseline() {
     }
   }
 
-  const all = [...baselineViolations, ...paletteViolations, ...fontViolations, ...voiceViolations];
+  const all = [...themeViolations, ...baselineViolations, ...paletteViolations, ...fontViolations, ...voiceViolations];
   if (all.length) {
     fail(
       `视觉基线不一致：\n${all.join("\n")}` +
@@ -710,8 +731,14 @@ async function runBaseline() {
   }
   const notes = [];
   if (fontExempt.length) notes.push(`${fontExempt.length} 处官方 chrome 令牌豁免`);
+  let themeName = "";
+  try {
+    themeName = JSON.parse(readFileSync(join(projectRoot, "00-项目总控", "visual.json"), "utf8")).theme ?? "";
+  } catch {
+    themeName = "";
+  }
   pass(
-    `视觉基线一致（色板 ${declaredColors.length} 键 / ${files.length} 帧未越界；` +
+    `视觉基线一致（主题 ${themeName || "?"} / 色板 ${declaredColors.length} 键 / ${files.length} 帧未越界；` +
     `字号 ≥${MIN_TEXT_PX}px @${width}；音色与真源一致${notes.length ? `；${notes.join("，")}` : ""}）`,
   );
 }

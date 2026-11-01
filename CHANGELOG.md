@@ -7,6 +7,26 @@
 
 > ⚠️ **HyperFrames 版本锁定**：`0.8.36`。升级不是版本号的改动，而是**合同审计**任务——官方 skill 内容随上游 commit 一并变动，而本仓规则直接引用其原文。
 
+## [0.2.11] — 2026-11-01
+
+**一行自举 + 主题须声明**：新增 `scripts/skill-ready.mjs`（自动定位 Git Bash → 幂等 bootstrap → 复检 → `READY/NOT_READY`），判定逻辑仍只在 `bootstrap.sh`；`new-video init --theme` 改为必填，声明写入 `00-项目总控/visual.json`，`gate baseline` 按色键指纹反查。
+
+### 新增
+- `scripts/skill-ready.mjs`（`--check-only` / `--doctor` / `--json`；`HARNESS_BASH` 可指定 bash）+ 3 例测试 + 命令契约 §0.1。
+
+### 新增（主题必须先声明）
+- `new-video.mjs init --theme <preset>` **必填**：缺省 exit 2 并列出可选主题（13 套官方 + 仓库 presets）。声明写入 `00-项目总控/visual.json`（preset id、来源 official/repo、`colors:` 键名指纹）。
+- `gate baseline` 增加主题校验：段内 `frame.md` 的 colors 键集合必须等于声明时的指纹（官方 `--tokens` 只改值不改键，故换色不误伤；换 preset 或手改键名当场 fail-closed）。
+- `tests/theme.test.mjs`（4 例）；规则归属 `docs/rules/visual-baseline.md` §2.1，`AGENTS.md` 与 `references/commands.md` 同步。
+
+### 变更
+- 版本 0.2.11；分发包 46 个文件（新增 skill-ready），请求体仍在 460KB 硬线内。
+- 英文免责声明镜像 `DISCLAIMER.en.md` 出包（仓库保留）：为新增脚本与门禁腾体积；包内 `SKILL.md` 只链接中文版 `DISCLAIMER.md`，不产生死链。
+- `README.package.md` 精简为分包边界说明（锁在包内；FAQ / walkthrough / preset 在 GitHub），为新增脚本腾体积。
+
+### 验证
+- 本地 `npm test` 136 例（135 pass / 0 fail / 1 skip：无 zsh）；`node scripts/skill-ready.mjs --check-only` → READY；坏 `HARNESS_BASH` → NOT_READY 并指明出口。
+
 ## [0.2.10] — 2026-11-01
 
 **A1 集成分支**：以 `v0.2.9`（`53c456c`）为主干，吸收 `feat/visual-baseline-and-windows-hardening` 的 Windows 平台修复、视觉基线门禁、成片质量门禁与全套测试，同时保留 main 的最终交付契约、frame 工具（`frame-guard` / `css-selector-audit`）与仓库内的 `creative-mode-zh` preset。**默认视觉基线 = 官方 `capsule` + `Noto Sans SC`；`creative-mode-zh` 为显式可选 preset，不再强制。** 只允许一套默认政策。

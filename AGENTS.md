@@ -56,6 +56,7 @@
 - 字幕要求不变：锁定稿逐字一致、标点语块切分、单行显示、无动效、仅当前行高亮；渲染永远走官方 captions。
 - 官方质量能力清单（`production-workflow-rules.md` §3）每支视频必须执行，机器命令可门禁。
 - API Key 只来自环境变量或 macOS Keychain，不入仓、不入日志。（Keychain 是 macOS 专有机制；Windows / Linux 只有环境变量一条路。**不引入第三种凭证形态**。）
+- **生产前必须声明视觉主题**（`new-video.mjs init --theme <preset>` → `00-项目总控/visual.json`）；`gate baseline` 按色键指纹反查段内 `frame.md` 是否同一套。主题与调色板默认绑定，`--tokens` 只换值不换键。
 - 修改规则/脚本/schema 后必须运行 `npm test`。
 
 ## 跨平台

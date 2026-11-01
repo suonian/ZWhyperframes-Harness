@@ -59,6 +59,12 @@ node <MEDIA_DIR>/scripts/prefs.mjs record --hyperframes . --key style_preset --v
 
 **音色记忆**：官方 `prefs.mjs --key voice` 记录的是 HeyGen/Kokoro 的 voice id；本项目用 MiniMax TTS，音色由 `VOICE_PROFILE` 固定（见 §3）——两者不冲突：官方 prefs 管「选哪个 voice id」，本仓管「MiniMax 的哪种音色」。
 
+### 2.1 主题必须先声明（0.2.11 起）
+
+公开项目、使用者各不相同，所以**每个项目在生产前必须显式声明主题**：`new-video.mjs init --theme <preset>`（必填；缺失 exit 2 并列出可选主题），声明写入 `00-项目总控/visual.json`（preset id、来源 official/repo、`colors:` 键名指纹）。
+
+`gate baseline` 按指纹反查段内 `frame.md`：键集合必须与声明一致，否则 fail-closed。官方 `--tokens` remix 只改值不改键，**在声明主题之上换色仍合法**；这条同时保证所有段同一主题（`frame.md` 是字幕 `:root` token 的唯一来源）。
+
 ## 3. 固定音色（默认值 + 可核验）
 
 音色参数**唯一真源**：`tools/minimax/scripts/minimax_tts.py` 的 `VOICE_PROFILE`。每次 TTS 产物的 `*.manifest.json` 内嵌 `voice_profile`，因此**音色可核验**：`gate.mjs baseline` 校验段内 manifest 与真源一致，不一致即阻断（音色漂移是用户可感知的质量事故）。换音色 = 用户明确指示 → 改 `VOICE_PROFILE` → 重新生成全部段语音，**不接受段级各自为政**。
