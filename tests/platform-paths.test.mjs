@@ -84,17 +84,50 @@ test("登录 shell 下 doctor.sh 必须跑完并给出官方 doctor 结论（不
 test("非登录 shell 下 doctor.sh 的结论与登录 shell 一致（路径形态不得依赖 shell 形态）", () => {
   const login = runBash("bash scripts/doctor.sh", { login: true });
   const plain = runBash("bash scripts/doctor.sh", { login: false });
+
+  /**
+   * 只比较**必需项结论**，不比对这些行的字节。
+   *
+   * 为什么不是整份输出逐字节比较（实测踩中）：可选工具那一行会带上工具自身的
+   * 绝对路径，而登录 shell 与非登录 shell 的 PATH 不同——
+   *   macOS 登录 shell：`[doctor] whisper-cpp —— $HOME/.local/bin/whisper-cli（可选…）`
+   *   macOS 非登录：    `[doctor] whisper-cpp —— /opt/homebrew/bin/whisper-cli（可选…）`
+   * 那是**可选依赖的展示差异**，不是本用例要锁的路径形态缺陷；逐字节比会让
+   * 「装了 whisper-cpp 的 macOS 开发机」永远红，而 CI runner 没装它所以是绿的。
+   *
+   * 同时把行内路径归一化成 `<path>`：`MiniMax Python 环境可用（/opt/homebrew/bin/python3）`
+   * 这类必需项也会因为两个 shell 的 PATH 不同而不同，但 `✓/✗` 结论必须一致。
+   *
+   * 真正要挡的回归没有被削弱：路径形态一旦退化，官方 doctor 的整份结论会丢失
+   * （`✗ 官方 doctor 输出无法取得`），或必需项由 ✓ 翻成 ✗ —— 那会直接改掉
+   * 这一行或让它消失，比对当场变红。
+   */
+  const OPTIONAL_MARKER = "（可选，不影响本仓生产）";
+  const stripPaths = (line) =>
+    line
+      .replace(/[A-Za-z]:[\\/][^\s）)]*/gu, "<path>")
+      .replace(/(?:\$HOME|~)?\/[\w.\-+@/]+/gu, "<path>");
   const norm = (text) =>
     String(text ?? "")
       .split(/\r?\n/u)
       .map((line) => line.trim())
       .filter((line) => line.startsWith("[doctor]"))
+      // 可选工具（Version / whisper-cpp / TTS / BGM / Docker）的结论不属生产主链，
+      // 且其展示里带工具自身路径——整行剔除，避免拿环境差异当回归。
+      .filter((line) => !line.includes(OPTIONAL_MARKER))
+      .map(stripPaths)
       .join("\n");
+
+  const loginNorm = norm(login.stdout);
+  const plainNorm = norm(plain.stdout);
   assert.equal(
-    norm(login.stdout),
-    norm(plain.stdout),
-    "登录/非登录 shell 的 doctor 结论不一致——说明有路径形态依赖 shell 形态",
+    loginNorm,
+    plainNorm,
+    "登录/非登录 shell 的 doctor 必需项结论不一致——说明有路径形态依赖 shell 形态",
   );
+  // 两边的必需项结论不能是空的：空对空会让上面的断言恒真（假绿）。
+  assert.match(loginNorm, /\[doctor\] [✓✗]/u, `登录 shell 没有产出任何必需项判定行：\n${login.stdout}`);
+  assert.match(plainNorm, /\[doctor\] [✓✗]/u, `非登录 shell 没有产出任何必需项判定行：\n${plain.stdout}`);
 });
 
 test("登录 shell 下 install-skill.sh 必须安装成功", () => {
