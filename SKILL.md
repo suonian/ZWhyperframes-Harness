@@ -1,7 +1,7 @@
 ---
 name: zwhyperframes-harness
 slug: zwhyperframes-harness
-version: 0.2.10
+version: 0.2.11
 displayName: HyperFrames Harness — 中文知识视频生产门禁
 summary: 用 HyperFrames 生产中文无真人出镜知识视频的规则与门禁层：锁定稿、TTS/字幕哈希绑定、final-look 前置检查、master 审批；不重写官方能力。
 description: 当用户要用 HyperFrames 制作中文无真人出镜知识视频、要求锁定口播稿/字幕逐字一致/生产可复现，或需要排查 HyperFrames 生产门禁时使用；它把官方 Step 0–6 与质量能力变成 fail-closed 规则，不重写官方能力。
@@ -123,13 +123,19 @@ node scripts/build-skill-package.mjs --root . --out <产物目录>
 
 ## 快速开始
 
-技能包**不含 `node_modules`**（平台打包排除），故须先自举：
+技能包**不含 `node_modules` 与 `vendor/`**（平台打包排除）。加载技能后**先跑这一条**——它自动定位 Git Bash、按锁定版本自举、并给出 READY/NOT_READY：
+
+```bash
+node scripts/skill-ready.mjs   # 唯一准备入口；--check-only 只检查，--doctor 连体检
+```
+
+`READY` 后即可生产；`source ./hf-env.sh` 仅在使用 `hf` 命令时需要。仓库内另有完整自举与回归：
 
 ```bash
 npm run bootstrap    # 安装锁定依赖 + 校验 HF 版本 + 按锁定 commit 取回官方 skills（需联网）
 npm run doctor       # 环境体检
 source ./hf-env.sh   # 生产环境入口——必须在 bootstrap 之后，否则报「HF CLI 缺失或版本不符」
-npm test             # 133 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
+npm test             # 136 项测试，全部离线可跑（仅仓库；分发包不含 tests/）
 ```
 
 **官方 skills 按锁定 commit 取回，不拉上游实时产物。** `bootstrap.sh` 用 git 按 `v0.8.36` 的 commit `f86aae6` 取回官方 `skills/` 到 `vendor/skills/`，对本仓实际引用的 13 个官方产物逐项 fail-closed 校验（缺失即报错），再软链到 `~/.agents/skills`、`~/.claude/skills`、`~/.config/opencode/skills`。

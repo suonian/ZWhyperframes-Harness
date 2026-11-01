@@ -13,6 +13,17 @@
 | 输出前缀 | 门禁与状态脚本以 `[gate]` / `[state]` 开头；脚手架与状态脚本的正文另有各自标注。**前缀不是稳定契约**，判定成败请看退出码 |
 | 授权 | 只能由 `state.mjs approve/master` 写入；`actor` 固定 `user`，必须有非空 `evidence` |
 
+### 0.1 `skill-ready.mjs`（准备入口，加载技能后先跑这一条）
+
+```bash
+node scripts/skill-ready.mjs            # 自动定位 bash → 幂等 bootstrap → 复检
+node scripts/skill-ready.mjs --check-only   # 只检查不修（只读、快）
+node scripts/skill-ready.mjs --doctor       # 复检后连 doctor.sh 一起跑
+node scripts/skill-ready.mjs --json         # 机读输出
+```
+
+成功：`结论 : READY` + exit 0（含 CLI 版本与 vendor commit）；失败：exit 1 并逐项给 `✗` 原因。它**不复制** `bootstrap.sh` 的校验逻辑——版本/skills/产物/哈希的 fail-closed 判定仍只在 `bootstrap.sh` 里。
+
 ## 1. `new-video.mjs`
 
 ### `init`

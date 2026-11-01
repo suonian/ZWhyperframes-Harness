@@ -9,6 +9,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 > The files under `docs/rules/` referenced below are maintained in **Chinese only**; Chinese is authoritative for their normative requirements.
 
+## [0.2.11] — 2026-11-01
+
+**One-command provisioning**: new `scripts/skill-ready.mjs` — after loading the skill, one command locates a usable bash (on Windows only Git Bash/MSYS; the WSL stub is rejected, and non-default install drives are found via the registry), runs the idempotent bootstrap, then re-checks the CLI and vendor and prints `READY / NOT_READY`. No duplicated verdict logic: version, skills, artifacts and content-hash fail-closed checks still live only in `bootstrap.sh`.
+
+### Added
+- `scripts/skill-ready.mjs`: `--check-only` (inspect only), `--doctor` (also run doctor), `--json`; `HARNESS_BASH` overrides bash discovery; exit 0=READY / 1=NOT_READY.
+- `tests/skill-ready.test.mjs` (3 cases): JSON contract and exit-code agreement, bad bash must fail closed, missing vendor must be NOT_READY.
+- `references/commands.md` §0.1 documents the command; `SKILL.md` quick start now begins with it.
+
+### Changed
+- Version 0.2.11; the package ships 46 files (the new script), request body still under the 460KB hard limit.
+- `README.package.md` slimmed to the distribution boundary (lock ships; FAQ / walkthrough / preset live on GitHub) to make room for the new script.
+
+### Verification
+- Local `npm test`: 136 cases (135 pass / 0 fail / 1 skip — no zsh); `node scripts/skill-ready.mjs --check-only` → READY; a bogus `HARNESS_BASH` → NOT_READY with the actionable hint.
+
 ## [0.2.10] — 2026-11-01
 
 **A1 integration branch**: `v0.2.9` (`53c456c`) as the trunk, absorbing the Windows platform fixes, visual-baseline gates, output-quality gates and the full test suite from `feat/visual-baseline-and-windows-hardening`, while keeping main's final-delivery contract, the frame tools (`frame-guard` / `css-selector-audit`) and the in-repo `creative-mode-zh` preset. **Default visual baseline = official `capsule` + `Noto Sans SC`; `creative-mode-zh` is an explicitly-selectable optional preset, no longer mandatory.** Exactly one default policy is allowed.

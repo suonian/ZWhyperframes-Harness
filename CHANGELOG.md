@@ -7,6 +7,21 @@
 
 > ⚠️ **HyperFrames 版本锁定**：`0.8.36`。升级不是版本号的改动，而是**合同审计**任务——官方 skill 内容随上游 commit 一并变动，而本仓规则直接引用其原文。
 
+## [0.2.11] — 2026-11-01
+
+**一行自举入口**：新增 `scripts/skill-ready.mjs`——加载技能后一条命令完成准备：自动定位可用 bash（Windows 只认 Git Bash/MSYS，拒收 WSL 存根；非默认盘靠注册表）→ 幂等 bootstrap → 复检 CLI 与 vendor → `READY / NOT_READY`。判定逻辑不复制，仍只在 `bootstrap.sh` 里。
+
+### 新增
+- `scripts/skill-ready.mjs`：`--check-only`（只检查）、`--doctor`（连体检）、`--json`（机读）；`HARNESS_BASH` 可显式指定 bash；退出码 0=READY / 1=NOT_READY。
+- `tests/skill-ready.test.mjs`（3 例）+ `references/commands.md` §0.1 + `SKILL.md` 快速开始改为先跑这一条。
+
+### 变更
+- 版本 0.2.11；分发包 46 个文件（新增该脚本），请求体仍在 460KB 硬线内。
+- `README.package.md` 精简为分包边界说明（锁在包内；FAQ / walkthrough / preset 在 GitHub），为新增脚本腾体积。
+
+### 验证
+- 本地 `npm test` 136 例（135 pass / 0 fail / 1 skip：无 zsh）；`node scripts/skill-ready.mjs --check-only` → READY；坏 `HARNESS_BASH` → NOT_READY 并指明出口。
+
 ## [0.2.10] — 2026-11-01
 
 **A1 集成分支**：以 `v0.2.9`（`53c456c`）为主干，吸收 `feat/visual-baseline-and-windows-hardening` 的 Windows 平台修复、视觉基线门禁、成片质量门禁与全套测试，同时保留 main 的最终交付契约、frame 工具（`frame-guard` / `css-selector-audit`）与仓库内的 `creative-mode-zh` preset。**默认视觉基线 = 官方 `capsule` + `Noto Sans SC`；`creative-mode-zh` 为显式可选 preset，不再强制。** 只允许一套默认政策。
