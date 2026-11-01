@@ -15,11 +15,23 @@
 //      写的 14px 正文标签蒙混过关。
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   checkPaletteConfinement, checkFontSizeFloor, checkVoiceProfile,
   readTypographyPxTokens, resolveChromePx, sameColor, normalizeColor,
   parseFontSizePx, MIN_TEXT_PX,
 } from "../scripts/lib/visual-baseline.mjs";
+
+// 色板判定要 import **官方** `faceless-explainer/scripts/lib/tokens.mjs`（vendor/skills，
+// 由 bootstrap 按锁定 commit 取回）。CI 的 windows-smoke 刻意不跑 bootstrap，
+// 那里没有官方产物——依赖官方 skill 的用例必须跳过并写明原因，而不是判失败。
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const OFFICIAL_TOKENS = join(REPO_ROOT, "vendor", "skills", "faceless-explainer", "scripts", "lib", "tokens.mjs");
+const NO_VENDOR_REASON = existsSync(OFFICIAL_TOKENS)
+  ? false
+  : "需要官方 faceless-explainer skill（先运行 npm run bootstrap）";
 
 // 官方 `capsule` preset 的 colors 块（vendor/skills/hyperframes-creative/frame-presets/capsule/FRAME.md）。
 // 与本项目交付段的 frame.md 完全一致——交付段是官方 capsule 的 CJK remix。
@@ -69,7 +81,7 @@ test("色板比较：颜色归一化能吃 hex/rgba 各种写法", () => {
 
 // ── 色板越界（判别力双对照）────────────────────────────────────────────────────
 
-test("色板越界：官方 preset 风格的帧必须 PASS（不误伤）", async () => {
+test("色板越界：官方 preset 风格的帧必须 PASS（不误伤）", { skip: NO_VENDOR_REASON }, async () => {
   const html = `
     <div style="background: #F5F5F0; color: #1A1A1A;">
       <h1 style="color: #E85D4E; font-size: 120px;">标题</h1>
@@ -80,7 +92,7 @@ test("色板越界：官方 preset 风格的帧必须 PASS（不误伤）", asyn
   assert.equal(result.ok, true, `官方风格帧被误判越界：${result.violations.join(" / ")}`);
 });
 
-test("色板越界：worker 自造的颜色必须 FAIL（判别力）", async () => {
+test("色板越界：worker 自造的颜色必须 FAIL（判别力）", { skip: NO_VENDOR_REASON }, async () => {
   const html = `<div style="color: #FF00AA; font-size: 40px;">自造色</div>`;
   const result = await checkPaletteConfinement(CAPSULE_FRAME_MD, html);
   assert.equal(result.ok, false, "自造色 #FF00AA 竟然通过了色板检查——门禁恒绿");

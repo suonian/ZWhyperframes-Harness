@@ -34,6 +34,13 @@ import {
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LOADER = join(REPO_ROOT, "vendor", "skills", "hyperframes-animation", "scripts", "package-loader.mjs");
+// vendor/skills 由 bootstrap 按锁定 commit 取回。CI 的 windows-smoke 刻意**不**跑
+// bootstrap（它只验 Node / 测试 / Git Bash 边界），此时官方产物不存在——
+// 依赖官方 skill 的用例必须**跳过**并写明原因，而不是把「没取回」当成失败
+// （那会让 smoke job 永远红，也会掩盖真正的缺陷）。
+const NO_VENDOR_REASON = existsSync(LOADER)
+  ? false
+  : "需要官方 hyperframes-animation skill（先运行 npm run bootstrap）";
 
 /** 直接调用**官方**的版本推断函数，看它在本仓布局下会给出什么。 */
 function officialSpec(env) {
@@ -51,7 +58,7 @@ function officialSpec(env) {
   return { stdout: (r.stdout ?? "").trim(), stderr: (r.stderr ?? "").trim() };
 }
 
-test("官方 loader 在本仓布局下确实会退回 @latest（危险真实存在）", () => {
+test("官方 loader 在本仓布局下确实会退回 @latest（危险真实存在）", { skip: NO_VENDOR_REASON }, () => {
   const result = officialSpec({ HYPERFRAMES_SKILL_PKG_VERSION: "" });
   assert.ok(result, "vendor/skills 未取回，本用例无法判定");
   assert.equal(result.error, undefined, `官方 loader 导入失败：${result.error}`);
@@ -63,7 +70,7 @@ test("官方 loader 在本仓布局下确实会退回 @latest（危险真实存�
   assert.match(result.stderr, /using @latest/u, "官方 loader 应打印 @latest 退路提示");
 });
 
-test("官方 loader 在 HYPERFRAMES_SKILL_PKG_VERSION 钉死后必须给出精确版本", () => {
+test("官方 loader 在 HYPERFRAMES_SKILL_PKG_VERSION 钉死后必须给出精确版本", { skip: NO_VENDOR_REASON }, () => {
   const result = officialSpec({ HYPERFRAMES_SKILL_PKG_VERSION: OFFICIAL_SKILL_PKG_VERSION });
   assert.ok(result, "vendor/skills 未取回，本用例无法判定");
   assert.equal(result.error, undefined, `官方 loader 导入失败：${result.error}`);
